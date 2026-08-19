@@ -213,9 +213,8 @@ async function handlePush(req, env, n) {
   if (!known.has(b.device_token)) {
     return json({ error: 'device not registered in your namespace' }, 403);
   }
-  const host = APNS_HOSTS[b.environment] || APNS_HOSTS.production;
-  try {
-    const resp = await fetch(`${host}/3/device/${b.device_token}`, {
+  const send = async (envName) =>
+    fetch(`${APNS_HOSTS[envName]}/3/device/${b.device_token}`, {
       method: 'POST',
       headers: {
         authorization: `bearer ${await apnsJwt(env)}`,
@@ -225,10 +224,75 @@ async function handlePush(req, env, n) {
       },
       body: JSON.stringify(b.payload),
     });
-    return json({ status: resp.status, body: await resp.text() });
+  try {
+    // 双环境兜底:Xcode 直装的设备是 sandbox token,TestFlight/App Store
+    // 是 production;发错环境 APNs 返 400 BadDeviceToken,换边重试。
+    let envName = APNS_HOSTS[b.environment] ? b.environment : 'production';
+    let resp = await send(envName);
+    let text = await resp.text();
+    if (resp.status === 400 && text.includes('BadDeviceToken')) {
+      resp = await send(envName === 'production' ? 'sandbox' : 'production');
+      text = await resp.text();
+    }
+    return json({ status: resp.status, body: text });
   } catch (e) {
     return json({ status: 0, body: String(e) });
   }
+}
+
+// ---------- App Review 演示租户 ----------
+
+const demoNs = async (env) =>
+  env.DEMO_SECRET ? 'u/' + (await sha256hex(env.DEMO_SECRET)).slice(0, 16) : null;
+
+/// 往 demo 命名空间写一组"活的"模拟任务:状态按 5 分钟相位轮转,
+/// 计时器起点每次重算,审核员任何时候打开 App 都像正撞上一场真实工作。
+async function seedDemo(env) {
+  const n = await demoNs(env);
+  if (!n) return;
+  const now = Math.floor(Date.now() / 1000);
+  const phase = Math.floor(now / 300) % 2;
+  const mbp = {
+    host: 'MacBook Pro', ts: now, awake: true, hook_v: 'demo',
+    projects: ['/Users/demo/checkout', '/Users/demo/web-app'],
+    sessions: {
+      'demo-checkout': {
+        status: phase === 0 ? 'waiting' : 'running', since: now - (phase === 0 ? 95 : 340),
+        project: 'checkout', detail: phase === 0 ? '等待你确认数据库迁移方案' : '正在重构支付回调',
+        agents: 0, cwd: '/Users/demo/checkout',
+      },
+      'demo-web': {
+        status: 'running', since: now - 820,
+        project: 'web-app', detail: '按设计稿实现结算页,新增 12 个组件',
+        agents: 2, cwd: '/Users/demo/web-app',
+      },
+    },
+    usage: {
+      today_out: 1.8e6, week_out: 2.4e7, official_total_pct: 34,
+      reset_ts: now + 3.2 * 86400,
+      week_fable: 5.6e6, official_pct: 41, premium_name: 'Fable',
+    },
+  };
+  const studio = {
+    host: 'Mac Studio', ts: now, awake: false, hook_v: 'demo',
+    projects: ['/Users/demo/docs-site'],
+    sessions: {
+      'demo-docs': {
+        status: 'done', since: now - 150,
+        project: 'docs-site', detail: '部署完成:38 个页面全部通过校验',
+        agents: 0, cwd: '/Users/demo/docs-site',
+      },
+    },
+  };
+  await kvPut(env, n, 'state/' + encodeURIComponent(mbp.host), JSON.stringify(mbp));
+  await kvPut(env, n, 'state/' + encodeURIComponent(studio.host), JSON.stringify(studio));
+  await kvPut(env, n, 'capture/demo-checkout',
+    ['$ claude "迁移 orders 表到新 schema"', '',
+     '⏺ 分析了 14 个引用点,迁移脚本已生成:',
+     '  migrations/2026_08_orders_v2.sql', '',
+     '  执行前需要你确认:线上表有 210 万行,',
+     '  预计锁表 40 秒。现在执行还是等低峰?', '',
+     '❯ 待输入…'].join('\n'));
 }
 
 // ---------- onboarding ----------
@@ -237,6 +301,15 @@ async function handleSignup(req, env, url) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   const b = await readBody(req);
   const invite = (b.invite || '').trim();
+  // App Review 演示租户:专用邀请码进入预置了模拟数据的固定命名空间,
+  // 不产生新租户。数据由 seedDemo 维持新鲜。
+  if (env.REVIEW_CODE && env.DEMO_SECRET && invite === env.REVIEW_CODE) {
+    await seedDemo(env);
+    return json({
+      pairing_code: btoa(JSON.stringify({ u: url.origin, s: env.DEMO_SECRET })),
+      demo: true,
+    });
+  }
   if (!env.INVITE_CODE || invite !== env.INVITE_CODE) {
     return json({ error: 'bad invite code' }, 403);
   }
@@ -288,6 +361,10 @@ export default {
     if (path.startsWith('/api/')) {
       const n = await ns(req);
       if (!n) return json({ error: 'unauthorized' }, 401);
+      // 演示租户读状态时懒播种:即使 cron 停了,审核员看到的也永远新鲜。
+      if (path === '/api/state' && req.method === 'GET' && n === await demoNs(env)) {
+        await seedDemo(env);
+      }
       if (path === '/api/token') return handleToken(req, env, n);
       if (path === '/api/state') return handleState(req, env, n);
       if (path === '/api/command') return handleCommand(req, env, n, url);
@@ -297,5 +374,10 @@ export default {
       return json({ error: 'not found' }, 404);
     }
     return env.ASSETS.fetch(req);
+  },
+
+  // 每 5 分钟刷新演示租户,保证锁屏/面板计时和状态轮转是"活"的。
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(seedDemo(env));
   },
 };

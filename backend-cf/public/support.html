@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>支持 — SessionBell</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
+<style>
+:root{--ground:#0B0E14;--ink:#F2F3F7;--muted:#8A90A0;--line:rgba(255,255,255,.09);--accent:#F5B84A;--card:#10141D}
+*{box-sizing:border-box;margin:0}
+body{background:var(--ground);color:var(--ink);line-height:1.85;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+main{max-width:720px;margin:0 auto;padding:56px 24px 96px}
+a{color:var(--accent);text-decoration:none}
+.crumb{font-size:13px;color:var(--muted);margin-bottom:28px}
+.crumb a{color:var(--muted)}
+h1{font-size:30px;letter-spacing:-.015em;margin-bottom:36px}
+.faq{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 24px;margin:14px 0}
+.faq h3{font-size:16px;margin-bottom:6px}
+.faq p{font-size:14.5px;color:#C9CDD6}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.88em;
+  background:rgba(255,255,255,.07);border-radius:6px;padding:.1em .45em}
+.contact{margin-top:40px;font-size:15px;color:#C9CDD6}
+</style>
+</head>
+<body>
+<main>
+<p class="crumb"><a href="/">🔔 SessionBell</a> / 支持</p>
+<h1>支持</h1>
+
+<div class="faq"><h3>怎么开始用?</h3>
+<p>见首页的<a href="/">上手指南</a>:手机装 App 输邀请码,Mac 装 pkg 跑 <code>sessionbell pair</code>,共四步。邀请码问邀请你的人要。</p></div>
+
+<div class="faq"><h3>App 里看不到任务 / 显示连不上?</h3>
+<p>打开 设置 → 接入 → <b>测试连接</b>。绿色 ✅ 说明手机侧正常,问题在 Mac:确认 pkg 装过、配对命令跑过、Mac 弹出的权限框都点了允许。红色 ❌ 会写明原因,把它截图发给我们即可。</p></div>
+
+<div class="faq"><h3>锁屏卡片不出现?</h3>
+<p>iOS 对锁屏卡有系统级频率限制,短时间反复测试会被静默丢弃。打开 App → 设置 → <b>唤起锁屏面板</b>手动拉起,之后它会随任务自动更新。</p></div>
+
+<div class="faq"><h3>通知太吵 / 收不到?</h3>
+<p>SessionBell 有空闲检测:你在 Mac 前打字时不会推送。收不到时检查 iPhone 设置 → 通知 → SessionBell 已允许,且没开专注模式拦截。</p></div>
+
+<div class="faq"><h3>想自己部署后端?</h3>
+<p>完全支持。项目 MIT 开源,后端是一个 Cloudflare Worker,一条命令部署:见 <a href="https://github.com/westie-ai/session-bell">GitHub 仓库</a>的 Self-hosted 一节。</p></div>
+
+<div class="faq"><h3>怎么删除我的数据?</h3>
+<p>发邮件告诉我们你的配对码前 8 位(或直接换个说法描述你是谁),我们清空对应命名空间。详见<a href="/privacy">隐私政策</a>。</p></div>
+
+<p class="contact">没解决?邮件 <a href="mailto:begin1314@gmail.com">begin1314@gmail.com</a>,或在 <a href="https://github.com/westie-ai/session-bell/issues">GitHub Issues</a> 提问(中英文都行)。</p>
+</main>
+</body>
+</html>

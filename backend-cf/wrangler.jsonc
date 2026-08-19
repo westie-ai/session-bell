@@ -4,6 +4,7 @@
   "compatibility_date": "2026-08-01",
   "account_id": "6d26ebce69367b06e6c691ba627a26aa",
   "assets": { "directory": "./public", "binding": "ASSETS" },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "observability": { "enabled": true },
   "routes": [{ "pattern": "sessionbell.westie.ai", "custom_domain": true }],
   "d1_databases": [

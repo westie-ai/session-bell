@@ -8,7 +8,7 @@ struct ContentView: View {
     @State private var localTestResult = ""
 
     @State private var navPath = NavigationPath()
-    @State private var selectedTab = 0
+    @AppStorage("sb.tab") private var selectedTab = 0
     @AppStorage("sb.onboarded") private var onboarded = false
     @State private var showOnboarding = false
 

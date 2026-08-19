@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐私政策 — SessionBell</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
+<style>
+:root{--ground:#0B0E14;--ink:#F2F3F7;--muted:#8A90A0;--line:rgba(255,255,255,.09);--accent:#F5B84A}
+*{box-sizing:border-box;margin:0}
+body{background:var(--ground);color:var(--ink);line-height:1.85;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+main{max-width:720px;margin:0 auto;padding:56px 24px 96px}
+a{color:var(--accent);text-decoration:none}
+.crumb{font-size:13px;color:var(--muted);margin-bottom:28px}
+.crumb a{color:var(--muted)}
+h1{font-size:30px;letter-spacing:-.015em;margin-bottom:6px}
+.date{font-size:13px;color:var(--muted);margin-bottom:36px}
+h2{font-size:19px;margin:36px 0 10px;letter-spacing:-.01em}
+p,li{font-size:15px;color:#C9CDD6}
+ul{padding-left:1.3em;margin:8px 0}
+li{margin:5px 0}
+b{color:var(--ink)}
+.en{border-top:1px solid var(--line);margin-top:52px;padding-top:36px}
+.en h2,.en h1{font-size:17px}
+.en p{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<p class="crumb"><a href="/">🔔 SessionBell</a> / 隐私政策</p>
+<h1>隐私政策</h1>
+<p class="date">生效日期:2026 年 8 月 19 日</p>
+
+<p>SessionBell 把你 Mac 上本地编程 agent 的工作状态送到你自己的 iPhone 上。我们的原则很简单:<b>只传送让这件事成立的最少信息,不碰其他任何东西</b>。SessionBell 是 MIT 开源项目,本页描述的每一条都可以在 <a href="https://github.com/westie-ai/session-bell">源码</a>里验证;不信任托管服务的用户可以完全自托管。</p>
+
+<h2>我们收集什么</h2>
+<ul>
+  <li><b>任务状态</b>:项目文件夹名、电脑名称、session 状态(运行/等待/完成)、任务摘要(提示词与结果的截断摘要)。</li>
+  <li><b>用量数据</b>:你的 agent 订阅额度百分比(只有比例,没有内容)。</li>
+  <li><b>终端片段</b>:仅当你在手机上主动打开「终端模式」时,才回传该终端的屏幕文本;不开就永远不传。</li>
+  <li><b>推送令牌</b>:Apple 推送(APNs)的设备令牌,用于把通知送到你的手机。</li>
+</ul>
+<p>我们<b>不收集</b>:姓名、邮箱、手机号、通讯录、位置、照片、浏览记录、源代码文件。没有广告、没有追踪、没有第三方分析 SDK。注册只需要邀请码,账号本身是匿名的。</p>
+
+<h2>数据存在哪、谁能看到</h2>
+<ul>
+  <li>数据存储在 Cloudflare(Workers + D1),全程 TLS 加密传输。</li>
+  <li>每个用户是一个独立命名空间(密钥哈希派生),<b>租户之间物理隔离</b>;服务器不存明文密钥。</li>
+  <li>推送经由 Apple APNs 送达。除 Cloudflare 与 Apple 之外,数据不经过任何第三方,<b>永不出售、永不用于广告</b>。</li>
+  <li>运维人员不查看用户数据,除非你主动请求技术支持或法律要求。</li>
+</ul>
+
+<h2>保留与删除</h2>
+<ul>
+  <li>状态数据被持续覆盖,只保留最新快照;不存在历史行为档案。</li>
+  <li>停止使用后数据自然沉寂;写邮件给我们即可彻底清除你的命名空间。</li>
+  <li>自托管用户的数据在自己的 Cloudflare 账号里,与我们无关。</li>
+</ul>
+
+<h2>儿童</h2>
+<p>SessionBell 是开发者工具,不面向 13 岁以下儿童。</p>
+
+<h2>变更与联系</h2>
+<p>政策变更会更新本页并调整生效日期。任何疑问:<a href="mailto:begin1314@gmail.com">begin1314@gmail.com</a></p>
+
+<div class="en">
+<h1>Privacy Policy (English summary)</h1>
+<p>SessionBell relays the working state of local coding agents on your Mac to your own iPhone. We collect only what makes that possible: project folder names, machine names, session status and truncated task summaries, subscription-usage percentages, APNs push tokens, and — only while you actively use the phone terminal — that terminal's on-screen text. We collect no name, email, contacts, location, or source files; no ads, no tracking, no analytics SDKs. Accounts are anonymous (invite-code based). Data is stored on Cloudflare (Workers + D1), TLS-encrypted in transit, physically isolated per tenant via secret-hash namespaces, and continuously overwritten — only the latest snapshot is kept. It is never sold and never leaves Cloudflare/Apple infrastructure. Email <a href="mailto:begin1314@gmail.com">begin1314@gmail.com</a> to have your namespace wiped. SessionBell is MIT-licensed open source — every claim here can be verified in the <a href="https://github.com/westie-ai/session-bell">code</a>, and self-hosting is fully supported.</p>
+</div>
+</main>
+</body>
+</html>

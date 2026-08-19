@@ -27,6 +27,8 @@ targets:
       path: SessionBell/Info.plist
       properties:
         UILaunchScreen: {}
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -60,6 +62,8 @@ targets:
     info:
       path: SessionBellWidgets/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: SessionBell
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
