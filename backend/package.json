@@ -1,0 +1,8 @@
+{
+  "name": "sessionbell-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "^0.27.0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "sessionbell-api",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-01",
+  "account_id": "6d26ebce69367b06e6c691ba627a26aa",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "sessionbell.westie.ai", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sessionbell",
+      "database_id": "b4f4ff7d-6ba6-4ac1-ae6e-a6d6ce262c14"
+    }
+  ]
+  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, INVITE_CODE
+  //
+  // westie.ai 切换(等 Coffin 给 piper 开 Workers 权限后):
+  //   account_id -> 6d26ebce69367b06e6c691ba627a26aa
+  //   routes     -> [{ "pattern": "sessionbell.westie.ai", "custom_domain": true }]
+  //   d1 重建于该账号 + 四个 secret 重新 put + deploy
+}

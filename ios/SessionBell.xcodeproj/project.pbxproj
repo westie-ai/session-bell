@@ -1,0 +1,500 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
+		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
+		3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
+		608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
+		6B97A815BD156726B29C451F /* SessionBellWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		721778149B63D94120835CD8 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3FEDCE86DCEA60048F5354 /* EventStore.swift */; };
+		84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
+		97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */; };
+		A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30D020BC225547233474D41 /* SessionBellWidgets.swift */; };
+		C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4311A1BB8C2640EC4F314F5C /* ContentView.swift */; };
+		C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */; };
+		D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BBA96AA6001059FA2279F3E1 /* Assets.xcassets */; };
+		DA4F7919CAA57C5154D5BCD9 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
+		DF267A466DB309DC4DF7E41D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87226E0B3CA9084D522406BA /* AppDelegate.swift */; };
+		E56FBBE5FDF669C9EEBB395A /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */; };
+		FFB63F2543A97D8D6571FDF6 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8E293B3D1F00243A36E9EF /* Models.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D8099217A01013CE4A655CA2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6892B6B7797B08E83F538D93 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1F3E596A355708DE9968C54E;
+			remoteInfo = SessionBellWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AA9AFADA1E97950A10665772 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				6B97A815BD156726B29C451F /* SessionBellWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
+		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
+		348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SessionBell.entitlements; sourceTree = "<group>"; };
+		4311A1BB8C2640EC4F314F5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		4B3FEDCE86DCEA60048F5354 /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
+		4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionActivityAttributes.swift; sourceTree = "<group>"; };
+		531CEC62084CC800752D26A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SessionBellWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellApp.swift; sourceTree = "<group>"; };
+		87226E0B3CA9084D522406BA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A48AAD4446927227AC1392AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AD76974BED54CC776F7A6263 /* SessionBell.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SessionBell.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BBA96AA6001059FA2279F3E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E30D020BC225547233474D41 /* SessionBellWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellWidgets.swift; sourceTree = "<group>"; };
+		E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
+		EE8E293B3D1F00243A36E9EF /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3AE68349A275F065908A4694 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AD76974BED54CC776F7A6263 /* SessionBell.app */,
+				766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8F8BD2AC3AAE620FB227ABA1 = {
+			isa = PBXGroup;
+			children = (
+				BA5050CD55079163E1A582BD /* SessionBell */,
+				CE5C620D0E175E58E9721F65 /* SessionBellWidgets */,
+				C5BDA1F4F64A4AC6B865937B /* Shared */,
+				3AE68349A275F065908A4694 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BA5050CD55079163E1A582BD /* SessionBell */ = {
+			isa = PBXGroup;
+			children = (
+				87226E0B3CA9084D522406BA /* AppDelegate.swift */,
+				BBA96AA6001059FA2279F3E1 /* Assets.xcassets */,
+				4311A1BB8C2640EC4F314F5C /* ContentView.swift */,
+				4B3FEDCE86DCEA60048F5354 /* EventStore.swift */,
+				A48AAD4446927227AC1392AB /* Info.plist */,
+				4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */,
+				E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */,
+				EE8E293B3D1F00243A36E9EF /* Models.swift */,
+				348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */,
+				7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */,
+			);
+			path = SessionBell;
+			sourceTree = "<group>";
+		};
+		C5BDA1F4F64A4AC6B865937B /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */,
+				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
+				4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		CE5C620D0E175E58E9721F65 /* SessionBellWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				531CEC62084CC800752D26A4 /* Info.plist */,
+				E30D020BC225547233474D41 /* SessionBellWidgets.swift */,
+			);
+			path = SessionBellWidgets;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1F3E596A355708DE9968C54E /* SessionBellWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3B7124E72AB3E4054AEDDE33 /* Build configuration list for PBXNativeTarget "SessionBellWidgets" */;
+			buildPhases = (
+				790FE7E55295107BBECEA4D9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SessionBellWidgets;
+			packageProductDependencies = (
+			);
+			productName = SessionBellWidgets;
+			productReference = 766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		961754A823DF53CDB9AF0007 /* SessionBell */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2318781037EBF82DCE9A213 /* Build configuration list for PBXNativeTarget "SessionBell" */;
+			buildPhases = (
+				99DC774FA46E43B98B9F5A85 /* Sources */,
+				2E667F4F0EC99A433297E8E4 /* Resources */,
+				AA9AFADA1E97950A10665772 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				507915276386EB59F354F41B /* PBXTargetDependency */,
+			);
+			name = SessionBell;
+			packageProductDependencies = (
+			);
+			productName = SessionBell;
+			productReference = AD76974BED54CC776F7A6263 /* SessionBell.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6892B6B7797B08E83F538D93 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1F3E596A355708DE9968C54E = {
+						DevelopmentTeam = 27Z3Z38H3M;
+						ProvisioningStyle = Automatic;
+					};
+					961754A823DF53CDB9AF0007 = {
+						DevelopmentTeam = 27Z3Z38H3M;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 4BEA6245BD3C8235696855DC /* Build configuration list for PBXProject "SessionBell" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 8F8BD2AC3AAE620FB227ABA1;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3AE68349A275F065908A4694 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				961754A823DF53CDB9AF0007 /* SessionBell */,
+				1F3E596A355708DE9968C54E /* SessionBellWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2E667F4F0EC99A433297E8E4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		790FE7E55295107BBECEA4D9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */,
+				DA4F7919CAA57C5154D5BCD9 /* SBBackend.swift in Sources */,
+				3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */,
+				A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		99DC774FA46E43B98B9F5A85 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF267A466DB309DC4DF7E41D /* AppDelegate.swift in Sources */,
+				608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */,
+				C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */,
+				721778149B63D94120835CD8 /* EventStore.swift in Sources */,
+				E56FBBE5FDF669C9EEBB395A /* LiveActivityManager.swift in Sources */,
+				C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */,
+				FFB63F2543A97D8D6571FDF6 /* Models.swift in Sources */,
+				3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */,
+				087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */,
+				97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		507915276386EB59F354F41B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1F3E596A355708DE9968C54E /* SessionBellWidgets */;
+			targetProxy = D8099217A01013CE4A655CA2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		47CD1840C516FD893265E49F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				INFOPLIST_FILE = SessionBell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5B4E93FBC2BE7EBAE4031731 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		64B563E2DCFE89167A9DF136 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		908FB997AABF3B8E1D5FC349 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				INFOPLIST_FILE = SessionBell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		935FB2CE489E299681D10633 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9537E846CAAA5F767F59BE3F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3B7124E72AB3E4054AEDDE33 /* Build configuration list for PBXNativeTarget "SessionBellWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				935FB2CE489E299681D10633 /* Debug */,
+				9537E846CAAA5F767F59BE3F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4BEA6245BD3C8235696855DC /* Build configuration list for PBXProject "SessionBell" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64B563E2DCFE89167A9DF136 /* Debug */,
+				5B4E93FBC2BE7EBAE4031731 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E2318781037EBF82DCE9A213 /* Build configuration list for PBXNativeTarget "SessionBell" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47CD1840C516FD893265E49F /* Debug */,
+				908FB997AABF3B8E1D5FC349 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6892B6B7797B08E83F538D93 /* Project object */;
+}

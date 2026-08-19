@@ -1,0 +1,14 @@
+{
+  "backend_url": "后端 Worker 地址，如 https://sessionbell.你的域名 或 https://xxx.workers.dev",
+  "backend_secret": "租户密钥，生成：openssl rand -hex 24（须与 iPhone App 后端配置里的一致）",
+
+  "team_id": "可选（Mac 自签 APNs 直推时才需要）：Apple Team ID，10 位",
+  "key_id": "可选：APNs Auth Key 的 Key ID，10 位",
+  "p8_path": "~/.sessionbell/AuthKey_XXXXXXXXXX.p8",
+  "bundle_id": "你的 App Bundle ID，如 dev.you.SessionBell",
+  "environment": "sandbox（Xcode 直装）或 production（TestFlight/App Store 装的 App）",
+
+  "device_tokens": ["可选：运行 App 后从首页拷贝；后端模式下会自动登记"],
+  "min_idle_seconds": 120,
+  "host_label": "可选：推送里显示的机器名，不填自动取电脑名"
+}
