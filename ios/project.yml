@@ -17,8 +17,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: "2"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_CFBundleDisplayName: SessionBell
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -27,6 +27,11 @@ targets:
       path: SessionBell/Info.plist
       properties:
         UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         NSLocalNetworkUsageDescription: 把 Live Activity 推送令牌回传给局域网内的 Mac，用于结束锁屏上的等待状态。
@@ -49,8 +54,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: "2"
         SKIP_INSTALL: true
     info:
       path: SessionBellWidgets/Info.plist

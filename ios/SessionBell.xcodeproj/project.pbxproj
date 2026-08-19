@@ -16,6 +16,7 @@
 		84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
 		97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */; };
 		A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30D020BC225547233474D41 /* SessionBellWidgets.swift */; };
+		B69C92A0F01B60AC263AEF27 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */; };
 		C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4311A1BB8C2640EC4F314F5C /* ContentView.swift */; };
 		C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */; };
 		D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BBA96AA6001059FA2279F3E1 /* Assets.xcassets */; };
@@ -64,6 +65,7 @@
 		A48AAD4446927227AC1392AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AD76974BED54CC776F7A6263 /* SessionBell.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SessionBell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBA96AA6001059FA2279F3E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		E30D020BC225547233474D41 /* SessionBellWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellWidgets.swift; sourceTree = "<group>"; };
 		E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EE8E293B3D1F00243A36E9EF /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 				4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */,
 				E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */,
 				EE8E293B3D1F00243A36E9EF /* Models.swift */,
+				C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */,
 				348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */,
 				7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */,
 			);
@@ -238,6 +241,7 @@
 				E56FBBE5FDF669C9EEBB395A /* LiveActivityManager.swift in Sources */,
 				C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */,
 				FFB63F2543A97D8D6571FDF6 /* Models.swift in Sources */,
+				B69C92A0F01B60AC263AEF27 /* OnboardingView.swift in Sources */,
 				3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */,
 				087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */,
 				97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */,
@@ -262,7 +266,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -271,7 +275,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -405,7 +409,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -414,7 +418,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -426,7 +430,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -434,7 +438,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -447,7 +451,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -455,7 +459,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;

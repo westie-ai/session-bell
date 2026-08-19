@@ -8,33 +8,167 @@ struct ContentView: View {
     @State private var localTestResult = ""
 
     @State private var navPath = NavigationPath()
+    @State private var selectedTab = 0
+    @AppStorage("sb.onboarded") private var onboarded = false
+    @State private var showOnboarding = false
 
     var body: some View {
+        TabView(selection: $selectedTab) {
+            tasksTab
+                .tabItem { Label("任务", systemImage: "bolt.horizontal.circle") }
+                .badge(approvalBadge)
+                .tag(0)
+            usageTab
+                .tabItem { Label("用量", systemImage: "gauge.with.needle") }
+                .tag(1)
+            settingsTab
+                .tabItem { Label("设置", systemImage: "gearshape") }
+                .tag(2)
+        }
+        .task {
+            if #available(iOS 17.2, *) { LiveActivityManager.shared.syncNow() }
+        }
+        .onReceive(store.$openSessionId) { sessionId in
+            guard let sessionId,
+                  let group = store.groups.first(where: { $0.sessionId == sessionId })
+            else { return }
+            selectedTab = 0
+            navPath = NavigationPath()
+            navPath.append(group)
+            store.openSessionId = nil
+        }
+        .onReceive(store.$pendingApproval) { approval in
+            if approval != nil { selectedTab = 0 }
+        }
+        .onAppear {
+            if !onboarded && SBBackend.saved == nil { showOnboarding = true }
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView {
+                showOnboarding = false
+                onboarded = true
+                Task { await store.refresh() }
+            }
+        }
+    }
+
+    /// 待批准且还在有效期内 → 任务 Tab 红点
+    private var approvalBadge: Int {
+        guard let approval = store.pendingApproval,
+              Date().timeIntervalSince(approval.date) < 100 else { return 0 }
+        return 1
+    }
+
+    // MARK: 任务 Tab
+
+    private var tasksTab: some View {
         NavigationStack(path: $navPath) {
             List {
                 approvalSection
                 liveTasksSection
-                deviceSection
                 sessionsSection
             }
-            .navigationTitle("SessionBell")
+            .overlay {
+                if store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
+                    ContentUnavailableView {
+                        Label("还没有任务", systemImage: "bell")
+                    } description: {
+                        Text(SBBackend.saved == nil
+                             ? "先完成接入,Mac 连上来之后任务会出现在这里。"
+                             : "在 Mac 上给 agent 派个活:任务会实时出现在这里和锁屏上,完成时手机响铃。")
+                    } actions: {
+                        if SBBackend.saved == nil {
+                            Button("开始接入") { showOnboarding = true }
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("任务")
             .navigationDestination(for: SessionGroup.self) { SessionDetailView(group: $0) }
             .navigationDestination(for: EventStore.LiveTask.self) { SessionControlView(task: $0) }
             .refreshable { await store.refresh() }
-            .task {
-                if #available(iOS 17.2, *) { LiveActivityManager.shared.syncNow() }
-            }
-            .onReceive(store.$openSessionId) { sessionId in
-                guard let sessionId,
-                      let group = store.groups.first(where: { $0.sessionId == sessionId })
-                else { return }
-                navPath = NavigationPath()
-                navPath.append(group)
-                store.openSessionId = nil
-            }
             .toolbar {
                 if !store.events.isEmpty {
                     Button("清空", role: .destructive) { store.clearAll() }
+                }
+            }
+        }
+    }
+
+    // MARK: 用量 Tab
+
+    private var hasUsage: Bool {
+        store.liveGroups.contains { !$0.usage.isEmpty || $0.usageFraction != nil }
+    }
+
+    private var usageTab: some View {
+        NavigationStack {
+            List {
+                ForEach(store.liveGroups.filter { !$0.usage.isEmpty || $0.usageFraction != nil }) { group in
+                    Section("💻 \(group.host)") {
+                        UsageDashboard(group: group)
+                    }
+                }
+            }
+            .overlay {
+                if !hasUsage {
+                    ContentUnavailableView {
+                        Label("暂无用量数据", systemImage: "gauge.with.needle")
+                    } description: {
+                        Text("Mac 上跑过任务后,这里显示官方口径的本周额度和高级模型用量,与 /usage 同源。")
+                    }
+                }
+            }
+            .navigationTitle("用量")
+            .refreshable { await store.refresh() }
+        }
+    }
+
+    // MARK: 设置 Tab
+
+    private var settingsTab: some View {
+        NavigationStack {
+            List {
+                Section("接入") {
+                    backendConfigRow
+                }
+                machinesSection
+                deviceSection
+                Section("关于") {
+                    LabeledContent("版本",
+                        value: "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
+                    Link(destination: URL(string: "https://github.com/westie-ai/session-bell")!) {
+                        Label("开源仓库 · westie-ai/session-bell", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                    Button {
+                        showOnboarding = true
+                    } label: {
+                        Label("重新打开接入引导", systemImage: "arrow.counterclockwise")
+                    }
+                }
+            }
+            .navigationTitle("设置")
+        }
+    }
+
+    @ViewBuilder
+    private var machinesSection: some View {
+        if !store.liveGroups.isEmpty {
+            Section("电脑") {
+                ForEach(store.liveGroups) { group in
+                    HStack {
+                        Label(group.host, systemImage: "desktopcomputer")
+                        Spacer()
+                        if group.awake {
+                            Text("常亮中")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                        Text("\(group.cards.count) 个任务")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -78,20 +212,18 @@ struct ContentView: View {
     @ViewBuilder
     private var liveTasksSection: some View {
         if store.liveGroups.isEmpty {
-            Section("进行中") {
-                Text("当前没有活跃任务")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            if !store.groups.isEmpty {
+                Section("进行中") {
+                    Text("当前没有活跃任务")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         } else {
             ForEach(store.liveGroups) { group in
                 Section {
                     MachineControls(group: group)
-                    // 用量仪表:紧贴电脑名,第一张卡
-                    if !group.usage.isEmpty {
-                        UsageDashboard(group: group)
-                    }
-                    // 每个主任务一张卡,子 agent 嵌在卡内
+                    // 每个主任务一张卡,子 agent 嵌在卡内(用量在「用量」Tab)
                     ForEach(group.cards) { card in
                         SessionCard(card: card) { navPath.append($0) }
                     }
@@ -130,7 +262,6 @@ struct ContentView: View {
                           systemImage: "bell.badge.waveform")
                 }
             }
-            backendConfigRow
         }
     }
 
@@ -220,12 +351,8 @@ struct ContentView: View {
 
     @ViewBuilder
     private var sessionsSection: some View {
-        Section("通知历史") {
-            if store.groups.isEmpty {
-                Text("还没有事件。在 Mac 上运行\nsessionbell_hook.py test 试试。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else {
+        if !store.groups.isEmpty {
+            Section("通知历史") {
                 ForEach(store.groups) { group in
                     NavigationLink(value: group) {
                         SessionRow(group: group)

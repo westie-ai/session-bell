@@ -5,6 +5,9 @@ enum SBBackend {
     static let urlKey = "sb.backendURL"
     static let secretKey = "sb.backendSecret"
 
+    /// 托管服务的注册入口;自托管用户不经过这里(直接粘配对码/填地址)。
+    static let hostedBase = "https://sessionbell.westie.ai"
+
     // No baked-in backend: each user points the app at their own deployment,
     // either in the app's 后端配置 section or automatically from the first
     // push their Mac sends (payloads carry the backend coordinates).
@@ -43,6 +46,52 @@ enum SBBackend {
         req.setValue(secret, forHTTPHeaderField: "x-sb-secret")
         req.httpBody = data
         _ = try? await URLSession.shared.data(for: req)
+    }
+
+    /// 由当前保存的配置反推配对码(与 /api/signup 下发的格式一致),
+    /// 用于首跑第三屏「拷贝给 Mac」。
+    static var pairingCode: String? {
+        guard let backend = saved,
+              let data = try? JSONSerialization.data(
+                  withJSONObject: ["u": backend.url, "s": backend.secret])
+        else { return nil }
+        return data.base64EncodedString()
+    }
+
+    /// 解析配对码(base64 的 {u, s});成功即保存为当前后端。
+    @discardableResult
+    static func adoptPairingCode(_ code: String) -> Bool {
+        guard let data = Data(base64Encoded: code.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let u = obj["u"], let s = obj["s"], !u.isEmpty, !s.isEmpty
+        else { return false }
+        save(url: u, secret: s)
+        return true
+    }
+
+    /// 托管注册:邀请码换新租户。成功时已把后端配置保存好。
+    static func signup(invite: String) async -> String? {
+        guard let url = URL(string: hostedBase + "/api/signup") else { return "地址不合法" }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 15
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["invite": invite])
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            guard code == 200, let pairing = obj?["pairing_code"] as? String else {
+                if let err = obj?["error"] as? String {
+                    return err == "bad invite code" ? "邀请码不对,检查一下再试" : err
+                }
+                return "服务器返回 HTTP \(code)"
+            }
+            guard adoptPairingCode(pairing) else { return "配对码解析失败,请联系邀请你的人" }
+            return nil
+        } catch {
+            return "网络不通:\(error.localizedDescription)"
+        }
     }
 
     /// 连接自检:把失败原因摊在台面上,不再静默装死。
