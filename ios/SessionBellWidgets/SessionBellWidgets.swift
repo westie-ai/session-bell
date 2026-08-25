@@ -68,6 +68,17 @@ private func summaryLine(_ state: DashState) -> String {
     return "全部完成"
 }
 
+/// 锁屏空间金贵:机器名去掉主人前缀、机型缩写。只影响显示,不动数据里的 host。
+private func shortHost(_ host: String) -> String {
+    var s = host
+    if let r = s.range(of: "的 ") { s = String(s[r.upperBound...]) }
+    if let r = s.range(of: "的") { s = String(s[r.upperBound...]) }
+    s = s.replacingOccurrences(of: "MacBook Pro", with: "MBP")
+    s = s.replacingOccurrences(of: "MacBook Air", with: "MBA")
+    s = s.replacingOccurrences(of: "Mac mini", with: "mini")
+    return s.trimmingCharacters(in: .whitespaces)
+}
+
 private func statusColor(_ status: String) -> Color {
     switch status {
     case "waiting": return coral
@@ -109,6 +120,10 @@ private struct ElapsedText: View {
 private struct TaskRow: View {
     let task: TaskItem
     var compact = false
+    /// 密集模式:任务多时行内不放详情行(第一行除外,由父视图决定)
+    var showDetail = true
+    /// 全部任务同一台 Mac 时,host 收进标题行,行内不再重复
+    var showHost = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -124,11 +139,13 @@ private struct TaskRow: View {
                 Text(task.project)
                     .font(compact ? .caption2 : .subheadline.weight(.medium))
                     .lineLimit(1)
-                Text(task.host)
-                    .font(.caption2)
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(.quaternary, in: Capsule())
-                    .foregroundStyle(.secondary)
+                if showHost {
+                    Text(shortHost(task.host))
+                        .font(.caption2)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(.quaternary, in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
                 if let agents = task.agents, agents > 0 {
                     Text("⚙︎\(agents)")
                         .font(.caption2.monospacedDigit())
@@ -140,7 +157,7 @@ private struct TaskRow: View {
                     .foregroundStyle(task.status == "waiting" ? coral : .secondary)
                     .frame(maxWidth: 64, alignment: .trailing)
             }
-            if !compact, let detail = task.detail, !detail.isEmpty {
+            if !compact, showDetail, let detail = task.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -156,21 +173,37 @@ private struct LockScreenView: View {
     let attrs: SessionActivityAttributes
 
     var body: some View {
+        // 任务一多就切密集模式:行内只留一行,详情只保第一条,能多放一行任务
+        let dense = state.tasks.count > 2
+        let hosts = Set(state.tasks.map(\.host))
+        let sharedHost = hosts.count == 1 ? hosts.first : nil
+        let shown = dense ? 4 : 3
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 SummaryIcon(state: state).font(.subheadline)
                 Text(summaryLine(state)).font(.headline)
+                if let sharedHost {
+                    // 全在同一台 Mac:host 只在这里出现一次
+                    Text(shortHost(sharedHost))
+                        .font(.caption2)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(.quaternary, in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Image(systemName: "bell.fill")
                     .font(.caption)
                     .foregroundStyle(coral.opacity(0.6))
             }
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(state.tasks.prefix(3)), id: \.self) { task in
-                    TaskRow(task: task)
+            VStack(alignment: .leading, spacing: dense ? 4 : 6) {
+                ForEach(Array(state.tasks.prefix(shown).enumerated()), id: \.element) { i, task in
+                    TaskRow(task: task,
+                            showDetail: !dense || i == 0,
+                            showHost: sharedHost == nil)
                 }
-                if state.tasks.count > 3 {
-                    Text("还有 \(state.tasks.count - 3) 个（App 内查看全部）")
+                if state.tasks.count > shown {
+                    Text("还有 \(state.tasks.count - shown) 个（App 内查看全部）")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -180,6 +213,37 @@ private struct LockScreenView: View {
         }
         .padding(14)
     }
+}
+
+#Preview("锁屏·任务多(密集)", as: .content,
+         using: SessionActivityAttributes(backend: "https://example.test", secret: "x")) {
+    SessionLiveActivity()
+} contentStates: {
+    let now = Date().timeIntervalSince1970
+    SessionActivityAttributes.ContentState(
+        tasks: [
+            .init(project: "reply", host: "Piper的 MacBook Pro (2)", status: "waiting",
+                  since: now - 81000, detail: "投放的方式也不对 就是在 ins 或者 meta 买手机广告"),
+            .init(project: "reply", host: "Piper的 MacBook Pro (2)", status: "waiting",
+                  since: now - 26000, detail: "ok 开 ultracode mode 实施"),
+            .init(project: "reply", host: "Piper的 MacBook Pro (2)", status: "waiting",
+                  since: now - 10000, detail: "开 pr 修复 457"),
+            .init(project: "health-app", host: "Piper的 MacBook Pro (2)", status: "running",
+                  since: now - 600, detail: nil, agents: 2),
+            .init(project: "kairos", host: "Piper的 MacBook Pro (2)", status: "waiting",
+                  since: now - 300, detail: "migration 待确认"),
+            .init(project: "wesdget", host: "Piper的 MacBook Pro (2)", status: "done",
+                  since: now - 100, detail: nil),
+        ],
+        updatedAt: now)
+    SessionActivityAttributes.ContentState(
+        tasks: [
+            .init(project: "reply", host: "Piper的 MacBook Pro (2)", status: "waiting",
+                  since: now - 5000, detail: "开 pr 修复 457"),
+            .init(project: "kairos", host: "工作室 Mac mini", status: "running",
+                  since: now - 900, detail: nil),
+        ],
+        updatedAt: now)
 }
 
 private struct ApprovalButtons: View {
