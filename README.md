@@ -2,8 +2,8 @@
 
 **Your coding agents, on your lock screen.**
 
-SessionBell puts local AI coding agents — Claude Code today, Codex support in
-progress — on your iPhone: push notifications when a session needs you, a
+SessionBell puts Claude Code on your iPhone: push notifications when a
+session needs you, a
 lock-screen Live Activity dashboard aggregating tasks across all your Macs,
 one-tap permission approvals, remote terminal control, and official usage stats.
 
@@ -37,8 +37,10 @@ backend is a ~350-line Cloudflare Worker with one D1 table.
   with `claude -c`.
 - **Usage dashboard** — your official Claude usage limits (weekly / per-model),
   fetched from the same source as `/usage`, no manual calibration.
-- **Multi-engine** — Codex desktop-client sessions are tagged with their own
-  badge via a CC-compatible `~/.codex/hooks.json` (`sessionbell codex-setup`).
+- **Engine-agnostic by design** — events carry an `engine` tag end to end.
+  An experimental Codex adapter ships in the hook script (`codex-setup`,
+  CC-compatible `~/.codex/hooks.json`) but is not field-calibrated yet —
+  contributions welcome.
 
 ## Two ways to run it
 

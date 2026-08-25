@@ -2,7 +2,7 @@
 
 **把 Agent 装进锁屏。**
 
-本地 AI 编程 agent(Claude Code,Codex 支持中)的手机监控与遥控:
+Claude Code 的手机监控与遥控:
 状态推送到 iPhone,锁屏 Live Activity 面板聚合所有 Mac 的任务,
 授权请求在锁屏卡片上一键批准,还能从手机远程操作真实终端、查看官方用量。
 
@@ -30,8 +30,8 @@ Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Cl
 - **远程控制** — 从手机往 session 的真实终端(iTerm / Terminal.app)注入文字、
   回读输出,已结束的 session 用 `claude -c` 复活
 - **用量面板** — 官方口径的周限额/分模型用量,与 `/usage` 同源,无需手动校准
-- **多引擎** — Codex 客户端 session 打独立徽标,`sessionbell codex-setup`
-  写入 CC 兼容的 `~/.codex/hooks.json`
+- **多引擎架构** — 事件全链路带 engine 标签;Codex 适配以实验性骨架的形式
+  存在(`sessionbell codex-setup`),尚未实机校准,按需求推进,欢迎 PR
 
 ## 两种用法
 
