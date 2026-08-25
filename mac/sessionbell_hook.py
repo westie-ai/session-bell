@@ -789,6 +789,10 @@ def prune_sessions(state: dict, now: int) -> None:
     for sid in list(terms):
         if now - terms[sid].get("ts", 0) > TERM_REGISTRY_MAX_AGE:
             del terms[sid]
+    prompts = state.get("prompts", {})
+    for sid in list(prompts):
+        if now - prompts[sid].get("ts", 0) > TERM_REGISTRY_MAX_AGE:
+            del prompts[sid]
 
 
 def merged_tasks(state: dict, my_label: str, now: int) -> list:
@@ -1788,12 +1792,21 @@ def main():
     if kind in dashboard_kinds:
         state = load_sessions()
         prev = state["local"].get(session_id) or {}
+        # Last-prompt registry: outlives the session record (like `terms`),
+        # so stop/notification after a prune/resurrect still name the task.
+        last_prompt = (state.get("prompts", {}).get(session_id) or {}).get("text", "")
         if kind == "prompt":
             own_pid, parent_pid = claude_pids()
+            ptext = excerpt(hook.get("prompt"))
+            if ptext:
+                state.setdefault("prompts", {})[session_id] = {
+                    "text": ptext, "ts": int(now)}
             # Typing locally supersedes anything queued from the phone.
             state["local"][session_id] = {
                 "project": project, "status": "running", "since": now,
-                "detail": excerpt(hook.get("prompt")), "agents": 0,
+                # Slash commands / spawned first beats carry no prompt text —
+                # never blank out a task that already has a name.
+                "detail": ptext or prev.get("detail") or last_prompt, "agents": 0,
                 "cwd": cwd,
                 "root": project_root(cwd),
                 "pid": own_pid or prev.get("pid"),
@@ -1823,7 +1836,7 @@ def main():
             # "waiting for your input" message does not.
             state["local"][session_id] = {
                 "project": project, "status": "waiting", "since": now,
-                "detail": prev.get("detail") or excerpt(
+                "detail": prev.get("detail") or last_prompt or excerpt(
                     hook.get("message") or hook.get("tool_name")),
                 "agents": prev.get("agents", 0),
                 "cmd_ts": prev.get("cmd_ts", 0),
@@ -1837,7 +1850,7 @@ def main():
         elif kind == "stop":
             state["local"][session_id] = {
                 "project": project, "status": "done", "since": now,
-                "detail": prev.get("detail", ""), "agents": 0,
+                "detail": prev.get("detail") or last_prompt, "agents": 0,
                 "cmd_ts": prev.get("cmd_ts", 0),
                 "pid": prev.get("pid") or find_claude_pid(),
                 "parent_pid": prev.get("parent_pid") or claude_pids()[1],
