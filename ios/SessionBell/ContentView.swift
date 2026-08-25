@@ -407,7 +407,7 @@ struct MachineControls: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bordered)
-            .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+            .tint(Color.sbAccentDeep)
         }
         .sheet(isPresented: $showSpawn) {
             SpawnSheet(group: group)
@@ -820,7 +820,7 @@ struct SessionControlView: View {
                         TerminalView(task: task)
                     } label: {
                         Label("终端模式(实时输出 + 输入)", systemImage: "terminal.fill")
-                            .foregroundStyle(Color(red: 0.85, green: 0.47, blue: 0.34))
+                            .foregroundStyle(Color.sbAccentDeep)
                     }
                 }
             }
@@ -893,17 +893,17 @@ struct TerminalView: View {
                 }
                 .onTapGesture { inputFocused = false }
             }
-            Divider().overlay(Color(red: 0.85, green: 0.47, blue: 0.34).opacity(0.4))
+            Divider().overlay(Color.sbAccentDeep.opacity(0.4))
             HStack(spacing: 8) {
                 Text("❯")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .foregroundStyle(Color.sbAccentDeep)
                 TextField("", text: $input, axis: .vertical)
                     .lineLimit(1...3)
                     .focused($inputFocused)
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(termFG)
-                    .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .tint(Color.sbAccentDeep)
                     .autocorrectionDisabled()
                     .onSubmit { send() }
                 Button {
@@ -912,7 +912,7 @@ struct TerminalView: View {
                     Image(systemName: sending ? "hourglass" : "arrow.up.circle.fill")
                         .font(.title3)
                 }
-                .foregroundStyle(Color(red: 0.85, green: 0.47, blue: 0.34))
+                .foregroundStyle(Color.sbAccentDeep)
                 .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || sending)
             }
             .padding(.horizontal, 14)
@@ -1011,7 +1011,7 @@ struct SessionDetailView: View {
                     } label: {
                         Label("终端模式(终端窗口还开着就能连)",
                               systemImage: "terminal.fill")
-                            .foregroundStyle(Color(red: 0.85, green: 0.47, blue: 0.34))
+                            .foregroundStyle(Color.sbAccentDeep)
                     }
                 }
             }

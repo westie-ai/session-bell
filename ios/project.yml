@@ -18,7 +18,7 @@ targets:
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "2"
+        CURRENT_PROJECT_VERSION: "3"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_CFBundleDisplayName: SessionBell
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -57,7 +57,7 @@ targets:
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "2"
+        CURRENT_PROJECT_VERSION: "3"
         SKIP_INSTALL: true
     info:
       path: SessionBellWidgets/Info.plist

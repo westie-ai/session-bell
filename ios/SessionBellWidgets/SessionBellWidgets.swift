@@ -9,7 +9,7 @@ struct SessionBellWidgetBundle: WidgetBundle {
     }
 }
 
-private let coral = Color(red: 0.85, green: 0.47, blue: 0.34)  // #D97757
+private let coral = Color.sbAccentDeep  // #D97757
 
 private typealias TaskItem = SessionActivityAttributes.TaskItem
 private typealias DashState = SessionActivityAttributes.ContentState

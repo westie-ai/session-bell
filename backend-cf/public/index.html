@@ -10,9 +10,9 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
 <style>
 :root{
-  --ground:#0B0E14; --ground2:#10141D; --ink:#F2F3F7; --muted:#8A90A0;
-  --line:rgba(255,255,255,.09); --glass:rgba(255,255,255,.07);
-  --accent:#F5B84A; --accent-ink:#1A1206;
+  --ground:#FFF8E6; --ground2:#FFFFFF; --ink:#2B2723; --muted:#8A7F66;
+  --line:rgba(43,39,35,.12); --glass:rgba(43,39,35,.05);
+  --accent:#FECE23; --accent-deep:#B27E00; --accent-ink:#2B2723;
   --run:#5AA2FF; --wait:#F5B84A; --done:#58C583; --deny:#E06C5D;
 }
 *{box-sizing:border-box; margin:0}
@@ -33,23 +33,23 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.9em}
 .brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; margin-bottom:36px}
 .brand .bell{font-size:22px}
 h1{font-size:clamp(34px,5.2vw,52px); line-height:1.16; letter-spacing:-.02em; font-weight:800; text-wrap:balance}
-h1 .amp{color:var(--accent)}
+h1 .amp{color:var(--accent-deep)}
 .tagline{color:var(--muted); font-size:17px; margin:18px 0 8px; max-width:42ch}
 .tagline b{color:var(--ink); font-weight:600}
 .cta{display:flex; gap:12px; flex-wrap:wrap; margin-top:30px}
 .btn{display:inline-flex; align-items:center; gap:8px; border-radius:12px; padding:11px 20px;
   font-size:15px; font-weight:650; text-decoration:none; border:1px solid var(--line); transition:transform .15s}
 .btn:hover{transform:translateY(-1px)}
-.btn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+.btn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent; box-shadow:0 6px 18px rgba(254,206,35,.35)}
 .btn.ghost{background:var(--glass)}
 .cta-note{font-size:13px; color:var(--muted); margin-top:12px}
-.cta-note a{color:var(--accent); text-decoration:none}
+.cta-note a{color:var(--accent-deep); text-decoration:none}
 
 /* ── phone mock ── */
 .stage{flex:0 1 340px; margin:0 auto}
 .phone{width:300px; margin:0 auto; border-radius:44px; padding:12px;
   background:linear-gradient(160deg,#1B2230 0%,#0D111A 55%,#141A28 100%);
-  border:1px solid rgba(255,255,255,.14); box-shadow:0 40px 80px rgba(0,0,0,.55)}
+  border:1px solid rgba(255,255,255,.14); box-shadow:0 30px 60px rgba(43,39,35,.28)}
 .screen{border-radius:34px; overflow:hidden; padding:26px 14px 18px;
   background:radial-gradient(120% 90% at 50% 0%, #1C2740 0%, #0C101B 60%, #090C13 100%);
   min-height:540px; display:flex; flex-direction:column}
@@ -58,22 +58,22 @@ h1 .amp{color:var(--accent)}
 .clock .time{font-size:64px; font-weight:700; letter-spacing:-.01em; line-height:1.05;
   font-variant-numeric:tabular-nums; color:rgba(242,243,247,.92)}
 .cards{margin-top:auto; display:flex; flex-direction:column; gap:8px}
-.la{border-radius:20px; background:rgba(24,28,40,.78); backdrop-filter:blur(6px);
+.la{color:#F2F3F7; border-radius:20px; background:rgba(24,28,40,.78); backdrop-filter:blur(6px);
   border:1px solid rgba(255,255,255,.10); padding:12px 14px}
 .la .hd{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
 .la .hd .app{display:flex; gap:6px; align-items:center; font-size:12px; font-weight:700}
 .la .hd .app .dot{width:16px;height:16px;border-radius:5px;background:var(--accent);
   display:grid;place-items:center;font-size:10px}
-.la .hd .n{font-size:11px; color:var(--muted)}
+.la .hd .n{font-size:11px; color:#98A0B0}
 .row{display:flex; align-items:center; gap:9px; padding:5px 0; font-size:12.5px}
 .st{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:11px;flex:0 0 22px}
 .st.w{background:rgba(245,184,74,.16); color:var(--wait)}
 .st.r{background:rgba(90,162,255,.16); color:var(--run)}
 .st.d{background:rgba(88,197,131,.16); color:var(--done)}
 .row .proj{font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.row .host{font-size:10px; color:var(--muted); background:rgba(255,255,255,.07);
+.row .host{font-size:10px; color:#98A0B0; background:rgba(255,255,255,.07);
   border-radius:20px; padding:1px 7px; white-space:nowrap}
-.row .t{margin-left:auto; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap}
+.row .t{margin-left:auto; font-size:11px; color:#98A0B0; font-variant-numeric:tabular-nums; white-space:nowrap}
 .row .t.w{color:var(--wait)}
 .pulse{animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
@@ -86,7 +86,7 @@ h1 .amp{color:var(--accent)}
 
 /* ── sections ── */
 section{padding:56px 0; border-top:1px solid var(--line)}
-.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
+.eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent-deep);
   font-weight:700; margin-bottom:10px}
 h2{font-size:clamp(24px,3.2vw,32px); letter-spacing:-.015em; line-height:1.3; text-wrap:balance}
 .lead{color:var(--muted); margin-top:10px; max-width:58ch}
@@ -97,13 +97,13 @@ h2{font-size:clamp(24px,3.2vw,32px); letter-spacing:-.015em; line-height:1.3; te
 .feat p{font-size:14px; color:var(--muted)}
 .steps{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-top:32px}
 .side{background:var(--ground2); border:1px solid var(--line); border-radius:16px; padding:24px}
-.side .who{font-size:13px; font-weight:700; color:var(--accent); letter-spacing:.08em; margin-bottom:14px}
+.side .who{font-size:13px; font-weight:700; color:var(--accent-deep); letter-spacing:.08em; margin-bottom:14px}
 .step{display:flex; gap:12px; padding:9px 0; align-items:baseline}
-.step .no{flex:0 0 22px; height:22px; border-radius:50%; background:rgba(245,184,74,.14);
-  color:var(--accent); font-size:12px; font-weight:700; display:grid; place-items:center; transform:translateY(3px)}
+.step .no{flex:0 0 22px; height:22px; border-radius:50%; background:rgba(254,206,35,.28);
+  color:var(--accent-deep); font-size:12px; font-weight:700; display:grid; place-items:center; transform:translateY(3px)}
 .step p{font-size:14.5px}
 .step .sm{display:block; font-size:12.5px; color:var(--muted)}
-.step code{background:rgba(255,255,255,.07); border-radius:6px; padding:.1em .45em}
+.step code{background:rgba(43,39,35,.08); border-radius:6px; padding:.1em .45em}
 .oss{display:flex; gap:28px; flex-wrap:wrap; align-items:center; margin-top:26px}
 .oss .btn{font-size:14px}
 .oss-points{font-size:14px; color:var(--muted); max-width:52ch}
@@ -199,7 +199,7 @@ footer a:hover{color:var(--ink)}
     </div>
     <div class="side">
       <div class="who">💻 MAC</div>
-      <div class="step"><span class="no">1</span><p>安装 <a href="/SessionBell.pkg" style="color:var(--accent)">SessionBell.pkg</a><span class="sm">已签名公证,双击即装</span></p></div>
+      <div class="step"><span class="no">1</span><p>安装 <a href="/SessionBell.pkg" style="color:var(--accent-deep)">SessionBell.pkg</a><span class="sm">已签名公证,双击即装</span></p></div>
       <div class="step"><span class="no">2</span><p>终端里运行 <code>sessionbell pair</code><span class="sm">配对码经通用剪贴板自动带到,回车即完成</span></p></div>
     </div>
   </div>

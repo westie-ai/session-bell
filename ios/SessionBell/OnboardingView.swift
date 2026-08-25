@@ -38,7 +38,7 @@ struct OnboardingView: View {
             Spacer()
             Image(systemName: "bell.badge.waveform.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(.orange.gradient)
+                .foregroundStyle(Color.sbAccent.gradient)
                 .padding(.bottom, 20)
             Text("把 Agent 装进锁屏")
                 .font(.largeTitle.bold())
@@ -85,7 +85,7 @@ struct OnboardingView: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.sbAccentDeep)
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.weight(.medium))
@@ -108,7 +108,7 @@ private struct InviteStep: View {
             Spacer()
             Image(systemName: "ticket")
                 .font(.system(size: 44))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.sbAccentDeep)
             Text("输入邀请码")
                 .font(.title2.bold())
             Text("邀请你的人会把邀请码发给你。\n注册后你会得到一个独立的专属空间。")
@@ -331,8 +331,8 @@ private struct ConnectMacStep: View {
                 Text(no)
                     .font(.caption.bold())
                     .frame(width: 20, height: 20)
-                    .background(.orange.opacity(0.15), in: Circle())
-                    .foregroundStyle(.orange)
+                    .background(Color.sbAccent.opacity(0.22), in: Circle())
+                    .foregroundStyle(Color.sbAccentDeep)
                 Text(title).font(.subheadline.weight(.medium))
             }
             content().padding(.leading, 28)
