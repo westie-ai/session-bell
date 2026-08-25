@@ -1040,6 +1040,7 @@ def run_watcher(cfg: dict) -> None:
     so it works mid-turn (steering) and on idle sessions (starts a turn)."""
     last_usage = 0.0
     last_cmd = 0.0
+    last_reap = 0.0
     while True:
         # Adaptive: poll fast while a session likely awaits a phone reply
         # (waiting / freshly done) or the phone is actively driving us
@@ -1062,6 +1063,21 @@ def run_watcher(cfg: dict) -> None:
                 usage_summary(cfg)
                 state = load_sessions()
                 sync_peers(cfg, state, host_label(cfg))
+            # Reap dead/expired sessions even when no hook events fire —
+            # without this, finished tasks linger on the lock screen until
+            # the next keystroke anywhere on this Mac.
+            if time.time() - last_reap > 60:
+                last_reap = time.time()
+                state = load_sessions()
+                before = json.dumps(state["local"], sort_keys=True)
+                prune_sessions(state, int(time.time()))
+                if json.dumps(state["local"], sort_keys=True) != before:
+                    save_sessions(state)
+                    lbl = host_label(cfg)
+                    sync_peers(cfg, state, lbl)
+                    push_dashboard(cfg, make_jwt(cfg),
+                                   HOSTS[cfg.get("environment", "sandbox")],
+                                   state, lbl)
             resp = backend_call(cfg, "GET", "/api/command") or {}
             commands = resp.get("commands") or {}
             if not commands:
