@@ -45,6 +45,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Error "autostart task missing"; exit 1 }
           Start-Sleep 6
           ./dist/sessionbell.exe doctor
+
+          # relay 前台起一份,抓它的报错与健康检查
+          $p = Start-Process -FilePath ./dist/sessionbell.exe -ArgumentList "relay" -RedirectStandardError relay-err.txt -RedirectStandardOutput relay-out.txt -PassThru -NoNewWindow
+          Start-Sleep 8
+          $health = "FAIL"
+          try { $health = (Invoke-WebRequest http://127.0.0.1:48765/health -UseBasicParsing -TimeoutSec 5).StatusCode } catch {}
+          Write-Host "relay health: $health  exited: $($p.HasExited)"
+          Get-Content relay-err.txt, relay-out.txt -ErrorAction SilentlyContinue
+          if ("$health" -ne "200") { Write-Error "relay unhealthy"; exit 1 }
           exit 0
 
       - uses: actions/upload-artifact@v4
