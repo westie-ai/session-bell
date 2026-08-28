@@ -1,4 +1,6 @@
-# SessionBell 🔔
+<p align="center"><img src="assets/icon.png" width="120" alt="SessionBell"></p>
+
+# SessionBell
 
 **Your coding agents, on your lock screen.**
 
