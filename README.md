@@ -56,6 +56,7 @@ Someone runs a backend and invites you:
 **Windows** (beta): copy the pairing command on your iPhone, then in PowerShell:
 
 ```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 irm https://sessionbell.westie.ai/install.ps1 | iex
 ```
 

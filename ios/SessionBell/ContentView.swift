@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var store: EventStore
     @State private var copied = false
     @State private var copiedPTS = false
+    @State private var copiedPair = false
     @State private var localTestResult = ""
 
     @State private var navPath = NavigationPath()
@@ -132,6 +133,17 @@ struct ContentView: View {
             List {
                 Section("接入") {
                     backendConfigRow
+                    // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
+                    if let code = SBBackend.pairingCode {
+                        Button {
+                            UIPasteboard.general.string = "sessionbell pair \(code)"
+                            copiedPair = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedPair = false }
+                        } label: {
+                            Label(copiedPair ? "已拷贝 ✓" : "拷贝配对命令(接入新电脑)",
+                                  systemImage: copiedPair ? "checkmark" : "doc.on.doc")
+                        }
+                    }
                 }
                 machinesSection
                 deviceSection

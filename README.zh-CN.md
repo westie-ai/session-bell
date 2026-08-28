@@ -46,6 +46,7 @@ Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Cl
 **Windows**(beta):在 iPhone 上拷贝配对命令后,PowerShell 里运行:
 
 ```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 irm https://sessionbell.westie.ai/install.ps1 | iex
 ```
 

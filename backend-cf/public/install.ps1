@@ -3,6 +3,8 @@
 #   irm https://sessionbell.westie.ai/install.ps1 | iex
 # 配对码自动从剪贴板读取;也可以先下载再 sessionbell pair <配对码>。
 $ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 默认 TLS 1.0,连不上 Cloudflare/GitHub
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $dir = Join-Path $env:LOCALAPPDATA "SessionBell"
 $exe = Join-Path $dir "sessionbell.exe"
