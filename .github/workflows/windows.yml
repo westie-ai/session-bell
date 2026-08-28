@@ -27,6 +27,7 @@ jobs:
         run: |
           ./dist/sessionbell.exe
           ./dist/sessionbell.exe status
+          ./dist/sessionbell.exe doctor
 
       - uses: actions/upload-artifact@v4
         with:

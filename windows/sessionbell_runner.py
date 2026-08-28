@@ -153,6 +153,74 @@ def cmd_pair(code: str) -> None:
         print("🎉 接入完成!确认手机收到了测试推送。")
 
 
+def cmd_doctor() -> None:
+    """One-shot self-diagnosis — designed to be screenshot in one message."""
+    def row(ok, name, detail=""):
+        mark = "✅" if ok else ("⚠️" if ok is None else "❌")
+        print(f"{mark} {name}" + (f" — {detail}" if detail else ""))
+        return bool(ok)
+
+    print(f"SessionBell doctor @ {os.environ.get('COMPUTERNAME', '?')}\n")
+
+    cfg = {}
+    try:
+        with open(os.path.join(CONFIG_DIR, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+        row(True, "配置", cfg.get("backend_url", ""))
+    except (OSError, ValueError):
+        row(False, "配置", "没有 ~/.sessionbell/config.json — 先跑 sessionbell pair")
+
+    row(os.path.exists(HOOK), "hook 脚本",
+        HOOK if os.path.exists(HOOK) else "缺失 — 重跑 sessionbell pair")
+
+    url, secret = cfg.get("backend_url", ""), cfg.get("backend_secret", "")
+    if url and secret:
+        try:
+            req = urllib.request.Request(url.rstrip("/") + "/api/state",
+                                         headers={"x-sb-secret": secret})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                row(r.status == 200, "后端连通", f"HTTP {r.status}")
+        except Exception as exc:
+            row(False, "后端连通", str(exc)[:80])
+
+    try:
+        with open(os.path.expanduser("~/.claude/settings.json"),
+                  encoding="utf-8") as f:
+            s = json.load(f)
+        wired = sum(1 for entries in s.get("hooks", {}).values()
+                    for e in entries for h in e.get("hooks", [])
+                    if "sessionbell" in h.get("command", "").lower())
+        row(wired >= 7, "Claude Code hooks", f"{wired}/7 已挂")
+    except (OSError, ValueError):
+        row(False, "Claude Code hooks", "读不到 ~/.claude/settings.json")
+
+    import shutil
+    p = shutil.which("claude")
+    row(bool(p), "claude 命令", p or "PATH 里找不到(装了 Claude Code 吗?)")
+
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:48765/health", timeout=3) as r:
+            row(r.status == 200, "守护进程(relay)", "运行中")
+    except Exception:
+        row(False, "守护进程(relay)",
+            "没在跑 — 重新登录一次,或手动跑 sessionbell relay 看报错")
+
+    q = subprocess.run(["schtasks", "/Query", "/TN", "SessionBell Relay"],
+                       capture_output=True)
+    row(q.returncode == 0, "开机自启", "已注册" if q.returncode == 0 else "未注册")
+
+    print("\n—— 最近日志 ——")
+    cmd_log(15)
+
+
+def cmd_log(n: int) -> None:
+    try:
+        with open(LOG, encoding="utf-8", errors="replace") as f:
+            print("".join(f.readlines()[-n:]), end="")
+    except OSError:
+        print("(还没有日志)")
+
+
 def run_hook(args: list) -> int:
     if not os.path.exists(HOOK):
         # Hooks silently no-op until paired — mirrors the Mac behaviour.
@@ -174,19 +242,22 @@ def main() -> None:
     cmd = args[0] if args else ""
     if cmd == "pair":
         cmd_pair(args[1] if len(args) > 1 else "")
-    elif cmd == "status":
+    elif cmd == "doctor":
+        cmd_doctor()
+    elif cmd in ("log", "logs", "status"):
         try:
-            with open(LOG, encoding="utf-8", errors="replace") as f:
-                print("".join(f.readlines()[-5:]), end="")
-        except OSError:
-            print("尚未接入(先跑 sessionbell pair <配对码>)")
+            n = int(args[1]) if len(args) > 1 else 50
+        except ValueError:
+            n = 50
+        cmd_log(n)
     elif cmd:
         sys.exit(run_hook(args))
     else:
         print("SessionBell — 本地 AI 编程助手的移动指挥台")
         print("用法:")
         print("  sessionbell pair [配对码]   接入(不带参数时自动读剪贴板)")
-        print("  sessionbell status          查看守护日志")
+        print("  sessionbell doctor          一键体检(报障时截图这个)")
+        print("  sessionbell log [行数]      查看日志(默认最近 50 行)")
 
 
 if __name__ == "__main__":
