@@ -121,7 +121,7 @@ footer a:hover{color:var(--ink)}
   <div class="hero-copy">
     <div class="brand"><span class="bell">🔔</span>SessionBell</div>
     <h1>把 Agent<br>装进<span class="amp">锁屏</span></h1>
-    <p class="tagline">Claude Code 等本地编程 agent 的手机指挥台。任务<b>等你、跑完、要授权</b>——推送直达;锁屏面板聚合所有 Mac;授权请求锁屏一键批准,不用回电脑。</p>
+    <p class="tagline">Claude Code 等本地编程 agent 的手机指挥台。任务<b>等你、跑完、要授权</b>——推送直达;锁屏面板聚合所有电脑;授权请求锁屏一键批准,不用回电脑。</p>
     <div class="cta">
       <a class="btn primary" href="https://testflight.apple.com/join/JhgVd9pZ">TestFlight 安装</a>
       <a class="btn ghost" href="https://github.com/westie-ai/session-bell">GitHub · MIT 开源</a>
@@ -139,7 +139,7 @@ footer a:hover{color:var(--ink)}
         <div class="la">
           <div class="hd">
             <span class="app"><span class="dot">🔔</span>SessionBell</span>
-            <span class="n">3 个任务 · 2 台 Mac</span>
+            <span class="n">3 个任务 · 2 台电脑</span>
           </div>
           <div class="row">
             <span class="st w pulse">✋</span>
@@ -182,14 +182,14 @@ footer a:hover{color:var(--ink)}
   <p class="lead">agent 干活的时间越来越长,而你要做的只是偶尔批准一下、给下一步指令。这些事在锁屏上就能完成。</p>
   <div class="grid3">
     <div class="feat"><div class="ic">📣</div><h3>该找你时才响</h3><p>等待输入、任务完成、请求授权——推送直达。空闲检测:人在电脑前时保持安静。</p></div>
-    <div class="feat"><div class="ic">🗂️</div><h3>所有 Mac,一张面板</h3><p>锁屏 Live Activity 聚合每台机器的任务:等待 / 运行 / 完成,实时走秒,不用解锁。</p></div>
-    <div class="feat"><div class="ic">🕹️</div><h3>批准、带话、开新活</h3><p>授权锁屏一键过;给 session 发下一步指令;远程连真实终端;还能在任何一台 Mac 上新建 session。</p></div>
+    <div class="feat"><div class="ic">🗂️</div><h3>所有电脑,一张面板</h3><p>锁屏 Live Activity 聚合每台 Mac / Windows 的任务:等待 / 运行 / 完成,实时走秒,不用解锁。</p></div>
+    <div class="feat"><div class="ic">🕹️</div><h3>批准、带话、开新活</h3><p>授权锁屏一键过;给 session 发下一步指令;远程连真实终端;还能在任何一台电脑上新建 session。</p></div>
   </div>
 </section>
 
 <section>
   <div class="eyebrow">上手</div>
-  <h2>手机两步,Mac 两步</h2>
+  <h2>手机两步,电脑两步</h2>
   <p class="lead">需要邀请码(问邀请你的人要);想完全自己掌控,见下方自托管。</p>
   <div class="steps">
     <div class="side">
@@ -202,6 +202,11 @@ footer a:hover{color:var(--ink)}
       <div class="step"><span class="no">1</span><p>安装 <a href="/SessionBell.pkg" style="color:var(--accent-deep)">SessionBell.pkg</a><span class="sm">已签名公证,双击即装</span></p></div>
       <div class="step"><span class="no">2</span><p>终端里运行 <code>sessionbell pair</code><span class="sm">配对码经通用剪贴板自动带到,回车即完成</span></p></div>
     </div>
+    <div class="side">
+      <div class="who">🪟 WINDOWS · BETA</div>
+      <div class="step"><span class="no">1</span><p>下载 <a href="https://github.com/westie-ai/session-bell/releases/latest/download/sessionbell.exe" style="color:var(--accent-deep)">sessionbell.exe</a><span class="sm">SmartScreen 提示时选「仍要运行」</span></p></div>
+      <div class="step"><span class="no">2</span><p>复制配对命令,双击运行<span class="sm">自动读剪贴板完成接入;装过后双击 = 一键体检</span></p></div>
+    </div>
   </div>
 </section>
 
@@ -210,7 +215,7 @@ footer a:hover{color:var(--ink)}
   <h2>看得见每一行代码,数据可以只经过你自己的服务器</h2>
   <div class="oss">
     <a class="btn ghost" href="https://github.com/westie-ai/session-bell">westie-ai/session-bell</a>
-    <p class="oss-points">Mac 端是<b>单文件零依赖</b>的钩子脚本;后端是 ~350 行 Cloudflare Worker,<b>一条命令部署到你自己的账号</b>;上报内容只有项目名、机器名与状态摘要,租户之间物理隔离。MIT 许可。</p>
+    <p class="oss-points">电脑端(Mac / Windows)共用<b>同一份单文件零依赖</b>钩子脚本;后端是 ~350 行 Cloudflare Worker,<b>一条命令部署到你自己的账号</b>;上报内容只有项目名、机器名与状态摘要,租户之间物理隔离。MIT 许可。</p>
   </div>
 </section>
 
