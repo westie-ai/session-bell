@@ -19,6 +19,8 @@ import subprocess
 import sys
 import urllib.request
 
+UA = {"User-Agent": "SessionBell-Windows/1.0"}  # 裸 urllib UA 会被 Cloudflare bot 防护 403
+
 CONFIG_DIR = os.path.expanduser("~/.sessionbell")
 HOOK = os.path.join(CONFIG_DIR, "sessionbell_hook.py")
 LOG = os.path.join(CONFIG_DIR, "sessionbell.log")
@@ -133,8 +135,8 @@ def cmd_pair(code: str) -> None:
         # 国内到 Cloudflare 的线路时不时抖一下(连接被 reset)——
         # 自动多试几次,大多数时候第二三次就过了。
         try:
-            with urllib.request.urlopen(url + "/sessionbell_hook.py",
-                                        timeout=30) as r:
+            req = urllib.request.Request(url + "/sessionbell_hook.py", headers=UA)
+            with urllib.request.urlopen(req, timeout=30) as r:
                 blob = r.read()
             if len(blob) >= 10000:
                 break
@@ -191,7 +193,7 @@ def cmd_doctor() -> None:
     if url and secret:
         try:
             req = urllib.request.Request(url.rstrip("/") + "/api/state",
-                                         headers={"x-sb-secret": secret})
+                                         headers={"x-sb-secret": secret, **UA})
             with urllib.request.urlopen(req, timeout=10) as r:
                 row(r.status == 200, "后端连通", f"HTTP {r.status}")
         except Exception as exc:
