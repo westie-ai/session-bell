@@ -19,6 +19,27 @@ import subprocess
 import sys
 import urllib.request
 
+# hook 是运行时下载执行的,PyInstaller 静态分析看不见它的惰性 import ——
+# 在这里把它可能用到的 stdlib 全量拽进打包范围(缺一个就是线上炸一个)。
+import ctypes                    # noqa: F401
+import ctypes.wintypes           # noqa: F401
+import datetime                  # noqa: F401
+import glob                      # noqa: F401
+import hashlib                   # noqa: F401
+import http.server               # noqa: F401
+import platform                  # noqa: F401
+import re                        # noqa: F401
+import runpy                     # noqa: F401
+import shlex                     # noqa: F401
+import shutil                    # noqa: F401
+import threading                 # noqa: F401
+import uuid                      # noqa: F401
+import zoneinfo                  # noqa: F401
+try:
+    import tzdata                # noqa: F401  Windows 没有系统时区库
+except ImportError:
+    pass
+
 UA_STR = "SessionBell-Windows/1.0"  # 裸 urllib UA 会被 Cloudflare bot 防护 403
 UA = {"User-Agent": UA_STR}
 # 兜底下载源:发布 exe 的同一个 Release 里也挂了 hook 副本

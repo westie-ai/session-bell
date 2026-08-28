@@ -20,7 +20,7 @@ jobs:
 
       - name: Build sessionbell.exe
         run: |
-          pip install pyinstaller
+          pip install pyinstaller tzdata
           pyinstaller --onefile --name sessionbell windows/sessionbell_runner.py
 
       - name: Smoke test
@@ -36,6 +36,7 @@ jobs:
           $code = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('{"u":"https://sessionbell.westie.ai","s":"sb-ci-e2e-throwaway"}'))
           ./dist/sessionbell.exe pair $code
           Write-Host "pair exit: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { Write-Error "pair crashed or failed"; exit 1 }
           if (!(Test-Path "$env:USERPROFILE\.sessionbell\config.json")) { Write-Error "config.json missing"; exit 1 }
           if (!(Test-Path "$env:USERPROFILE\.sessionbell\sessionbell_hook.py")) { Write-Error "hook missing"; exit 1 }
           $s = Get-Content "$env:USERPROFILE\.claude\settings.json" -Raw
