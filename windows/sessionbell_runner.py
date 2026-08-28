@@ -23,6 +23,14 @@ CONFIG_DIR = os.path.expanduser("~/.sessionbell")
 HOOK = os.path.join(CONFIG_DIR, "sessionbell_hook.py")
 LOG = os.path.join(CONFIG_DIR, "sessionbell.log")
 
+# Windows consoles default to cp1252/GBK — printing the 中文/emoji UI
+# crashes with UnicodeEncodeError before anything happens.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 
 def exe_path() -> str:
     if getattr(sys, "frozen", False):
