@@ -29,6 +29,23 @@ jobs:
           ./dist/sessionbell.exe status
           ./dist/sessionbell.exe doctor
 
+      - name: E2E pair against production backend
+        run: |
+          # 一次性测试租户:命名空间由密钥哈希派生,固定测试密钥 = 固定的
+          # 垃圾桶命名空间,不碰任何真实用户/demo 数据。
+          $code = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('{"u":"https://sessionbell.westie.ai","s":"sb-ci-e2e-throwaway"}'))
+          ./dist/sessionbell.exe pair $code
+          Write-Host "pair exit: $LASTEXITCODE"
+          if (!(Test-Path "$env:USERPROFILE\.sessionbell\config.json")) { Write-Error "config.json missing"; exit 1 }
+          if (!(Test-Path "$env:USERPROFILE\.sessionbell\sessionbell_hook.py")) { Write-Error "hook missing"; exit 1 }
+          $s = Get-Content "$env:USERPROFILE\.claude\settings.json" -Raw
+          if ($s -notmatch "sessionbell") { Write-Error "hooks not wired"; exit 1 }
+          schtasks /Query /TN "SessionBell Relay"
+          if ($LASTEXITCODE -ne 0) { Write-Error "autostart task missing"; exit 1 }
+          Start-Sleep 6
+          ./dist/sessionbell.exe doctor
+          exit 0
+
       - uses: actions/upload-artifact@v4
         with:
           name: sessionbell-windows
@@ -39,5 +56,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" --title "Windows ${{ github.ref_name }}" --notes "SessionBell Windows 客户端(sessionbell.exe)" dist/sessionbell.exe 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release upload "${{ github.ref_name }}" dist/sessionbell.exe --clobber }
+          gh release create "${{ github.ref_name }}" --title "Windows ${{ github.ref_name }}" --notes "SessionBell Windows 客户端(sessionbell.exe)" dist/sessionbell.exe backend-cf/public/sessionbell_hook.py 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release upload "${{ github.ref_name }}" dist/sessionbell.exe backend-cf/public/sessionbell_hook.py --clobber }

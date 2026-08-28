@@ -19,7 +19,29 @@ import subprocess
 import sys
 import urllib.request
 
-UA = {"User-Agent": "SessionBell-Windows/1.0"}  # 裸 urllib UA 会被 Cloudflare bot 防护 403
+UA_STR = "SessionBell-Windows/1.0"  # 裸 urllib UA 会被 Cloudflare bot 防护 403
+UA = {"User-Agent": UA_STR}
+# 兜底下载源:发布 exe 的同一个 Release 里也挂了 hook 副本
+GH_HOOK_URL = ("https://github.com/westie-ai/session-bell"
+               "/releases/latest/download/sessionbell_hook.py")
+
+
+def http_get(u: str, timeout: int = 30, headers: dict = None) -> bytes:
+    """curl.exe first, urllib fallback. Windows curl uses Schannel — the
+    system TLS stack; some CN middleboxes reset Python/OpenSSL ClientHello
+    fingerprints while letting Schannel through (observed in the field)."""
+    cmd = ["curl", "-fsSL", "-m", str(timeout), "-A", UA_STR]
+    for k, v in (headers or {}).items():
+        cmd += ["-H", f"{k}: {v}"]
+    try:
+        p = subprocess.run(cmd + [u], capture_output=True, timeout=timeout + 5)
+        if p.returncode == 0 and p.stdout:
+            return p.stdout
+    except Exception:
+        pass
+    req = urllib.request.Request(u, headers={**UA, **(headers or {})})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
 
 CONFIG_DIR = os.path.expanduser("~/.sessionbell")
 HOOK = os.path.join(CONFIG_DIR, "sessionbell_hook.py")
@@ -131,21 +153,23 @@ def cmd_pair(code: str) -> None:
     print(f"🔔 正在接入 {url} …")
     os.makedirs(CONFIG_DIR, exist_ok=True)
     blob = b""
-    for attempt in range(5):
-        # 国内到 Cloudflare 的线路时不时抖一下(连接被 reset)——
-        # 自动多试几次,大多数时候第二三次就过了。
+    # 后端优先(永远是最新 hook);连不上就换 GitHub Release 的副本 ——
+    # 能下载到本 exe 就证明 GitHub 这条路在这台机器上是通的。
+    tries = [url + "/sessionbell_hook.py", url + "/sessionbell_hook.py",
+             GH_HOOK_URL, url + "/sessionbell_hook.py", GH_HOOK_URL]
+    for i, src in enumerate(tries):
         try:
-            req = urllib.request.Request(url + "/sessionbell_hook.py", headers=UA)
-            with urllib.request.urlopen(req, timeout=30) as r:
-                blob = r.read()
+            blob = http_get(src)
             if len(blob) >= 10000:
                 break
         except Exception as exc:
-            if attempt == 4:
+            if i == len(tries) - 1:
                 raise
-            print(f"   网络抖了一下({exc}),重试 {attempt + 1}/4 …")
+            where = "GitHub" if "github" in tries[i + 1] else "后端"
+            print(f"   下载失败({str(exc)[:60]}),换 {where} 重试 "
+                  f"{i + 1}/{len(tries) - 1} …")
             import time
-            time.sleep(3)
+            time.sleep(2)
     if len(blob) < 10000:
         die("❌ 下载 hook 失败(返回内容异常)")
     with open(HOOK, "wb") as f:
@@ -192,10 +216,9 @@ def cmd_doctor() -> None:
     url, secret = cfg.get("backend_url", ""), cfg.get("backend_secret", "")
     if url and secret:
         try:
-            req = urllib.request.Request(url.rstrip("/") + "/api/state",
-                                         headers={"x-sb-secret": secret, **UA})
-            with urllib.request.urlopen(req, timeout=10) as r:
-                row(r.status == 200, "后端连通", f"HTTP {r.status}")
+            body = http_get(url.rstrip("/") + "/api/state", timeout=10,
+                            headers={"x-sb-secret": secret})
+            row(bool(body), "后端连通", "OK")
         except Exception as exc:
             row(False, "后端连通", str(exc)[:80])
 
