@@ -43,6 +43,16 @@ Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Cl
 2. TestFlight 装 App → 后端配置里粘配对码
 3. 下载已签名的 `SessionBell.pkg` → 运行 `sessionbell pair <配对码>`
 
+**Windows**(beta):在 iPhone 上拷贝配对命令后,PowerShell 里运行:
+
+```powershell
+irm https://sessionbell.westie.ai/install.ps1 | iex
+```
+
+会安装 `sessionbell.exe`(薄壳,跑的仍是每台 Mac 同款的
+`sessionbell_hook.py`,自动升级两端通用)、挂好 Claude Code hooks、注册
+开机自启。通知/锁屏卡片/手机批准/用量都可用;终端模式暂不支持 Windows。
+
 数据隔离:命名空间 = `sha256(secret)`,租户间物理隔离,推送网关只允许
 推本命名空间登记过的设备。不放心就自托管——这正是开源的意义。
 

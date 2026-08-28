@@ -53,6 +53,18 @@ Someone runs a backend and invites you:
 2. Install the iOS app via TestFlight → paste the pairing code in 后端配置.
 3. Download the signed `SessionBell.pkg` → run `sessionbell pair <code>`.
 
+**Windows** (beta): copy the pairing command on your iPhone, then in PowerShell:
+
+```powershell
+irm https://sessionbell.westie.ai/install.ps1 | iex
+```
+
+This installs `sessionbell.exe` (a thin launcher around the same
+`sessionbell_hook.py` every Mac runs — self-update covers both platforms),
+wires the Claude Code hooks, and registers the watcher at logon. Terminal
+mode (remote screen capture / typing) is not available on Windows yet;
+notifications, the lock-screen card, approvals, and usage all work.
+
 Data isolation: your namespace is `sha256(secret)` — tenants are physically
 separated rows in D1 and the push gateway only pushes to devices registered in
 your own namespace. If that isn't enough trust, self-host — that's why this

@@ -1,0 +1,42 @@
+name: windows-exe
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["win-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sessionbell.exe
+        run: |
+          pip install pyinstaller
+          pyinstaller --onefile --name sessionbell windows/sessionbell_runner.py
+
+      - name: Smoke test
+        run: |
+          ./dist/sessionbell.exe
+          ./dist/sessionbell.exe status
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sessionbell-windows
+          path: dist/sessionbell.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/win-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" --title "Windows ${{ github.ref_name }}" --notes "SessionBell Windows 客户端(sessionbell.exe)" dist/sessionbell.exe 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release upload "${{ github.ref_name }}" dist/sessionbell.exe --clobber }

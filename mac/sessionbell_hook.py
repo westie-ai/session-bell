@@ -39,6 +39,21 @@ HOSTS = {
 }
 JWT_MAX_AGE = 45 * 60  # APNs rejects tokens older than 60 min; refresh at 45
 
+IS_WIN = os.name == "nt"
+# DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP — Windows stand-in for
+# start_new_session=True (which is POSIX-only).
+WIN_DETACHED = 0x00000008 | 0x00000200
+
+
+def self_cmd(mode: str) -> list:
+    """How to re-invoke this hook as a child process. Under the Windows exe
+    the runner sets SESSIONBELL_RUNNER to its own path; plain python installs
+    use the interpreter that's running us."""
+    runner = os.environ.get("SESSIONBELL_RUNNER")
+    if runner:
+        return [runner, mode]
+    return [sys.executable, os.path.abspath(__file__), mode]
+
 
 def log(msg: str) -> None:
     try:
@@ -180,7 +195,12 @@ def caffeinate_active() -> bool:
 
 def handle_sys_command(cfg: dict, text: str) -> None:
     if text == "caffeinate:on" and not caffeinate_active():
-        p = subprocess.Popen(["caffeinate", "-is"], start_new_session=True)
+        if IS_WIN:
+            # caffeinate(1) has no Windows twin — hold SetThreadExecutionState
+            # in a child of our own; killing it releases the assertion.
+            p = subprocess.Popen(self_cmd("stayawake"), creationflags=WIN_DETACHED)
+        else:
+            p = subprocess.Popen(["caffeinate", "-is"], start_new_session=True)
         with open(CAFFEINATE_PID, "w") as f:
             f.write(str(p.pid))
         log("caffeinate ON — Mac will stay awake")
@@ -208,12 +228,15 @@ def claude_bin():
     except OSError:
         pass
     import glob as _glob
-    candidates = [os.path.expanduser("~/.local/bin/claude"),
-                  "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
-    candidates += sorted(_glob.glob(os.path.expanduser(
-        "~/.nvm/versions/node/*/bin/claude")), reverse=True)
-    p = next((c for c in candidates if os.path.exists(c)), "")
+    import shutil
+    p = shutil.which("claude") or ""
     if not p:
+        candidates = [os.path.expanduser("~/.local/bin/claude"),
+                      "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+        candidates += sorted(_glob.glob(os.path.expanduser(
+            "~/.nvm/versions/node/*/bin/claude")), reverse=True)
+        p = next((c for c in candidates if os.path.exists(c)), "")
+    if not p and not IS_WIN:
         try:
             r = subprocess.run(["/bin/zsh", "-ilc", "command -v claude"],
                                capture_output=True, text=True, timeout=15)
@@ -273,8 +296,9 @@ def handle_spawn(cfg: dict, text: str) -> None:
         args += mode_flag.split()
     logf = open(os.path.join(CONFIG_DIR, f"spawn-{int(time.time())}.log"), "w")
     env = dict(os.environ, SESSIONBELL_SPAWNED="1")
-    subprocess.Popen(args, cwd=cwd, stdout=logf, stderr=logf,
-                     start_new_session=True, env=env)
+    detach = ({"creationflags": WIN_DETACHED} if IS_WIN
+              else {"start_new_session": True})
+    subprocess.Popen(args, cwd=cwd, stdout=logf, stderr=logf, env=env, **detach)
     log(f"spawn: headless claude -p @ {cwd}: {prompt[:50]}")
 
 
@@ -558,7 +582,25 @@ def host_label(cfg: dict) -> str:
 
 
 def mac_idle_seconds():
-    """Seconds since last local keyboard/mouse input, or None if unknown."""
+    """Seconds since last local keyboard/mouse input, or None if unknown.
+    (Named for its origin; answers for Windows too.)"""
+    if IS_WIN:
+        try:
+            import ctypes
+
+            class LASTINPUTINFO(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+            lii = LASTINPUTINFO()
+            lii.cbSize = ctypes.sizeof(LASTINPUTINFO)
+            if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+                # GetTickCount wraps at 49.7 days; the c_uint math below
+                # stays correct across the wrap.
+                ticks = ctypes.windll.kernel32.GetTickCount()
+                return ctypes.c_uint(ticks - lii.dwTime).value / 1000.0
+        except Exception:
+            pass
+        return None
     try:
         out = subprocess.run(
             ["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True, timeout=5
@@ -719,10 +761,64 @@ WAITING_LINGER_SECONDS = 30 * 60   # already notified; stop occupying the card
 RUNNING_MAX_AGE = 6 * 3600         # a "running" turn this old is a zombie
 
 
+def _win_process_table() -> dict:
+    """pid -> (ppid, exe name) via a Toolhelp32 snapshot — one syscall, no
+    subprocess (wmic is gone on Win11 and PowerShell costs ~1s per spawn)."""
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    TH32CS_SNAPPROCESS = 0x2
+    k32 = ctypes.windll.kernel32
+    snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    table = {}
+    if snap in (0, -1):
+        return table
+    try:
+        e = PROCESSENTRY32()
+        e.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        ok = k32.Process32First(snap, ctypes.byref(e))
+        while ok:
+            table[int(e.th32ProcessID)] = (
+                int(e.th32ParentProcessID),
+                e.szExeFile.decode(errors="replace").lower())
+            ok = k32.Process32Next(snap, ctypes.byref(e))
+    finally:
+        k32.CloseHandle(snap)
+    return table
+
+
 def claude_pid_chain() -> list:
     """All claude processes above this hook, nearest first. A second entry
     means this session was spawned BY another claude — it's a sub-agent."""
     pids = []
+    if IS_WIN:
+        try:
+            table = _win_process_table()
+        except Exception:
+            return pids
+        pid = os.getppid()
+        for _ in range(12):
+            ent = table.get(pid)
+            if not ent:
+                break
+            ppid, name = ent
+            if "claude" in name:
+                pids.append(pid)
+            if not ppid or ppid == pid:
+                break
+            pid = ppid
+        return pids
     pid = os.getppid()
     for _ in range(12):
         try:
@@ -759,11 +855,34 @@ def find_claude_pid():
 
 def pid_alive(pid) -> bool:
     try:
-        os.kill(int(pid), 0)
+        pid = int(pid)
+    except (ValueError, TypeError):
+        return False
+    if IS_WIN:
+        # os.kill(pid, 0) on Windows calls TerminateProcess — it KILLS the
+        # session instead of probing it. Query the process handle instead.
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            k32 = ctypes.windll.kernel32
+            h = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not h:
+                return False
+            try:
+                code = ctypes.c_ulong()
+                ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+                return bool(ok) and code.value == STILL_ACTIVE
+            finally:
+                k32.CloseHandle(h)
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
         return True
     except PermissionError:
         return True
-    except (OSError, ValueError, TypeError):
+    except OSError:
         return False
 
 
@@ -1005,7 +1124,10 @@ def self_update(cfg: dict) -> None:
     backend; git-checkout installs are the dev's business and are left alone."""
     import hashlib
     me = os.path.abspath(__file__)
-    if not me.startswith(CONFIG_DIR):
+    # normcase/normpath: on Windows expanduser mixes / and \ — a raw
+    # startswith would silently disable self-update there.
+    if not os.path.normcase(me).startswith(
+            os.path.normcase(os.path.abspath(CONFIG_DIR))):
         return
     try:
         p = subprocess.run(
@@ -1029,6 +1151,9 @@ def self_update(cfg: dict) -> None:
         os.replace(tmp, me)
         os.chmod(me, 0o755)
         log("self-update: new version installed, restarting daemon")
+        if IS_WIN:
+            # No launchd KeepAlive here — hand off to a fresh copy ourselves.
+            subprocess.Popen(self_cmd("relay"), creationflags=WIN_DETACHED)
         os._exit(0)  # launchd KeepAlive brings us back on the new code
     except Exception as exc:
         log(f"self-update error: {exc}")
@@ -1542,11 +1667,16 @@ def fetch_official_api():
         return cached
     try:
         import urllib.request
-        tok = json.loads(subprocess.run(
-            ["security", "find-generic-password",
-             "-s", "Claude Code-credentials", "-w"],
-            capture_output=True, text=True, timeout=5).stdout.strip()
-        )["claudeAiOauth"]["accessToken"]
+        if IS_WIN:
+            # Claude Code keeps credentials in a file outside macOS.
+            with open(os.path.expanduser("~/.claude/.credentials.json")) as f:
+                tok = json.load(f)["claudeAiOauth"]["accessToken"]
+        else:
+            tok = json.loads(subprocess.run(
+                ["security", "find-generic-password",
+                 "-s", "Claude Code-credentials", "-w"],
+                capture_output=True, text=True, timeout=5).stdout.strip()
+            )["claudeAiOauth"]["accessToken"]
         req = urllib.request.Request(
             "https://api.anthropic.com/api/oauth/usage",
             # Without a claude-code UA the request lands in a strict 429 bucket.
@@ -1752,6 +1882,16 @@ def cmd_codex_setup() -> None:
 
 def main():
     kind = sys.argv[1] if len(sys.argv) > 1 else "test"
+    if kind == "stayawake":
+        # Windows caffeinate: hold the machine awake until this process dies.
+        if IS_WIN:
+            import ctypes
+            ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+            ctypes.windll.kernel32.SetThreadExecutionState(
+                ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+            while True:
+                time.sleep(3600)
+        return
     if kind == "usage":
         cmd_usage()
         return

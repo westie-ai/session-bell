@@ -40,6 +40,9 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.88em;
 <div class="faq"><h3>通知太吵 / 收不到?</h3>
 <p>SessionBell 有空闲检测:你在 Mac 前打字时不会推送。收不到时检查 iPhone 设置 → 通知 → SessionBell 已允许,且没开专注模式拦截。</p></div>
 
+<div class="faq"><h3>Windows 能用吗?</h3>
+<p>可以(beta)。在 iPhone 上拷贝配对命令后,PowerShell 里运行 <code>irm https://sessionbell.westie.ai/install.ps1 | iex</code> 即可。通知、锁屏卡片、手机批准、用量统计都可用;终端模式(远程看屏/输入)暂不支持 Windows。</p></div>
+
 <div class="faq"><h3>想自己部署后端?</h3>
 <p>完全支持。项目 MIT 开源,后端是一个 Cloudflare Worker,一条命令部署:见 <a href="https://github.com/westie-ai/session-bell">GitHub 仓库</a>的 Self-hosted 一节。</p></div>
 
