@@ -237,6 +237,39 @@ def run_hook(args: list) -> int:
     return 0
 
 
+def interactive() -> None:
+    """Double-clicked from Explorer: no args, and the console dies with us —
+    so guide, don't print usage, and always pause before exiting."""
+    print("🔔 SessionBell for Windows\n")
+    try:
+        if os.path.exists(os.path.join(CONFIG_DIR, "config.json")):
+            cmd_doctor()
+        else:
+            code = ""
+            toks = clipboard_text().split()
+            if toks:
+                try:
+                    json.loads(base64.b64decode(toks[-1]))
+                    code = toks[-1]
+                    print("📋 剪贴板里发现配对码")
+                except Exception:
+                    pass
+            if not code:
+                print("在 iPhone 的 SessionBell App 里:设置 → 重新打开接入引导 →")
+                print("第三屏「连接 Mac」→ 拷贝配对命令,发到电脑再复制,或直接粘到下面。\n")
+                toks = input("粘贴配对命令或配对码: ").split()
+                code = toks[-1] if toks else ""
+            cmd_pair(code)
+    except SystemExit:
+        pass
+    except Exception as exc:
+        print(f"❌ 出错了: {exc}")
+    try:
+        input("\n按回车退出…")
+    except EOFError:
+        pass
+
+
 def main() -> None:
     args = sys.argv[1:]
     cmd = args[0] if args else ""
@@ -250,14 +283,17 @@ def main() -> None:
         except ValueError:
             n = 50
         cmd_log(n)
-    elif cmd:
-        sys.exit(run_hook(args))
-    else:
+    elif cmd == "help" or cmd == "--help":
         print("SessionBell — 本地 AI 编程助手的移动指挥台")
         print("用法:")
+        print("  sessionbell             双击/裸跑 = 安装向导(已装则体检)")
         print("  sessionbell pair [配对码]   接入(不带参数时自动读剪贴板)")
         print("  sessionbell doctor          一键体检(报障时截图这个)")
         print("  sessionbell log [行数]      查看日志(默认最近 50 行)")
+    elif cmd:
+        sys.exit(run_hook(args))
+    else:
+        interactive()
 
 
 if __name__ == "__main__":
