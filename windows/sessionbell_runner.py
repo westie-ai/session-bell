@@ -128,8 +128,22 @@ def cmd_pair(code: str) -> None:
 
     print(f"🔔 正在接入 {url} …")
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    with urllib.request.urlopen(url + "/sessionbell_hook.py", timeout=30) as r:
-        blob = r.read()
+    blob = b""
+    for attempt in range(5):
+        # 国内到 Cloudflare 的线路时不时抖一下(连接被 reset)——
+        # 自动多试几次,大多数时候第二三次就过了。
+        try:
+            with urllib.request.urlopen(url + "/sessionbell_hook.py",
+                                        timeout=30) as r:
+                blob = r.read()
+            if len(blob) >= 10000:
+                break
+        except Exception as exc:
+            if attempt == 4:
+                raise
+            print(f"   网络抖了一下({exc}),重试 {attempt + 1}/4 …")
+            import time
+            time.sleep(3)
     if len(blob) < 10000:
         die("❌ 下载 hook 失败(返回内容异常)")
     with open(HOOK, "wb") as f:
