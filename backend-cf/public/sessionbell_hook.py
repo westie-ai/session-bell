@@ -304,6 +304,10 @@ def handle_spawn(cfg: dict, text: str) -> None:
 
 def terminal_handle():
     """(type, handle) describing how to type into this session's terminal."""
+    if IS_WIN:
+        # Windows console APIs address the CONSOLE by pid (recorded on the
+        # session already) — no per-terminal handle, no window-focus games.
+        return "winconsole", ""
     if os.environ.get("OTTY_PANE_ID"):
         return "otty", os.environ["OTTY_PANE_ID"]
     if os.environ.get("TMUX_PANE") and os.environ.get("TMUX"):
@@ -421,6 +425,15 @@ def capture_pane(entry: dict):
                                capture_output=True, text=True, timeout=15)
             if p.returncode == 0 and p.stdout.strip():
                 return p.stdout
+    elif ttype == "winconsole" and IS_WIN:
+        pid = entry.get("pid")
+        if pid and pid_alive(pid):
+            p = subprocess.run(self_cmd("winconsole") + ["read", str(pid)],
+                               capture_output=True, text=True, timeout=15,
+                               encoding="utf-8", errors="replace")
+            if p.returncode == 0 and p.stdout.strip():
+                return p.stdout
+            log(f"capture: winconsole failed: {(p.stderr or p.stdout).strip()[:80]}")
     return None
 
 
@@ -488,7 +501,140 @@ def type_into_terminal(entry: dict, text: str):
                            capture_output=True, text=True, timeout=15)
         ok = p.returncode == 0 and "ok" in p.stdout
         return ok, (p.stderr or p.stdout).strip()[:120]
+    if ttype == "winconsole":
+        if not IS_WIN:
+            return False, "winconsole entry on non-Windows host"
+        pid = entry.get("pid")
+        if not pid or not pid_alive(pid):
+            return False, "process gone"
+        b64 = base64.b64encode((text + "\r").encode("utf-8")).decode()
+        p = subprocess.run(self_cmd("winconsole") + ["write", str(pid), b64],
+                           capture_output=True, text=True, timeout=15,
+                           encoding="utf-8", errors="replace")
+        ok = p.returncode == 0 and "ok" in (p.stdout or "")
+        return ok, (p.stderr or p.stdout or "").strip()[:120]
     return False, f"unsupported terminal ({ttype})"
+
+
+def cmd_winconsole(action: str, pid_s: str, payload_b64: str = "") -> None:
+    """Windows terminal mode worker: attach to the target session's console
+    by pid and read its screen buffer / write its input queue. Focus-free —
+    the console is addressed directly, never the foreground window.
+
+    Runs as a short-lived child (spawned via self_cmd) because AttachConsole
+    is exclusive: a process has one console, so the long-lived watcher can't
+    hop between sessions itself."""
+    if not IS_WIN:
+        print("ERR not-windows")
+        sys.exit(1)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+    import ctypes
+    from ctypes import wintypes
+
+    class COORD(ctypes.Structure):
+        _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+    class SMALL_RECT(ctypes.Structure):
+        _fields_ = [("Left", ctypes.c_short), ("Top", ctypes.c_short),
+                    ("Right", ctypes.c_short), ("Bottom", ctypes.c_short)]
+
+    class CSBI(ctypes.Structure):
+        _fields_ = [("dwSize", COORD), ("dwCursorPosition", COORD),
+                    ("wAttributes", ctypes.c_ushort), ("srWindow", SMALL_RECT),
+                    ("dwMaximumWindowSize", COORD)]
+
+    k32 = ctypes.windll.kernel32
+    k32.FreeConsole()
+    try:
+        pid = int(pid_s)
+    except ValueError:
+        print("ERR bad-pid")
+        sys.exit(1)
+    if not k32.AttachConsole(pid):
+        print(f"ERR attach:{k32.GetLastError()}")
+        sys.exit(1)
+
+    GENERIC_RW = 0x80000000 | 0x40000000
+    SHARE_RW = 0x00000001 | 0x00000002
+    OPEN_EXISTING = 3
+    INVALID_HANDLE = wintypes.HANDLE(-1).value
+
+    if action == "read":
+        h = k32.CreateFileW("CONOUT$", GENERIC_RW, SHARE_RW, None,
+                            OPEN_EXISTING, 0, None)
+        if h == INVALID_HANDLE:
+            print(f"ERR conout:{k32.GetLastError()}")
+            sys.exit(1)
+        info = CSBI()
+        if not k32.GetConsoleScreenBufferInfo(h, ctypes.byref(info)):
+            print(f"ERR csbi:{k32.GetLastError()}")
+            sys.exit(1)
+        width = max(1, info.dwSize.X)
+        last = max(info.dwCursorPosition.Y, info.srWindow.Bottom)
+        first = max(0, last - 200)
+        lines = []
+        for y in range(first, last + 1):
+            buf = ctypes.create_unicode_buffer(width + 1)
+            n = wintypes.DWORD(0)
+            if k32.ReadConsoleOutputCharacterW(h, buf, width, COORD(0, y),
+                                               ctypes.byref(n)):
+                lines.append(buf.value[:n.value].rstrip())
+        sys.stdout.write("\n".join(lines))
+    elif action == "write":
+        class CHAR_UNION(ctypes.Union):
+            _fields_ = [("UnicodeChar", ctypes.c_wchar),
+                        ("AsciiChar", ctypes.c_char)]
+
+        class KEY_EVENT(ctypes.Structure):
+            _fields_ = [("bKeyDown", wintypes.BOOL),
+                        ("wRepeatCount", ctypes.c_ushort),
+                        ("wVirtualKeyCode", ctypes.c_ushort),
+                        ("wVirtualScanCode", ctypes.c_ushort),
+                        ("uChar", CHAR_UNION),
+                        ("dwControlKeyState", wintypes.DWORD)]
+
+        class EVENT_UNION(ctypes.Union):
+            _fields_ = [("KeyEvent", KEY_EVENT)]
+
+        class INPUT_RECORD(ctypes.Structure):
+            _fields_ = [("EventType", ctypes.c_ushort), ("Event", EVENT_UNION)]
+
+        try:
+            text = base64.b64decode(payload_b64).decode("utf-8")
+        except Exception:
+            text = ""
+        if not text:
+            print("ERR empty")
+            sys.exit(1)
+        h = k32.CreateFileW("CONIN$", GENERIC_RW, SHARE_RW, None,
+                            OPEN_EXISTING, 0, None)
+        if h == INVALID_HANDLE:
+            print(f"ERR conin:{k32.GetLastError()}")
+            sys.exit(1)
+        KEY_EVENT_TYPE = 0x0001
+        VK_RETURN = 0x0D
+        records = (INPUT_RECORD * (len(text) * 2))()
+        for i, ch in enumerate(text):
+            vk = VK_RETURN if ch == "\r" else 0
+            for j, down in ((0, 1), (1, 0)):
+                r = records[i * 2 + j]
+                r.EventType = KEY_EVENT_TYPE
+                r.Event.KeyEvent.bKeyDown = down
+                r.Event.KeyEvent.wRepeatCount = 1
+                r.Event.KeyEvent.wVirtualKeyCode = vk
+                r.Event.KeyEvent.uChar.UnicodeChar = ch
+        n = wintypes.DWORD(0)
+        if not k32.WriteConsoleInputW(h, records, len(text) * 2,
+                                      ctypes.byref(n)):
+            print(f"ERR write:{k32.GetLastError()}")
+            sys.exit(1)
+        print("ok")
+    else:
+        print("ERR bad-action")
+        sys.exit(1)
 
 
 def resolve_device_tokens(cfg: dict) -> list:
@@ -1891,6 +2037,11 @@ def main():
                 ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
             while True:
                 time.sleep(3600)
+        return
+    if kind == "winconsole":
+        cmd_winconsole(sys.argv[2] if len(sys.argv) > 2 else "",
+                       sys.argv[3] if len(sys.argv) > 3 else "",
+                       sys.argv[4] if len(sys.argv) > 4 else "")
         return
     if kind == "usage":
         cmd_usage()

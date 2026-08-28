@@ -51,7 +51,9 @@ irm https://sessionbell.westie.ai/install.ps1 | iex
 
 会安装 `sessionbell.exe`(薄壳,跑的仍是每台 Mac 同款的
 `sessionbell_hook.py`,自动升级两端通用)、挂好 Claude Code hooks、注册
-开机自启。通知/锁屏卡片/手机批准/用量都可用;终端模式暂不支持 Windows。
+开机自启。通知/锁屏卡片/手机批准/用量/终端模式都可用——终端模式按 pid
+直连控制台(`AttachConsole` 系列),不依赖窗口焦点,不会打进你正在用的
+窗口;claude 跑在 WSL 里的场景暂不覆盖。
 
 数据隔离:命名空间 = `sha256(secret)`,租户间物理隔离,推送网关只允许
 推本命名空间登记过的设备。不放心就自托管——这正是开源的意义。

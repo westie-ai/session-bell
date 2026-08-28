@@ -61,9 +61,12 @@ irm https://sessionbell.westie.ai/install.ps1 | iex
 
 This installs `sessionbell.exe` (a thin launcher around the same
 `sessionbell_hook.py` every Mac runs — self-update covers both platforms),
-wires the Claude Code hooks, and registers the watcher at logon. Terminal
-mode (remote screen capture / typing) is not available on Windows yet;
-notifications, the lock-screen card, approvals, and usage all work.
+wires the Claude Code hooks, and registers the watcher at logon.
+Notifications, the lock-screen card, approvals, usage, and terminal mode
+all work; terminal mode addresses the session's console by pid via
+`AttachConsole`/`ReadConsoleOutput`/`WriteConsoleInput` — focus-independent,
+so it never types into whatever window you're using. Claude running inside
+WSL is not covered by terminal mode yet.
 
 Data isolation: your namespace is `sha256(secret)` — tenants are physically
 separated rows in D1 and the push gateway only pushes to devices registered in
