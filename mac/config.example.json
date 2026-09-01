@@ -10,5 +10,7 @@
 
   "device_tokens": ["可选：运行 App 后从首页拷贝；后端模式下会自动登记"],
   "min_idle_seconds": 120,
+  "permission_min_idle_seconds": 30,
+  "approval_timeout_seconds": 600,
   "host_label": "可选：推送里显示的机器名，不填自动取电脑名"
 }

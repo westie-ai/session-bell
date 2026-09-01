@@ -113,7 +113,7 @@ def install_hooks(exe: str) -> None:
         "Notification": ("notification", 30, True, None),
         "Stop": ("stop", 960, False, None),
         "SessionEnd": ("session-end", 30, True, None),
-        "PermissionRequest": ("permission", 120, False, None),
+        "PermissionRequest": ("permission", 900, False, None),
         "PreToolUse": ("subagent-start", 30, True, "Task|Agent"),
         "SubagentStop": ("subagent-stop", 30, True, None),
     }

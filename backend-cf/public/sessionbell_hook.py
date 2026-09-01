@@ -31,7 +31,7 @@ TOKENS_PATH = os.path.join(CONFIG_DIR, "activity-tokens.json")
 SESSIONS_PATH = os.path.join(CONFIG_DIR, "sessions.json")
 DECISIONS_DIR = os.path.join(CONFIG_DIR, "decisions")
 PENDING_APPROVAL_PATH = os.path.join(CONFIG_DIR, "pending-approval.json")
-APPROVAL_FRESH_SECONDS = 120  # buttons vanish from the card after this
+APPROVAL_FRESH_SECONDS = 600  # buttons vanish from the card after this
 
 HOSTS = {
     "production": "api.push.apple.com",
@@ -1508,11 +1508,15 @@ def handle_permission(cfg: dict, hook: dict) -> None:
     Prints the PermissionRequest decision JSON on stdout when the user answers;
     prints nothing on timeout so the normal terminal prompt takes over.
     """
-    if (not os.environ.get("SESSIONBELL_FORCE")
-            and not os.environ.get("SESSIONBELL_SPAWNED")):
+    phone_owned = bool(os.environ.get("SESSIONBELL_FORCE")
+                       or os.environ.get("SESSIONBELL_SPAWNED"))
+    if not phone_owned:
         idle = mac_idle_seconds()
-        min_idle = cfg.get("min_idle_seconds", 120)
+        # 授权请求多半出现在"刚派完活就走开"的头一两分钟——门槛必须比普通
+        # 提醒低得多,否则大多数请求都被"人还在"吞掉,手机上一次都见不到。
+        min_idle = cfg.get("permission_min_idle_seconds", 30)
         if idle is not None and idle < min_idle:
+            log(f"skip permission: user at keyboard (idle {idle:.0f}s < {min_idle}s)")
             return  # user is at the Mac — let the terminal ask
 
     import re
@@ -1591,8 +1595,14 @@ def handle_permission(cfg: dict, hook: dict) -> None:
 
     decision = None
     decision_path = os.path.join(DECISIONS_DIR, request_id)
-    deadline = time.time() + cfg.get("approval_timeout_seconds", 90)
+    deadline = time.time() + cfg.get("approval_timeout_seconds", 600)
     while time.time() < deadline:
+        # 人回到电脑前就立刻让位给终端提示,别让键盘前的人等手机。
+        if not phone_owned:
+            idle = mac_idle_seconds()
+            if idle is not None and idle < 3:
+                log(f"permission {request_id[:12]}: user returned, terminal takes over")
+                break
         if use_backend(cfg):
             resp = backend_call(cfg, "GET", f"/api/decision?id={request_id}")
             if resp and resp.get("decision") in ("allow", "deny"):
@@ -1841,6 +1851,9 @@ def fetch_official_api():
             if kind == "weekly_scoped" and name and "pct" not in out:
                 out.update(pct=lim["percent"], name=name,
                            resets_at=_iso_ts(lim.get("resets_at", "")))
+            elif kind == "session" and "session_pct" not in out:
+                out.update(session_pct=lim["percent"],
+                           session_resets_at=_iso_ts(lim.get("resets_at", "")))
             elif not name and kind not in ("session",) and kind.startswith(
                     ("week", "seven")) and "total_pct" not in out:
                 out.update(total_pct=lim["percent"],
@@ -1906,6 +1919,10 @@ def usage_summary(cfg: dict = None) -> dict:
             summary["premium_name"] = official.get("name") or summary["premium_name"]
         if official.get("total_pct") is not None:
             summary["official_total_pct"] = official["total_pct"]
+        if official.get("session_pct") is not None:
+            summary["official_session_pct"] = official["session_pct"]
+            if official.get("session_resets_at"):
+                summary["session_reset_ts"] = int(official["session_resets_at"])
         resets = official.get("total_resets_at") or official.get("resets_at")
         if resets:
             summary["reset_ts"] = int(resets)
@@ -2193,6 +2210,9 @@ def main():
             and not os.environ.get("SESSIONBELL_SPAWNED")):
         idle = mac_idle_seconds()
         min_idle = cfg.get("min_idle_seconds", 120)
+        if kind == "notification" and hook.get("notification_type") == "permission_prompt":
+            # 授权卡着整个任务,等不起两分钟——与 PermissionRequest 同一道低门槛。
+            min_idle = cfg.get("permission_min_idle_seconds", 30)
         if idle is not None and idle < min_idle:
             log(f"skip {kind}: user at keyboard (idle {idle:.0f}s < {min_idle}s)")
             # Still honor a phone command sent moments ago — a quick mailbox
@@ -2212,10 +2232,17 @@ def main():
         if task_detail:
             title = f"✅ {project} · 完成「{task_detail[:24]}」"
     elif kind == "notification":
-        # Permission prompts already get their own actionable push from the
-        # PermissionRequest hook — don't double-ring.
+        # Permission prompts get their own actionable push from the
+        # PermissionRequest hook — while that card is still live, don't
+        # double-ring. But if it was idle-skipped or already timed out,
+        # this notification is the only chance to ring — let it through.
         if hook.get("notification_type") == "permission_prompt" and use_backend(cfg):
-            return
+            try:
+                with open(PENDING_APPROVAL_PATH) as f:
+                    if now - json.load(f).get("ts", 0) < APPROVAL_FRESH_SECONDS:
+                        return
+            except (OSError, ValueError):
+                pass
         title = f"🖐 {project} · 需要你"
         # What is Claude actually asking? The last assistant message says.
         raw_md = last_assistant_text(hook.get("transcript_path", ""))

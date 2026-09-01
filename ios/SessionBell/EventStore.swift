@@ -59,6 +59,8 @@ final class EventStore: ObservableObject {
         var usageFraction: Double? = nil  // week_out / week_budget
         var fableText: String = ""
         var fableFraction: Double? = nil
+        var sessionText: String = ""      // 5 小时窗口(官方口径)
+        var sessionFraction: Double? = nil
         var awake: Bool = false
         var canonicalKey: String = ""
         var projects: [String] = []
@@ -123,6 +125,8 @@ final class EventStore: ObservableObject {
         var fractionFor: [String: Double] = [:]
         var fableTextFor: [String: String] = [:]
         var fableFractionFor: [String: Double] = [:]
+        var sessionTextFor: [String: String] = [:]
+        var sessionFractionFor: [String: Double] = [:]
         func fmtTokens(_ n: Double) -> String {
             n >= 1e6 ? String(format: "%.1fM", n / 1e6)
                 : n >= 1000 ? String(format: "%.0fk", n / 1000) : String(Int(n))
@@ -162,6 +166,19 @@ final class EventStore: ObservableObject {
                         fractionFor[key] = weekOut / budget
                     }
                     usageFor[key] = text
+                    if let sessionPct = u["official_session_pct"] as? Double {
+                        sessionFractionFor[key] = sessionPct / 100
+                        var stext = "官方口径"
+                        if let sReset = u["session_reset_ts"] as? Double {
+                            let remain = sReset - now
+                            if remain > 0 {
+                                let h = Int(remain / 3600)
+                                let m = Int(remain.truncatingRemainder(dividingBy: 3600) / 60)
+                                stext = "距重置 \(h > 0 ? "\(h)时" : "")\(m)分 · 官方口径"
+                            }
+                        }
+                        sessionTextFor[key] = stext
+                    }
                     if let weekFable = u["week_fable"] as? Double, weekFable > 0 {
                         let name = u["premium_name"] as? String ?? "Fable"
                         if let officialPct = u["official_pct"] as? Double {
@@ -232,6 +249,8 @@ final class EventStore: ObservableObject {
                                     usageFraction: fractionFor[hostKey],
                                     fableText: fableTextFor[hostKey] ?? "",
                                     fableFraction: fableFractionFor[hostKey],
+                                    sessionText: sessionTextFor[hostKey] ?? "",
+                                    sessionFraction: sessionFractionFor[hostKey],
                                     awake: awakeFor[hostKey] ?? false,
                                     canonicalKey: hostKey,
                                     projects: projectsFor[hostKey] ?? []))
@@ -283,7 +302,7 @@ final class EventStore: ObservableObject {
             }
             let date = Date(timeIntervalSince1970: ts)
             // Only surface approvals the Mac is still waiting on.
-            if Date().timeIntervalSince(date) < 100 {
+            if Date().timeIntervalSince(date) < 600 {
                 pendingApproval = PendingApproval(
                     id: requestId, summary: summary, backend: url, secret: secret, date: date)
             }

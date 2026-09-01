@@ -56,7 +56,7 @@ struct ContentView: View {
     /// 待批准且还在有效期内 → 任务 Tab 红点
     private var approvalBadge: Int {
         guard let approval = store.pendingApproval,
-              Date().timeIntervalSince(approval.date) < 100 else { return 0 }
+              Date().timeIntervalSince(approval.date) < 600 else { return 0 }
         return 1
     }
 
@@ -86,8 +86,12 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("任务")
-            .navigationDestination(for: SessionGroup.self) { SessionDetailView(group: $0) }
-            .navigationDestination(for: EventStore.LiveTask.self) { SessionControlView(task: $0) }
+            .navigationDestination(for: SessionGroup.self) {
+                SessionPage(sessionId: $0.sessionId, project: $0.project)
+            }
+            .navigationDestination(for: EventStore.LiveTask.self) {
+                SessionPage(sessionId: $0.sessionId, project: $0.project, host: $0.host)
+            }
             .refreshable { await store.refresh() }
             .toolbar {
                 if !store.events.isEmpty {
@@ -100,13 +104,17 @@ struct ContentView: View {
     // MARK: 用量 Tab
 
     private var hasUsage: Bool {
-        store.liveGroups.contains { !$0.usage.isEmpty || $0.usageFraction != nil }
+        store.liveGroups.contains {
+            !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+        }
     }
 
     private var usageTab: some View {
         NavigationStack {
             List {
-                ForEach(store.liveGroups.filter { !$0.usage.isEmpty || $0.usageFraction != nil }) { group in
+                ForEach(store.liveGroups.filter {
+                    !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+                }) { group in
                     Section("💻 \(group.host)") {
                         UsageDashboard(group: group)
                     }
@@ -189,7 +197,7 @@ struct ContentView: View {
     @ViewBuilder
     private var approvalSection: some View {
         if let approval = store.pendingApproval,
-           Date().timeIntervalSince(approval.date) < 100 {
+           Date().timeIntervalSince(approval.date) < 600 {
             Section("待批准") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(approval.summary.isEmpty ? "Claude 请求授权" : approval.summary)
@@ -363,9 +371,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var sessionsSection: some View {
-        if !store.groups.isEmpty {
+        // 已经以活跃卡片露脸的 session 不再在历史里重复一行。
+        let liveIds = Set(store.liveTasks.map(\.sessionId))
+        let history = store.groups.filter { !liveIds.contains($0.sessionId) }
+        if !history.isEmpty {
             Section("通知历史") {
-                ForEach(store.groups) { group in
+                ForEach(history) { group in
                     NavigationLink(value: group) {
                         SessionRow(group: group)
                     }
@@ -525,6 +536,12 @@ struct UsageDashboard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // 5 小时窗口最先耗尽,放最上面。
+            if let sessionFraction = group.sessionFraction {
+                Meter(icon: "clock", label: "5 小时窗口",
+                      fraction: sessionFraction, color: statusColor(sessionFraction),
+                      detail: group.sessionText)
+            }
             if let fraction = group.usageFraction {
                 Meter(icon: "gauge.with.needle", label: "本周额度",
                       fraction: fraction, color: statusColor(fraction),
@@ -769,84 +786,374 @@ struct SessionRow: View {
     }
 }
 
-struct CommandBox: View {
-    let sessionId: String
-    @State private var commandText = ""
-    @State private var sendState = ""
+/// 全量通知历史 — 从详情页角落进来,不再占详情页半屏。
+struct EventHistoryView: View {
+    let group: SessionGroup
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("给这个 session 发下一步指令…", text: $commandText, axis: .vertical)
-                .lineLimit(2...5)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Text(sendState)
-                    .font(.caption2).foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    let text = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    commandText = ""
-                    sendState = "发送中…"
-                    Task {
-                        if let backend = SBBackend.saved {
-                            await SBBackend.post(
-                                "/api/command",
-                                body: ["session_id": sessionId, "text": text],
-                                to: backend.url, secret: backend.secret)
-                            sendState = "已发送 ✓ 任务空闲/结束时自动接上"
-                        } else {
-                            sendState = "后端未配置"
+        List {
+            ForEach(group.events) { event in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: event.kind.symbol)
+                        .foregroundStyle(event.kind.color)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(event.kind.label).font(.subheadline.bold())
+                            Spacer()
+                            Text(event.date, format: .dateTime.month().day().hour().minute())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                        MarkdownText(text: event.md ?? event.body)
                     }
-                } label: {
-                    Label("发送", systemImage: "paperplane.fill")
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.vertical, 2)
             }
         }
-        .padding(.vertical, 4)
+        .navigationTitle("通知历史")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-struct SessionControlView: View {
-    let task: EventStore.LiveTask
+/// 统一详情页 — 通知点进来、任务卡点进来都是它。
+/// 只回答两个问题:最新发生了什么(Claude 最新回复 + 终端画面),
+/// 你要发什么(底部输入框,自动选通道)。其余收进角落。
+struct SessionPage: View {
+    let sessionId: String
+    let project: String
+    var host: String? = nil
     @EnvironmentObject var store: EventStore
+    @State private var input = ""
+    @State private var sendNote = ""
+    @State private var sendNoteOK = true
+    @State private var noteTask: Task<Void, Never>?
+    @FocusState private var inputFocused: Bool
+
+    private var liveTask: EventStore.LiveTask? {
+        store.liveTasks.first { $0.sessionId == sessionId }
+    }
+    private var group: SessionGroup? {
+        store.groups.first { $0.sessionId == sessionId }
+    }
+    private var resolvedHost: String? {
+        liveTask?.host ?? host ?? group?.events.compactMap(\.host).first
+    }
+    private var isLive: Bool { liveTask != nil }
+    private var isCodex: Bool { liveTask?.engine == "codex" }
+
+    private var peekTask: EventStore.LiveTask? {
+        guard let h = resolvedHost else { return nil }
+        return liveTask ?? EventStore.LiveTask(
+            id: sessionId, sessionId: sessionId, project: project, host: h,
+            status: "ended", since: group?.latest.date ?? Date(),
+            detail: "", agents: 0)
+    }
+
+    private var statusInfo: (label: String, color: Color) {
+        switch liveTask?.status {
+        case "waiting": return ("等待你", .orange)
+        case "running": return ("运行中", .blue)
+        case "done": return ("已完成", .green)
+        default: return ("已结束", .gray)
+        }
+    }
+
     var body: some View {
-        List {
-            Section("状态") {
-                LiveTaskRow(task: task)
-                if !task.detail.isEmpty {
-                    Text(task.detail)
-                        .font(.footnote)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    headerCard
+                    if !isCodex, let task = peekTask {
+                        terminalCard(task)
+                    }
+                    if let g = group, g.events.count > 1 {
+                        NavigationLink {
+                            EventHistoryView(group: g)
+                        } label: {
+                            Label("通知历史(\(g.events.count) 条)",
+                                  systemImage: "clock.arrow.circlepath")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture { inputFocused = false }
+            inputBar
+        }
+        .navigationTitle(project)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 状态和最新内容合成一张卡:状态行是标题,Claude 最新回复是正文。
+    /// 通知事件的类型/时间与实时状态说的是同一件事 — 不再各说一遍。
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle().fill(statusInfo.color).frame(width: 8, height: 8)
+                Text(statusInfo.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(statusInfo.color)
+                if let since = liveTask?.since ?? group?.latest.date {
+                    Text(since, style: .relative)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                if let h = resolvedHost {
+                    Text(h)
+                        .font(.caption2)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
                         .foregroundStyle(.secondary)
                 }
             }
-            Section("远程指令") {
-                CommandBox(sessionId: task.sessionId)
+            if let detail = liveTask?.detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            if task.engine != "codex" {
-                Section {
-                    NavigationLink {
-                        TerminalView(task: task)
-                    } label: {
-                        Label("终端模式(实时输出 + 输入)", systemImage: "terminal.fill")
-                            .foregroundStyle(Color.sbAccentDeep)
-                    }
-                }
-            }
-            if let group = store.groups.first(where: { $0.sessionId == task.sessionId }) {
-                Section {
-                    NavigationLink(value: group) {
-                        Label("查看该 session 的通知历史", systemImage: "clock.arrow.circlepath")
-                    }
+            if let event = group?.latest {
+                let content = event.md ?? event.body
+                if !content.isEmpty {
+                    Divider()
+                    MarkdownText(text: content)
                 }
             }
         }
-        .navigationTitle(task.project)
-        .navigationBarTitleDisplayMode(.inline)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
     }
+
+    private func terminalCard(_ task: EventStore.LiveTask) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TerminalPeek(task: task)
+            NavigationLink {
+                TerminalView(task: task)
+            } label: {
+                Label("终端模式(实时输出 + 输入)", systemImage: "terminal.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Color.sbAccentDeep)
+            }
+        }
+    }
+
+    private var canSend: Bool {
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var inputBar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider().opacity(0.6)
+            // 发送回执:彩色药丸,出现 3 秒自动淡出,不常驻占地方。
+            if !sendNote.isEmpty {
+                HStack(spacing: 5) {
+                    Image(systemName: sendNoteOK
+                          ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    Text(sendNote)
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(sendNoteOK ? .green : .orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background((sendNoteOK ? Color.green : Color.orange).opacity(0.12),
+                            in: Capsule())
+                .padding(.top, 10)
+                .padding(.leading, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField(isLive ? "下一步做什么…" : "直接打进终端…",
+                          text: $input, axis: .vertical)
+                    .lineLimit(1...5)
+                    .font(.subheadline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color(.systemBackground),
+                                in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(inputFocused ? Color.sbAccentDeep.opacity(0.7)
+                                          : Color(.separator),
+                                          lineWidth: inputFocused ? 1.5 : 1)
+                    )
+                    .focused($inputFocused)
+                    .onSubmit { if canSend { send() } }
+                Button(action: send) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(canSend ? Color.sbAccentDeep : Color(.systemGray3),
+                                    in: Circle())
+                }
+                .disabled(!canSend)
+                .scaleEffect(canSend ? 1 : 0.92)
+                .animation(.spring(duration: 0.25), value: canSend)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+        }
+        .background(.bar)
+        .animation(.easeOut(duration: 0.25), value: sendNote)
+    }
+
+    /// 活跃 session 走队列注入(空闲/结束时自动接上);
+    /// 已结束的走原始通道直打终端 pane(还开着就能续)。
+    private func send() {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        input = ""
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            if isLive {
+                guard let backend = SBBackend.saved else {
+                    showNote("后端未配置", ok: false)
+                    return
+                }
+                await SBBackend.post("/api/command",
+                                     body: ["session_id": sessionId, "text": text],
+                                     to: backend.url, secret: backend.secret)
+                showNote("已发出 · 任务空闲时自动接上")
+            } else if let h = resolvedHost,
+                      let data = try? JSONSerialization.data(
+                          withJSONObject: ["sid": sessionId, "text": text]),
+                      let json = String(data: data, encoding: .utf8) {
+                await store.sendMachineCommand(
+                    "_type-\(EventStore.canonicalHost(h))", text: json)
+                showNote("已打进终端")
+            } else {
+                showNote("找不到那台电脑,没发出去", ok: false)
+            }
+        }
+    }
+
+    private func showNote(_ text: String, ok: Bool = true) {
+        sendNote = text
+        sendNoteOK = ok
+        noteTask?.cancel()
+        noteTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled { sendNote = "" }
+        }
+    }
+}
+
+/// 详情页顶部的终端快照:打开就先亮出后端缓存的最后一帧(电脑离线也有),
+/// 随后让 watcher 抓新帧替换 — 先看到,再发指令。
+struct TerminalPeek: View {
+    let task: EventStore.LiveTask
+    @EnvironmentObject var store: EventStore
+    @State private var output = ""
+    @State private var capDate: Date?
+    @State private var lastTs: Double = 0
+    @State private var running = true
+    @State private var refreshing = true
+
+    private var tailText: String {
+        terminalPrettify(output)
+            .components(separatedBy: "\n")
+            .suffix(14)
+            .joined(separator: "\n")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if output.isEmpty {
+                    Text(refreshing ? "⏳ 正在取最后画面…(约 10 秒)"
+                         : "暂无画面 — 那台电脑可能不在线,或终端窗口已关")
+                        .foregroundStyle(termFG.opacity(0.55))
+                } else {
+                    Text(tailText).foregroundStyle(termFG)
+                }
+            }
+            .font(.system(size: 11, design: .monospaced))
+            .lineSpacing(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(termBG, in: RoundedRectangle(cornerRadius: 10))
+
+            HStack(spacing: 6) {
+                if refreshing {
+                    ProgressView().controlSize(.mini)
+                    Text("刷新中…")
+                } else if let capDate {
+                    Text("画面时间:") + Text(capDate, style: .relative) + Text("前")
+                }
+                Spacer()
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .task { await refreshLoop() }
+        .onDisappear { running = false }
+    }
+
+    private func refreshLoop() async {
+        // 1. 缓存帧立即可见
+        if let cap = await fetchCapture(sessionId: task.sessionId) {
+            capDate = cap.date
+            lastTs = cap.date.timeIntervalSince1970
+            output = cap.text
+        }
+        // 2. 循环请求新帧,页面开着就保持大约十几秒一帧
+        while running {
+            refreshing = true
+            await store.sendMachineCommand(
+                "_tail-\(EventStore.canonicalHost(task.host))", text: task.sessionId)
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .seconds(2))
+                guard running else { return }
+                if let cap = await fetchCapture(sessionId: task.sessionId),
+                   cap.date.timeIntervalSince1970 > lastTs {
+                    capDate = cap.date
+                    lastTs = cap.date.timeIntervalSince1970
+                    output = cap.text
+                    break
+                }
+            }
+            refreshing = false
+            try? await Task.sleep(for: .seconds(10))
+            guard running else { return }
+        }
+    }
+}
+
+let termBG = Color(red: 0.055, green: 0.06, blue: 0.07)
+let termFG = Color(red: 0.80, green: 0.87, blue: 0.80)
+
+/// 折叠连续空行、去行尾空白 — 抓屏原文噪音大,读起来更像终端
+func terminalPrettify(_ raw: String) -> String {
+    var out: [String] = []
+    var blanks = 0
+    for line in raw.components(separatedBy: "\n") {
+        let trimmed = String(line.reversed().drop(while: { $0 == " " }).reversed())
+        if trimmed.isEmpty {
+            blanks += 1
+            if blanks > 1 { continue }
+        } else {
+            blanks = 0
+        }
+        out.append(trimmed)
+    }
+    return out.joined(separator: "\n")
+}
+
+/// 后端缓存的最后一帧抓屏(worker /api/capture,ts 为毫秒)
+func fetchCapture(sessionId: String) async -> (date: Date, text: String)? {
+    guard let obj = await SBBackend.getJSON("/api/capture?id=\(sessionId)") as? [String: Any],
+          let cap = obj["capture"] as? [String: Any],
+          let ts = cap["ts"] as? Double,
+          let text = cap["text"] as? String else { return nil }
+    return (Date(timeIntervalSince1970: ts / 1000), text)
 }
 
 /// 手机上的迷你终端:实时输出流 + 直接输入。
@@ -861,25 +1168,7 @@ struct TerminalView: View {
     @State private var sending = false
     @FocusState private var inputFocused: Bool
 
-    private let termBG = Color(red: 0.055, green: 0.06, blue: 0.07)
-    private let termFG = Color(red: 0.80, green: 0.87, blue: 0.80)
-
-    /// 折叠连续空行、去行尾空白 — 抓屏原文噪音大,读起来更像终端
-    private func prettify(_ raw: String) -> String {
-        var out: [String] = []
-        var blanks = 0
-        for line in raw.components(separatedBy: "\n") {
-            let trimmed = String(line.reversed().drop(while: { $0 == " " }).reversed())
-            if trimmed.isEmpty {
-                blanks += 1
-                if blanks > 1 { continue }
-            } else {
-                blanks = 0
-            }
-            out.append(trimmed)
-        }
-        return out.joined(separator: "\n")
-    }
+    private func prettify(_ raw: String) -> String { terminalPrettify(raw) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -952,6 +1241,11 @@ struct TerminalView: View {
     }
 
     private func refreshLoop() async {
+        // 先把后端缓存的最后一帧亮出来,再等 watcher 抓新帧。
+        if output.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId) {
+            lastTs = cap.date.timeIntervalSince1970 * 1000
+            output = cap.text
+        }
         while running {
             await store.sendMachineCommand(
                 "_tail-\(EventStore.canonicalHost(task.host))", text: task.sessionId)
@@ -989,72 +1283,5 @@ struct TerminalView: View {
             try? await Task.sleep(for: .seconds(1))
             sending = false
         }
-    }
-}
-
-struct SessionDetailView: View {
-    let group: SessionGroup
-    @EnvironmentObject var store: EventStore
-
-    private var isLive: Bool {
-        store.liveTasks.contains { $0.sessionId == group.sessionId }
-    }
-
-    var body: some View {
-        List {
-            Section("远程指令") {
-                if isLive {
-                    CommandBox(sessionId: group.sessionId)
-                } else {
-                    Label("该 session 已结束,带话通道关闭 — 用下面的终端模式直连",
-                          systemImage: "moon.zzz")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let host = group.events.compactMap(\.host).first {
-                Section {
-                    NavigationLink {
-                        TerminalView(task: EventStore.LiveTask(
-                            id: group.sessionId, sessionId: group.sessionId,
-                            project: group.project, host: host,
-                            status: "ended", since: group.latest.date,
-                            detail: "", agents: 0))
-                    } label: {
-                        Label("终端模式(终端窗口还开着就能连)",
-                              systemImage: "terminal.fill")
-                            .foregroundStyle(Color.sbAccentDeep)
-                    }
-                }
-            }
-            if !group.latest.cwd.isEmpty {
-                Section("目录") {
-                    Text(group.latest.host.map { "\($0) · \(group.latest.cwd)" } ?? group.latest.cwd)
-                        .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Section("事件") {
-                ForEach(group.events) { event in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: event.kind.symbol)
-                            .foregroundStyle(event.kind.color)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(event.kind.label).font(.subheadline.bold())
-                                Spacer()
-                                Text(event.date, format: .dateTime.month().day().hour().minute())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            MarkdownText(text: event.md ?? event.body)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .navigationTitle(group.project)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
