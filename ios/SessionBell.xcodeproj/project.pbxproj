@@ -272,7 +272,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -281,7 +281,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -415,7 +415,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -424,7 +424,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -436,7 +436,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -444,7 +444,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -457,7 +457,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -465,7 +465,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
