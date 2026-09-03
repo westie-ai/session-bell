@@ -1,0 +1,1620 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ (tap to copy)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（点按拷贝）"
+          }
+        }
+      }
+    },
+    "%lld more (see all in the app)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还有 %lld 个（App 内查看全部）"
+          }
+        }
+      }
+    },
+    "%lld tasks": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld task"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tasks"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个任务"
+          }
+        }
+      }
+    },
+    "%lld tasks running": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld task running"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tasks running"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个任务运行中"
+          }
+        }
+      }
+    },
+    "%lld tasks waiting for you": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld task waiting for you"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tasks waiting for you"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个任务在等你"
+          }
+        }
+      }
+    },
+    "%lldd %lldh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld天%lld时"
+          }
+        }
+      }
+    },
+    "%lldh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld时"
+          }
+        }
+      }
+    },
+    "%lldh %lldm": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld时%lld分"
+          }
+        }
+      }
+    },
+    "%lldm": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分"
+          }
+        }
+      }
+    },
+    "5-Hour Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 小时窗口"
+          }
+        }
+      }
+    },
+    "A phone command center for\nClaude Code and other local coding agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code 等本地编程 agent 的\n手机指挥台"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
+          }
+        }
+      }
+    },
+    "Active": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中"
+          }
+        }
+      }
+    },
+    "After a task runs on your Mac, this shows the official weekly quota and premium-model usage, same source as /usage.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 上跑过任务后,这里显示官方口径的本周额度和高级模型用量,与 /usage 同源。"
+          }
+        }
+      }
+    },
+    "All done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部完成"
+          }
+        }
+      }
+    },
+    "Allow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许"
+          }
+        }
+      }
+    },
+    "Allow or deny without going back to the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 / 拒绝,不用回电脑"
+          }
+        }
+      }
+    },
+    "Allowed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已开启"
+          }
+        }
+      }
+    },
+    "Applying…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效中…"
+          }
+        }
+      }
+    },
+    "Approval Needed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待批准"
+          }
+        }
+      }
+    },
+    "Approve Permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "批准授权"
+          }
+        }
+      }
+    },
+    "Approve permission requests from the Lock Screen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授权请求锁屏一键批准"
+          }
+        }
+      }
+    },
+    "Asks nothing and runs straight through. The first time on a machine you must accept a warning on the Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "什么都不问,一路到底;该机器首次需在电脑上接受一次警告"
+          }
+        }
+      }
+    },
+    "Auto mode: safe actions pass automatically, doubtful ones go to your phone (recommended)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "auto mode:安全操作自动过,存疑的推手机批准(推荐)"
+          }
+        }
+      }
+    },
+    "Awake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常亮中"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        }
+      }
+    },
+    "Backend (not set)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后端配置(未设置)"
+          }
+        }
+      }
+    },
+    "Backend not configured": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后端未配置"
+          }
+        }
+      }
+    },
+    "Backend: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后端:%@"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "Captured %@ ago": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面时间:%@前"
+          }
+        }
+      }
+    },
+    "Claude is requesting permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 请求授权"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空"
+          }
+        }
+      }
+    },
+    "Computers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电脑"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "Connect Later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后连接"
+          }
+        }
+      }
+    },
+    "Connect Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 Mac"
+          }
+        }
+      }
+    },
+    "Connected to %@ 🎉": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接 %@ 🎉"
+          }
+        }
+      }
+    },
+    "Connection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接状态"
+          }
+        }
+      }
+    },
+    "Copied ✓": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝 ✓"
+          }
+        }
+      }
+    },
+    "Copied ✓ Press ⌘V on a Mac with the same Apple Account": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝 ✓ 同一 Apple 账号的 Mac 直接 ⌘V"
+          }
+        }
+      }
+    },
+    "Copy Pair Command (add another Mac)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝配对命令(接入新电脑)"
+          }
+        }
+      }
+    },
+    "Copy the pair command, paste it in Terminal on the Mac and press Return": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝配对命令,到 Mac 终端里粘贴回车"
+          }
+        }
+      }
+    },
+    "Couldn't find that Mac. Not sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到那台电脑,没发出去"
+          }
+        }
+      }
+    },
+    "Couldn't parse the pairing code. Contact the person who invited you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对码解析失败,请联系邀请你的人"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "普通"
+          }
+        }
+      }
+    },
+    "Denied (enable in Settings)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝（去设置打开）"
+          }
+        }
+      }
+    },
+    "Deny": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拒绝"
+          }
+        }
+      }
+    },
+    "Deployment guide at github.com/westie-ai/session-bell": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部署指南见 github.com/westie-ai/session-bell"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Download and install SessionBell.pkg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载并安装 SessionBell.pkg"
+          }
+        }
+      }
+    },
+    "Ended": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已结束"
+          }
+        }
+      }
+    },
+    "Enter Invite Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入邀请码"
+          }
+        }
+      }
+    },
+    "Every permission goes to your phone for approval. Safest.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有授权推手机批准,最稳"
+          }
+        }
+      }
+    },
+    "Failed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败: %@"
+          }
+        }
+      }
+    },
+    "Finish setup first. Tasks will show up here once a Mac connects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先完成接入,Mac 连上来之后任务会出现在这里。"
+          }
+        }
+      }
+    },
+    "Finished": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "First Instruction": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一条指令"
+          }
+        }
+      }
+    },
+    "Get Started": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始使用"
+          }
+        }
+      }
+    },
+    "Give an agent a job on your Mac. Tasks appear here and on the Lock Screen in real time, and your phone rings when they finish.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上给 agent 派个活:任务会实时出现在这里和锁屏上,完成时手机响铃。"
+          }
+        }
+      }
+    },
+    "Have a Pairing Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有配对码"
+          }
+        }
+      }
+    },
+    "Have a pairing code / self-hosted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有配对码 / 自托管"
+          }
+        }
+      }
+    },
+    "Hide Keyboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起键盘"
+          }
+        }
+      }
+    },
+    "I Have an Invite Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我有邀请码"
+          }
+        }
+      }
+    },
+    "Invalid address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址不合法"
+          }
+        }
+      }
+    },
+    "Invite code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请码"
+          }
+        }
+      }
+    },
+    "Invite code not recognized. Check it and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请码不对,检查一下再试"
+          }
+        }
+      }
+    },
+    "Keep Awake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "防熄屏"
+          }
+        }
+      }
+    },
+    "Live Activity Start Token": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live Activity 启动 Token"
+          }
+        }
+      }
+    },
+    "Needs Attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要干预"
+          }
+        }
+      }
+    },
+    "Network error: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络不通:%@"
+          }
+        }
+      }
+    },
+    "New Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建 session"
+          }
+        }
+      }
+    },
+    "No Tasks Yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有任务"
+          }
+        }
+      }
+    },
+    "No Usage Data": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无用量数据"
+          }
+        }
+      }
+    },
+    "No active tasks right now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前没有活跃任务"
+          }
+        }
+      }
+    },
+    "No backend configured": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有后端配置"
+          }
+        }
+      }
+    },
+    "No frame yet — that Mac may be offline, or the terminal window was closed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无画面 — 那台电脑可能不在线,或终端窗口已关"
+          }
+        }
+      }
+    },
+    "Not asked yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未询问"
+          }
+        }
+      }
+    },
+    "Not connected yet? Check in order:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没连上?按顺序检查:"
+          }
+        }
+      }
+    },
+    "Notification History": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知历史"
+          }
+        }
+      }
+    },
+    "Notification History (%lld)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知历史(%lld 条)"
+          }
+        }
+      }
+    },
+    "Notifications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知权限"
+          }
+        }
+      }
+    },
+    "On the Mac (two steps)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上(两步)"
+          }
+        }
+      }
+    },
+    "One Lock Screen panel for every Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锁屏面板聚合所有 Mac 的任务"
+          }
+        }
+      }
+    },
+    "Open SessionBell": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进入 SessionBell"
+          }
+        }
+      }
+    },
+    "Or type a path": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "或手动输入路径"
+          }
+        }
+      }
+    },
+    "Panel ready, waiting for task events": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "面板已就绪，等待任务事件"
+          }
+        }
+      }
+    },
+    "Panel revived ✓": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "面板已唤起 ✓"
+          }
+        }
+      }
+    },
+    "Paste pairing code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴配对码"
+          }
+        }
+      }
+    },
+    "Paste pairing code (fills in below)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴配对码(自动填充下方)"
+          }
+        }
+      }
+    },
+    "Permission Mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限模式"
+          }
+        }
+      }
+    },
+    "Permission Request": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求授权"
+          }
+        }
+      }
+    },
+    "Phone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手机"
+          }
+        }
+      }
+    },
+    "Premium Model": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级模型"
+          }
+        }
+      }
+    },
+    "Project Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目目录"
+          }
+        }
+      }
+    },
+    "Refreshing…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新中…"
+          }
+        }
+      }
+    },
+    "Restricted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受限"
+          }
+        }
+      }
+    },
+    "Revive Lock Screen Panel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "唤起锁屏面板"
+          }
+        }
+      }
+    },
+    "Reviving…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "唤起中…"
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行中"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
+    "Saved ✓": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存 ✓"
+          }
+        }
+      }
+    },
+    "Self-Hosted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自托管"
+          }
+        }
+      }
+    },
+    "Send": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送"
+          }
+        }
+      }
+    },
+    "Sent · picked up when the task is idle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已发出 · 任务空闲时自动接上"
+          }
+        }
+      }
+    },
+    "Sent. Starting in about 10 seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已发送,约 10 秒后启动"
+          }
+        }
+      }
+    },
+    "Server returned HTTP %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器返回 HTTP %lld"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
+      }
+    },
+    "Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接入"
+          }
+        }
+      }
+    },
+    "Shared secret (SB_SECRET)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享密钥(SB_SECRET)"
+          }
+        }
+      }
+    },
+    "Show Setup Guide Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新打开接入引导"
+          }
+        }
+      }
+    },
+    "Source Code · westie-ai/session-bell": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开源仓库 · westie-ai/session-bell"
+          }
+        }
+      }
+    },
+    "Start Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始接入"
+          }
+        }
+      }
+    },
+    "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在那台电脑的 Otty 新窗口里启动交互式 session——回到桌面即可接管;任务出现在面板上,完成推送结果。Otty 未运行时自动改为后台无头执行。"
+          }
+        }
+      }
+    },
+    "Stays quiet while you're at the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑前时不会吵你"
+          }
+        }
+      }
+    },
+    "Task Finished": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成"
+          }
+        }
+      }
+    },
+    "Tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务"
+          }
+        }
+      }
+    },
+    "Tenant secret": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "租户密钥"
+          }
+        }
+      }
+    },
+    "Terminal Mode (live output + input)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终端模式(实时输出 + 输入)"
+          }
+        }
+      }
+    },
+    "Test": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测试"
+          }
+        }
+      }
+    },
+    "Test Connection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测试连接"
+          }
+        }
+      }
+    },
+    "The base64 string generated by the person who invited you. Paste it and you're done.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请你的人生成的那串 base64。粘上即自动完成。"
+          }
+        }
+      }
+    },
+    "The person who invited you will send you a code.\nSigning up gives you your own private space.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请你的人会把邀请码发给你。\n注册后你会得到一个独立的专属空间。"
+          }
+        }
+      }
+    },
+    "This Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机"
+          }
+        }
+      }
+    },
+    "Today %@ · This cycle %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日 %@ · 本周期 %@"
+          }
+        }
+      }
+    },
+    "Type straight into the terminal…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接打进终端…"
+          }
+        }
+      }
+    },
+    "Typed into terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打进终端"
+          }
+        }
+      }
+    },
+    "Universal Clipboard carries it to the Mac after copying. AirDrop works too.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝后靠通用剪贴板直达 Mac;也可以用隔空投送把命令发过去。"
+          }
+        }
+      }
+    },
+    "Unknown project": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知项目"
+          }
+        }
+      }
+    },
+    "Usage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用量"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        }
+      }
+    },
+    "Waiting / running / done, with live timers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 / 运行 / 完成,实时走秒"
+          }
+        }
+      }
+    },
+    "Waiting for APNs registration… (requires a real device with notifications allowed)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 APNs 注册…（需要真机运行并允许通知）"
+          }
+        }
+      }
+    },
+    "Waiting for the Mac's first heartbeat…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 Mac 的第一个心跳…"
+          }
+        }
+      }
+    },
+    "Waiting for you": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待你"
+          }
+        }
+      }
+    },
+    "Waiting, finished, or needs approval — pushed straight to you": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务等你、跑完、要授权 — 推送直达"
+          }
+        }
+      }
+    },
+    "Weekly Quota": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周额度"
+          }
+        }
+      }
+    },
+    "What should it do…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让它做什么…"
+          }
+        }
+      }
+    },
+    "What's next…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一步做什么…"
+          }
+        }
+      }
+    },
+    "Your Agents, on the Lock Screen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把 Agent 装进锁屏"
+          }
+        }
+      }
+    },
+    "https://your-worker-address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://你的 Worker 地址"
+          }
+        }
+      }
+    },
+    "official figures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "官方口径"
+          }
+        }
+      }
+    },
+    "resets in %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距重置 %@"
+          }
+        }
+      }
+    },
+    "sub-agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "子 agent"
+          }
+        }
+      }
+    },
+    "⏳ Connecting to terminal… (first frame in about 10 s)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 正在连接终端…(首帧约 10 秒)"
+          }
+        }
+      }
+    },
+    "⏳ Fetching latest frame… (about 10 s)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 正在取最后画面…(约 10 秒)"
+          }
+        }
+      }
+    },
+    "⏳ Testing connection…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 测试连接…"
+          }
+        }
+      }
+    },
+    "⏳ Testing…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 测试中…"
+          }
+        }
+      }
+    },
+    "① Is the pkg installed? (The sessionbell command only exists after that.)\n② Was the whole command pasted? (It's long, don't truncate it.)\n③ Did you allow every permission prompt on the Mac?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "① pkg 装完了吗(装完终端里才有 sessionbell 命令)\n② 命令是完整粘贴的吗(很长,别截断)\n③ Mac 弹的权限框都点了允许吗"
+          }
+        }
+      }
+    },
+    "✅ Allow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ 允许"
+          }
+        }
+      }
+    },
+    "✅ Connected to %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ 已连接 %@"
+          }
+        }
+      }
+    },
+    "❌ Deny": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "❌ 拒绝"
+          }
+        }
+      }
+    },
+    "❌ Invalid address: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "❌ 地址不合法: %@"
+          }
+        }
+      }
+    },
+    "❌ No backend configured": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "❌ 未配置后端"
+          }
+        }
+      }
+    },
+    "💬 Reply": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "💬 回复指令"
+          }
+        }
+      }
+    },
+    "🚀 Start on %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🚀 在 %@ 上启动"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

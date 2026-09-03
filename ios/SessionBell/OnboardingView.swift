@@ -20,12 +20,12 @@ struct OnboardingView: View {
             .toolbar {
                 if step == .invite || step == .manual {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("返回") { step = .welcome }
+                        Button("Back") { step = .welcome }
                     }
                 }
                 if step == .connectMac {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("稍后连接") { onDone() }
+                        Button("Connect Later") { onDone() }
                     }
                 }
             }
@@ -40,21 +40,21 @@ struct OnboardingView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(Color.sbAccent.gradient)
                 .padding(.bottom, 20)
-            Text("把 Agent 装进锁屏")
+            Text("Your Agents, on the Lock Screen")
                 .font(.largeTitle.bold())
-            Text("Claude Code 等本地编程 agent 的\n手机指挥台")
+            Text("A phone command center for\nClaude Code and other local coding agents")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 6)
 
             VStack(alignment: .leading, spacing: 16) {
-                featureRow("bell.badge", "任务等你、跑完、要授权 — 推送直达",
-                           "在电脑前时不会吵你")
-                featureRow("platter.filled.bottom.iphone", "锁屏面板聚合所有 Mac 的任务",
-                           "等待 / 运行 / 完成,实时走秒")
-                featureRow("checkmark.shield", "授权请求锁屏一键批准",
-                           "允许 / 拒绝,不用回电脑")
+                featureRow("bell.badge", "Waiting, finished, or needs approval — pushed straight to you",
+                           "Stays quiet while you're at the Mac")
+                featureRow("platter.filled.bottom.iphone", "One Lock Screen panel for every Mac",
+                           "Waiting / running / done, with live timers")
+                featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
+                           "Allow or deny without going back to the Mac")
             }
             .padding(.horizontal, 32)
             .padding(.top, 36)
@@ -66,14 +66,14 @@ struct OnboardingView: View {
                 Button {
                     step = .invite
                 } label: {
-                    Text("我有邀请码")
+                    Text("I Have an Invite Code")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button("已有配对码 / 自托管") { step = .manual }
+                Button("Have a pairing code / self-hosted") { step = .manual }
                     .font(.subheadline)
             }
             .padding(.horizontal, 28)
@@ -81,7 +81,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func featureRow(_ icon: String, _ title: String, _ sub: String) -> some View {
+    private func featureRow(_ icon: String, _ title: LocalizedStringKey, _ sub: LocalizedStringKey) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
                 .font(.title3)
@@ -109,14 +109,14 @@ private struct InviteStep: View {
             Image(systemName: "ticket")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.sbAccentDeep)
-            Text("输入邀请码")
+            Text("Enter Invite Code")
                 .font(.title2.bold())
-            Text("邀请你的人会把邀请码发给你。\n注册后你会得到一个独立的专属空间。")
+            Text("The person who invited you will send you a code.\nSigning up gives you your own private space.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            TextField("邀请码", text: $invite)
+            TextField("Invite code", text: $invite)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.system(.title3, design: .monospaced))
@@ -140,7 +140,7 @@ private struct InviteStep: View {
             } label: {
                 Group {
                     if busy { ProgressView().tint(.white) }
-                    else { Text("开始使用").font(.headline) }
+                    else { Text("Get Started").font(.headline) }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
@@ -184,7 +184,7 @@ private struct ManualStep: View {
     var body: some View {
         Form {
             Section {
-                TextField("粘贴配对码", text: $pairing)
+                TextField("Paste pairing code", text: $pairing)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(.caption, design: .monospaced))
@@ -193,29 +193,29 @@ private struct ManualStep: View {
                         finish()
                     }
             } header: {
-                Text("有配对码")
+                Text("Have a Pairing Code")
             } footer: {
-                Text("邀请你的人生成的那串 base64。粘上即自动完成。")
+                Text("The base64 string generated by the person who invited you. Paste it and you're done.")
             }
 
             Section {
-                TextField("https://你的 Worker 地址", text: $url)
+                TextField("https://your-worker-address", text: $url)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                     .font(.system(.caption, design: .monospaced))
-                SecureField("租户密钥", text: $secret)
+                SecureField("Tenant secret", text: $secret)
                     .font(.system(.caption, design: .monospaced))
-                Button("连接") {
+                Button("Connect") {
                     SBBackend.save(url: url.trimmingCharacters(in: .whitespacesAndNewlines),
                                    secret: secret.trimmingCharacters(in: .whitespacesAndNewlines))
                     finish()
                 }
                 .disabled(url.isEmpty || secret.isEmpty)
             } header: {
-                Text("自托管")
+                Text("Self-Hosted")
             } footer: {
-                Text("部署指南见 github.com/westie-ai/session-bell")
+                Text("Deployment guide at github.com/westie-ai/session-bell")
             }
 
             if !status.isEmpty {
@@ -224,12 +224,12 @@ private struct ManualStep: View {
                     .foregroundStyle(status.hasPrefix("✅") ? .green : .red)
             }
         }
-        .navigationTitle("接入")
+        .navigationTitle("Setup")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func finish() {
-        status = "⏳ 测试连接…"
+        status = String(localized: "⏳ Testing connection…")
         Task {
             status = await SBBackend.ping()
             if status.hasPrefix("✅") {
@@ -257,42 +257,42 @@ private struct ConnectMacStep: View {
     var body: some View {
         List {
             Section {
-                stepRow(no: "1", title: "下载并安装 SessionBell.pkg") {
+                stepRow(no: "1", title: "Download and install SessionBell.pkg") {
                     Button {
                         UIPasteboard.general.string = "\(SBBackend.hostedBase)/SessionBell.pkg"
                         flash($copiedPkg)
                     } label: {
-                        Label(copiedPkg ? "已拷贝 ✓" : "sessionbell.westie.ai/SessionBell.pkg",
+                        Label(copiedPkg ? "Copied ✓" : "sessionbell.westie.ai/SessionBell.pkg",
                               systemImage: copiedPkg ? "checkmark" : "doc.on.doc")
                             .font(.system(.caption, design: .monospaced))
                     }
                 }
-                stepRow(no: "2", title: "拷贝配对命令,到 Mac 终端里粘贴回车") {
+                stepRow(no: "2", title: "Copy the pair command, paste it in Terminal on the Mac and press Return") {
                     Button {
                         UIPasteboard.general.string = pairCommand
                         flash($copiedCmd)
                     } label: {
-                        Label(copiedCmd ? "已拷贝 ✓ 同一 Apple 账号的 Mac 直接 ⌘V"
+                        Label(copiedCmd ? "Copied ✓ Press ⌘V on a Mac with the same Apple Account"
                                         : "sessionbell pair ••••••",
                               systemImage: copiedCmd ? "checkmark" : "doc.on.doc")
                             .font(.system(.caption, design: .monospaced))
                     }
                 }
             } header: {
-                Text("在 Mac 上(两步)")
+                Text("On the Mac (two steps)")
             } footer: {
-                Text("拷贝后靠通用剪贴板直达 Mac;也可以用隔空投送把命令发过去。")
+                Text("Universal Clipboard carries it to the Mac after copying. AirDrop works too.")
             }
 
             Section {
                 if !hostFound.isEmpty {
-                    Label("已连接 \(hostFound) 🎉", systemImage: "checkmark.circle.fill")
+                    Label("Connected to \(hostFound) 🎉", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
                     Button {
                         onDone()
                     } label: {
-                        Text("进入 SessionBell")
+                        Text("Open SessionBell")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
@@ -300,31 +300,31 @@ private struct ConnectMacStep: View {
                 } else {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text("等待 Mac 的第一个心跳…")
+                        Text("Waiting for the Mac's first heartbeat…")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     if waitedLong {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("还没连上?按顺序检查:")
+                            Text("Not connected yet? Check in order:")
                                 .font(.footnote.weight(.semibold))
-                            Text("① pkg 装完了吗(装完终端里才有 sessionbell 命令)\n② 命令是完整粘贴的吗(很长,别截断)\n③ Mac 弹的权限框都点了允许吗")
+                            Text("① Is the pkg installed? (The sessionbell command only exists after that.)\n② Was the whole command pasted? (It's long, don't truncate it.)\n③ Did you allow every permission prompt on the Mac?")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
             } header: {
-                Text("连接状态")
+                Text("Connection")
             }
         }
-        .navigationTitle("连接 Mac")
+        .navigationTitle("Connect Mac")
         .navigationBarTitleDisplayMode(.inline)
         .task { await poll() }
         .onDisappear { polling = false }
     }
 
-    private func stepRow(no: String, title: String,
+    private func stepRow(no: String, title: LocalizedStringKey,
                          @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {

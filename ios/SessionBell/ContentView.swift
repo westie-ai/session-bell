@@ -16,14 +16,14 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             tasksTab
-                .tabItem { Label("任务", systemImage: "bolt.horizontal.circle") }
+                .tabItem { Label("Tasks", systemImage: "bolt.horizontal.circle") }
                 .badge(approvalBadge)
                 .tag(0)
             usageTab
-                .tabItem { Label("用量", systemImage: "gauge.with.needle") }
+                .tabItem { Label("Usage", systemImage: "gauge.with.needle") }
                 .tag(1)
             settingsTab
-                .tabItem { Label("设置", systemImage: "gearshape") }
+                .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)
         }
         .task {
@@ -72,20 +72,20 @@ struct ContentView: View {
             .overlay {
                 if store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
                     ContentUnavailableView {
-                        Label("还没有任务", systemImage: "bell")
+                        Label("No Tasks Yet", systemImage: "bell")
                     } description: {
                         Text(SBBackend.saved == nil
-                             ? "先完成接入,Mac 连上来之后任务会出现在这里。"
-                             : "在 Mac 上给 agent 派个活:任务会实时出现在这里和锁屏上,完成时手机响铃。")
+                             ? "Finish setup first. Tasks will show up here once a Mac connects."
+                             : "Give an agent a job on your Mac. Tasks appear here and on the Lock Screen in real time, and your phone rings when they finish.")
                     } actions: {
                         if SBBackend.saved == nil {
-                            Button("开始接入") { showOnboarding = true }
+                            Button("Start Setup") { showOnboarding = true }
                                 .buttonStyle(.borderedProminent)
                         }
                     }
                 }
             }
-            .navigationTitle("任务")
+            .navigationTitle("Tasks")
             .navigationDestination(for: SessionGroup.self) {
                 SessionPage(sessionId: $0.sessionId, project: $0.project)
             }
@@ -95,7 +95,7 @@ struct ContentView: View {
             .refreshable { await store.refresh() }
             .toolbar {
                 if !store.events.isEmpty {
-                    Button("清空", role: .destructive) { store.clearAll() }
+                    Button("Clear", role: .destructive) { store.clearAll() }
                 }
             }
         }
@@ -123,13 +123,13 @@ struct ContentView: View {
             .overlay {
                 if !hasUsage {
                     ContentUnavailableView {
-                        Label("暂无用量数据", systemImage: "gauge.with.needle")
+                        Label("No Usage Data", systemImage: "gauge.with.needle")
                     } description: {
-                        Text("Mac 上跑过任务后,这里显示官方口径的本周额度和高级模型用量,与 /usage 同源。")
+                        Text("After a task runs on your Mac, this shows the official weekly quota and premium-model usage, same source as /usage.")
                     }
                 }
             }
-            .navigationTitle("用量")
+            .navigationTitle("Usage")
             .refreshable { await store.refresh() }
         }
     }
@@ -139,7 +139,7 @@ struct ContentView: View {
     private var settingsTab: some View {
         NavigationStack {
             List {
-                Section("接入") {
+                Section("Setup") {
                     backendConfigRow
                     // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
                     if let code = SBBackend.pairingCode {
@@ -148,44 +148,44 @@ struct ContentView: View {
                             copiedPair = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedPair = false }
                         } label: {
-                            Label(copiedPair ? "已拷贝 ✓" : "拷贝配对命令(接入新电脑)",
+                            Label(copiedPair ? "Copied ✓" : "Copy Pair Command (add another Mac)",
                                   systemImage: copiedPair ? "checkmark" : "doc.on.doc")
                         }
                     }
                 }
                 machinesSection
                 deviceSection
-                Section("关于") {
-                    LabeledContent("版本",
+                Section("About") {
+                    LabeledContent("Version",
                         value: "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
                     Link(destination: URL(string: "https://github.com/westie-ai/session-bell")!) {
-                        Label("开源仓库 · westie-ai/session-bell", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Label("Source Code · westie-ai/session-bell", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
                     Button {
                         showOnboarding = true
                     } label: {
-                        Label("重新打开接入引导", systemImage: "arrow.counterclockwise")
+                        Label("Show Setup Guide Again", systemImage: "arrow.counterclockwise")
                     }
                 }
             }
-            .navigationTitle("设置")
+            .navigationTitle("Settings")
         }
     }
 
     @ViewBuilder
     private var machinesSection: some View {
         if !store.liveGroups.isEmpty {
-            Section("电脑") {
+            Section("Computers") {
                 ForEach(store.liveGroups) { group in
                     HStack {
                         Label(group.host, systemImage: "desktopcomputer")
                         Spacer()
                         if group.awake {
-                            Text("常亮中")
+                            Text("Awake")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
                         }
-                        Text("\(group.cards.count) 个任务")
+                        Text("\(group.cards.count) tasks")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -198,15 +198,15 @@ struct ContentView: View {
     private var approvalSection: some View {
         if let approval = store.pendingApproval,
            Date().timeIntervalSince(approval.date) < 600 {
-            Section("待批准") {
+            Section("Approval Needed") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(approval.summary.isEmpty ? "Claude 请求授权" : approval.summary)
+                    Text(approval.summary.isEmpty ? "Claude is requesting permission" : approval.summary)
                         .font(.system(.footnote, design: .monospaced))
                     HStack(spacing: 12) {
                         Button {
                             Task { await store.sendDecision("allow") }
                         } label: {
-                            Label("允许", systemImage: "checkmark")
+                            Label("Allow", systemImage: "checkmark")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                         }
@@ -216,7 +216,7 @@ struct ContentView: View {
                         Button {
                             Task { await store.sendDecision("deny") }
                         } label: {
-                            Label("拒绝", systemImage: "xmark")
+                            Label("Deny", systemImage: "xmark")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                         }
@@ -233,8 +233,8 @@ struct ContentView: View {
     private var liveTasksSection: some View {
         if store.liveGroups.isEmpty {
             if !store.groups.isEmpty {
-                Section("进行中") {
-                    Text("当前没有活跃任务")
+                Section("Active") {
+                    Text("No active tasks right now")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -255,30 +255,30 @@ struct ContentView: View {
     }
 
     private var deviceSection: some View {
-        Section("本机") {
+        Section("This Device") {
             HStack {
-                Label("通知权限", systemImage: "bell.badge")
+                Label("Notifications", systemImage: "bell.badge")
                 Spacer()
                 Text(authLabel).foregroundStyle(.secondary)
             }
             if store.deviceToken.isEmpty {
-                Text("等待 APNs 注册…（需要真机运行并允许通知）")
+                Text("Waiting for APNs registration… (requires a real device with notifications allowed)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 tokenRow(label: "Device Token", value: store.deviceToken, flag: $copied)
             }
             if !store.pushToStartToken.isEmpty {
-                tokenRow(label: "Live Activity 启动 Token", value: store.pushToStartToken, flag: $copiedPTS)
+                tokenRow(label: String(localized: "Live Activity Start Token"), value: store.pushToStartToken, flag: $copiedPTS)
             }
             if #available(iOS 17.2, *) {
                 Button {
                     Task {
-                        localTestResult = "唤起中…"
+                        localTestResult = String(localized: "Reviving…")
                         localTestResult = await LiveActivityManager.shared.reviveDashboard()
                     }
                 } label: {
-                    Label(localTestResult.isEmpty ? "唤起锁屏面板" : localTestResult,
+                    Label(localTestResult.isEmpty ? String(localized: "Revive Lock Screen Panel") : localTestResult,
                           systemImage: "bell.badge.waveform")
                 }
             }
@@ -294,7 +294,7 @@ struct ContentView: View {
 
     private var backendConfigRow: some View {
         DisclosureGroup {
-            TextField("粘贴配对码(自动填充下方)", text: $pairingCode)
+            TextField("Paste pairing code (fills in below)", text: $pairingCode)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.system(.caption, design: .monospaced))
@@ -319,7 +319,7 @@ struct ContentView: View {
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
                 .font(.system(.caption, design: .monospaced))
-            SecureField("共享密钥(SB_SECRET)", text: $backendSecret)
+            SecureField("Shared secret (SB_SECRET)", text: $backendSecret)
                 .font(.system(.caption, design: .monospaced))
             Button {
                 SBBackend.save(url: backendURL.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -328,15 +328,15 @@ struct ContentView: View {
                 Task { pingResult = await SBBackend.ping() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { backendSaved = false }
             } label: {
-                Label(backendSaved ? "已保存 ✓" : "保存",
+                Label(backendSaved ? "Saved ✓" : "Save",
                       systemImage: backendSaved ? "checkmark" : "externaldrive")
             }
             .disabled(backendURL.isEmpty || backendSecret.isEmpty)
             Button {
-                pingResult = "⏳ 测试中…"
+                pingResult = String(localized: "⏳ Testing…")
                 Task { pingResult = await SBBackend.ping() }
             } label: {
-                Label("测试连接", systemImage: "waveform.path.ecg")
+                Label("Test Connection", systemImage: "waveform.path.ecg")
             }
             if !pingResult.isEmpty {
                 Text(pingResult)
@@ -345,8 +345,8 @@ struct ContentView: View {
                     .textSelection(.enabled)
             }
         } label: {
-            Label(SBBackend.saved.map { "后端:\(URL(string: $0.url)?.host ?? $0.url)" }
-                    ?? "后端配置(未设置)",
+            Label(SBBackend.saved.map { String(localized: "Backend: \(URL(string: $0.url)?.host ?? $0.url)") }
+                    ?? String(localized: "Backend (not set)"),
                   systemImage: "server.rack")
                 .foregroundStyle(SBBackend.saved == nil ? .orange : .primary)
         }
@@ -359,7 +359,7 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { flag.wrappedValue = false }
         } label: {
             VStack(alignment: .leading, spacing: 4) {
-                Label(flag.wrappedValue ? "已拷贝 ✓" : "\(label)（点按拷贝）",
+                Label(flag.wrappedValue ? "Copied ✓" : "\(label) (tap to copy)",
                       systemImage: flag.wrappedValue ? "checkmark" : "doc.on.doc")
                 Text(value)
                     .font(.system(.caption2, design: .monospaced))
@@ -375,7 +375,7 @@ struct ContentView: View {
         let liveIds = Set(store.liveTasks.map(\.sessionId))
         let history = store.groups.filter { !liveIds.contains($0.sessionId) }
         if !history.isEmpty {
-            Section("通知历史") {
+            Section("Notification History") {
                 ForEach(history) { group in
                     NavigationLink(value: group) {
                         SessionRow(group: group)
@@ -387,10 +387,10 @@ struct ContentView: View {
 
     private var authLabel: String {
         switch store.authStatus {
-        case .authorized: return "已开启"
-        case .denied: return "已拒绝（去设置打开）"
-        case .notDetermined: return "未询问"
-        default: return "受限"
+        case .authorized: return String(localized: "Allowed")
+        case .denied: return String(localized: "Denied (enable in Settings)")
+        case .notDetermined: return String(localized: "Not asked yet")
+        default: return String(localized: "Restricted")
         }
     }
 }
@@ -413,7 +413,7 @@ struct MachineControls: View {
                     caffePending = false
                 }
             } label: {
-                Label(caffePending ? "生效中…" : (group.awake ? "常亮中" : "防熄屏"),
+                Label(caffePending ? "Applying…" : (group.awake ? "Awake" : "Keep Awake"),
                       systemImage: group.awake ? "cup.and.saucer.fill" : "cup.and.saucer")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(group.awake ? .orange : .secondary)
@@ -426,7 +426,7 @@ struct MachineControls: View {
             Button {
                 showSpawn = true
             } label: {
-                Label("新建 session", systemImage: "plus.circle.fill")
+                Label("New Session", systemImage: "plus.circle.fill")
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bordered)
@@ -450,7 +450,7 @@ struct SpawnSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("项目目录") {
+                Section("Project Folder") {
                     ForEach(group.spawnDirs, id: \.self) { path in
                         Button {
                             cwd = path
@@ -466,26 +466,26 @@ struct SpawnSheet: View {
                         }
                         .foregroundStyle(.primary)
                     }
-                    TextField("或手动输入路径", text: $cwd)
+                    TextField("Or type a path", text: $cwd)
                         .font(.system(.caption, design: .monospaced))
                         .autocorrectionDisabled()
                 }
-                Section("第一条指令") {
-                    TextField("让它做什么…", text: $prompt, axis: .vertical)
+                Section("First Instruction") {
+                    TextField("What should it do…", text: $prompt, axis: .vertical)
                         .lineLimit(3...6)
                 }
-                Section("权限模式") {
-                    Picker("权限模式", selection: $permMode) {
-                        Text("普通").tag("default")
+                Section("Permission Mode") {
+                    Picker("Permission Mode", selection: $permMode) {
+                        Text("Default").tag("default")
                         Text("⏵⏵ Auto").tag("auto")
                         Text("Bypass").tag("bypass")
                     }
                     .pickerStyle(.segmented)
                     Text(permMode == "default"
-                         ? "所有授权推手机批准,最稳"
+                         ? "Every permission goes to your phone for approval. Safest."
                          : permMode == "auto"
-                         ? "auto mode:安全操作自动过,存疑的推手机批准(推荐)"
-                         : "什么都不问,一路到底;该机器首次需在电脑上接受一次警告")
+                         ? "Auto mode: safe actions pass automatically, doubtful ones go to your phone (recommended)"
+                         : "Asks nothing and runs straight through. The first time on a machine you must accept a warning on the Mac.")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Section {
@@ -501,16 +501,16 @@ struct SpawnSheet: View {
                             dismiss()
                         }
                     } label: {
-                        Label(sent ? "已发送,约 10 秒后启动" : "🚀 在 \(group.host) 上启动",
+                        Label(sent ? "Sent. Starting in about 10 seconds" : "🚀 Start on \(group.host)",
                               systemImage: "paperplane.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
                 } footer: {
-                    Text("在那台电脑的 Otty 新窗口里启动交互式 session——回到桌面即可接管;任务出现在面板上,完成推送结果。Otty 未运行时自动改为后台无头执行。")
+                    Text("Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
                 }
             }
-            .navigationTitle("新建 session")
+            .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 if cwd.isEmpty {
@@ -520,7 +520,7 @@ struct SpawnSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
             }
         }
@@ -538,19 +538,19 @@ struct UsageDashboard: View {
         VStack(alignment: .leading, spacing: 12) {
             // 5 小时窗口最先耗尽,放最上面。
             if let sessionFraction = group.sessionFraction {
-                Meter(icon: "clock", label: "5 小时窗口",
+                Meter(icon: "clock", label: "5-Hour Window",
                       fraction: sessionFraction, color: statusColor(sessionFraction),
                       detail: group.sessionText)
             }
             if let fraction = group.usageFraction {
-                Meter(icon: "gauge.with.needle", label: "本周额度",
+                Meter(icon: "gauge.with.needle", label: "Weekly Quota",
                       fraction: fraction, color: statusColor(fraction),
                       detail: group.usage)
             } else if !group.usage.isEmpty {
                 Text(group.usage).font(.caption2).foregroundStyle(.secondary)
             }
             if let fableFraction = group.fableFraction {
-                Meter(icon: "sparkles", label: "高级模型",
+                Meter(icon: "sparkles", label: "Premium Model",
                       fraction: fableFraction, color: .purple,
                       detail: group.fableText)
             } else if !group.fableText.isEmpty {
@@ -567,7 +567,7 @@ struct UsageDashboard: View {
 
 struct Meter: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     let fraction: Double
     let color: Color
     let detail: String
@@ -667,11 +667,11 @@ struct LiveTaskRow: View {
         }
     }
 
-    private var statusLabel: String {
+    private var statusLabel: LocalizedStringKey {
         switch task.status {
-        case "waiting": return "等待你"
-        case "running": return "运行中"
-        default: return "已完成"
+        case "waiting": return "Waiting for you"
+        case "running": return "Running"
+        default: return "Done"
         }
     }
 
@@ -693,7 +693,7 @@ struct LiveTaskRow: View {
                               : .subheadline.weight(.semibold))
                         .lineLimit(1)
                     if task.isSub {
-                        Text("子 agent")
+                        Text("sub-agent")
                             .font(.caption2)
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .background(.blue.opacity(0.12), in: Capsule())
@@ -810,7 +810,7 @@ struct EventHistoryView: View {
                 .padding(.vertical, 2)
             }
         }
-        .navigationTitle("通知历史")
+        .navigationTitle("Notification History")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -849,12 +849,12 @@ struct SessionPage: View {
             detail: "", agents: 0)
     }
 
-    private var statusInfo: (label: String, color: Color) {
+    private var statusInfo: (label: LocalizedStringKey, color: Color) {
         switch liveTask?.status {
-        case "waiting": return ("等待你", .orange)
-        case "running": return ("运行中", .blue)
-        case "done": return ("已完成", .green)
-        default: return ("已结束", .gray)
+        case "waiting": return ("Waiting for you", .orange)
+        case "running": return ("Running", .blue)
+        case "done": return ("Done", .green)
+        default: return ("Ended", .gray)
         }
     }
 
@@ -870,7 +870,7 @@ struct SessionPage: View {
                         NavigationLink {
                             EventHistoryView(group: g)
                         } label: {
-                            Label("通知历史(\(g.events.count) 条)",
+                            Label("Notification History (\(g.events.count))",
                                   systemImage: "clock.arrow.circlepath")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -936,7 +936,7 @@ struct SessionPage: View {
             NavigationLink {
                 TerminalView(task: task)
             } label: {
-                Label("终端模式(实时输出 + 输入)", systemImage: "terminal.fill")
+                Label("Terminal Mode (live output + input)", systemImage: "terminal.fill")
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(Color.sbAccentDeep)
             }
@@ -968,7 +968,7 @@ struct SessionPage: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField(isLive ? "下一步做什么…" : "直接打进终端…",
+                TextField(isLive ? "What's next…" : "Type straight into the terminal…",
                           text: $input, axis: .vertical)
                     .lineLimit(1...5)
                     .font(.subheadline)
@@ -1014,22 +1014,22 @@ struct SessionPage: View {
         Task {
             if isLive {
                 guard let backend = SBBackend.saved else {
-                    showNote("后端未配置", ok: false)
+                    showNote(String(localized: "Backend not configured"), ok: false)
                     return
                 }
                 await SBBackend.post("/api/command",
                                      body: ["session_id": sessionId, "text": text],
                                      to: backend.url, secret: backend.secret)
-                showNote("已发出 · 任务空闲时自动接上")
+                showNote(String(localized: "Sent · picked up when the task is idle"))
             } else if let h = resolvedHost,
                       let data = try? JSONSerialization.data(
                           withJSONObject: ["sid": sessionId, "text": text]),
                       let json = String(data: data, encoding: .utf8) {
                 await store.sendMachineCommand(
                     "_type-\(EventStore.canonicalHost(h))", text: json)
-                showNote("已打进终端")
+                showNote(String(localized: "Typed into terminal"))
             } else {
-                showNote("找不到那台电脑,没发出去", ok: false)
+                showNote(String(localized: "Couldn't find that Mac. Not sent."), ok: false)
             }
         }
     }
@@ -1067,8 +1067,8 @@ struct TerminalPeek: View {
         VStack(alignment: .leading, spacing: 6) {
             Group {
                 if output.isEmpty {
-                    Text(refreshing ? "⏳ 正在取最后画面…(约 10 秒)"
-                         : "暂无画面 — 那台电脑可能不在线,或终端窗口已关")
+                    Text(refreshing ? "⏳ Fetching latest frame… (about 10 s)"
+                         : "No frame yet — that Mac may be offline, or the terminal window was closed")
                         .foregroundStyle(termFG.opacity(0.55))
                 } else {
                     Text(tailText).foregroundStyle(termFG)
@@ -1083,9 +1083,9 @@ struct TerminalPeek: View {
             HStack(spacing: 6) {
                 if refreshing {
                     ProgressView().controlSize(.mini)
-                    Text("刷新中…")
+                    Text("Refreshing…")
                 } else if let capDate {
-                    Text("画面时间:") + Text(capDate, style: .relative) + Text("前")
+                    Text("Captured \(Text(capDate, style: .relative)) ago")
                 }
                 Spacer()
             }
@@ -1174,7 +1174,7 @@ struct TerminalView: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    Text(output.isEmpty ? "⏳ 正在连接终端…(首帧约 10 秒)"
+                    Text(output.isEmpty ? String(localized: "⏳ Connecting to terminal… (first frame in about 10 s)")
                          : prettify(output))
                         .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .lineSpacing(3)
@@ -1224,7 +1224,7 @@ struct TerminalView: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("收起键盘") { inputFocused = false }
+                Button("Hide Keyboard") { inputFocused = false }
             }
         }
         .navigationTitle("\(task.project) ❯_")

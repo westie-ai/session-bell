@@ -5,7 +5,7 @@ import Foundation
 /// runs in the app's process in the background — network access included.
 @available(iOS 17.0, *)
 struct ApprovalIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "批准授权"
+    static var title: LocalizedStringResource = "Approve Permission"
     static var isDiscoverable: Bool = false
 
     @Parameter(title: "Backend")

@@ -82,7 +82,7 @@ final class LiveActivityManager {
     /// stale token, end local leftovers, and start a fresh card seeded with
     /// the REAL task list from the backend. Works whatever killed the card.
     func reviveDashboard() async -> String {
-        guard let backend = SBBackend.saved else { return "没有后端配置" }
+        guard let backend = SBBackend.saved else { return String(localized: "No backend configured") }
         await SBBackend.post("/api/token", body: ["reset_dashboard": "1"],
                              to: backend.url, secret: backend.secret)
         for activity in Activity<SessionActivityAttributes>.activities {
@@ -90,9 +90,9 @@ final class LiveActivityManager {
         }
         var items = await fetchTaskItems()
         if items.isEmpty {
-            items = [.init(project: "SessionBell", host: "手机", status: "running",
+            items = [.init(project: "SessionBell", host: String(localized: "Phone"), status: "running",
                            since: Date().timeIntervalSince1970,
-                           detail: "面板已就绪，等待任务事件", agents: 0)]
+                           detail: String(localized: "Panel ready, waiting for task events"), agents: 0)]
         }
         let state = SessionActivityAttributes.ContentState(
             tasks: items, updatedAt: Date().timeIntervalSince1970,
@@ -111,9 +111,9 @@ final class LiveActivityManager {
                         to: backend.url, secret: backend.secret)
                 }
             }
-            return "面板已唤起 ✓"
+            return String(localized: "Panel revived ✓")
         } catch {
-            return "失败: \(error.localizedDescription)"
+            return String(localized: "Failed: \(error.localizedDescription)")
         }
     }
 

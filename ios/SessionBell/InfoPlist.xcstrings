@@ -1,0 +1,16 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把 Live Activity 推送令牌回传给局域网内的 Mac，用于结束锁屏上的等待状态。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

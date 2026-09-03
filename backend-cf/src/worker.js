@@ -245,11 +245,45 @@ async function handlePush(req, env, n) {
 const demoNs = async (env) =>
   env.DEMO_SECRET ? 'u/' + (await sha256hex(env.DEMO_SECRET)).slice(0, 16) : null;
 
+/// 演示数据分中英两套:App 请求带 Accept-Language,审核员和英文用户看英文,
+/// 中文设备看中文。cron 默认英文。
+const DEMO_TEXT = {
+  en: {
+    checkoutWait: 'Waiting for you to confirm the database migration plan',
+    checkoutRun: 'Refactoring the payment callback',
+    web: 'Implementing the checkout page from the design, 12 new components',
+    docs: 'Deploy finished: all 38 pages passed validation',
+    capture: ['$ claude "migrate the orders table to the new schema"', '',
+      '⏺ Analyzed 14 references, migration script generated:',
+      '  migrations/2026_08_orders_v2.sql', '',
+      '  Needs your confirmation before running: the live table',
+      '  has 2.1M rows, expected lock time ~40 s.',
+      '  Run now or wait for off-peak?', '',
+      '❯ waiting for input…'],
+  },
+  zh: {
+    checkoutWait: '等待你确认数据库迁移方案',
+    checkoutRun: '正在重构支付回调',
+    web: '按设计稿实现结算页,新增 12 个组件',
+    docs: '部署完成:38 个页面全部通过校验',
+    capture: ['$ claude "迁移 orders 表到新 schema"', '',
+      '⏺ 分析了 14 个引用点,迁移脚本已生成:',
+      '  migrations/2026_08_orders_v2.sql', '',
+      '  执行前需要你确认:线上表有 210 万行,',
+      '  预计锁表 40 秒。现在执行还是等低峰?', '',
+      '❯ 待输入…'],
+  },
+};
+
+const demoLang = (req) =>
+  /^zh/i.test((req?.headers.get('accept-language') || '').trim()) ? 'zh' : 'en';
+
 /// 往 demo 命名空间写一组"活的"模拟任务:状态按 5 分钟相位轮转,
 /// 计时器起点每次重算,审核员任何时候打开 App 都像正撞上一场真实工作。
-async function seedDemo(env) {
+async function seedDemo(env, lang = 'en') {
   const n = await demoNs(env);
   if (!n) return;
+  const T = DEMO_TEXT[lang] || DEMO_TEXT.en;
   const now = Math.floor(Date.now() / 1000);
   const phase = Math.floor(now / 300) % 2;
   const mbp = {
@@ -258,18 +292,19 @@ async function seedDemo(env) {
     sessions: {
       'demo-checkout': {
         status: phase === 0 ? 'waiting' : 'running', since: now - (phase === 0 ? 95 : 340),
-        project: 'checkout', detail: phase === 0 ? '等待你确认数据库迁移方案' : '正在重构支付回调',
+        project: 'checkout', detail: phase === 0 ? T.checkoutWait : T.checkoutRun,
         agents: 0, cwd: '/Users/demo/checkout',
       },
       'demo-web': {
         status: 'running', since: now - 820,
-        project: 'web-app', detail: '按设计稿实现结算页,新增 12 个组件',
+        project: 'web-app', detail: T.web,
         agents: 2, cwd: '/Users/demo/web-app',
       },
     },
     usage: {
       today_out: 1.8e6, week_out: 2.4e7, official_total_pct: 34,
       reset_ts: now + 3.2 * 86400,
+      official_session_pct: 58, session_reset_ts: now + 1.4 * 3600,
       week_fable: 5.6e6, official_pct: 41, premium_name: 'Fable',
     },
   };
@@ -279,20 +314,14 @@ async function seedDemo(env) {
     sessions: {
       'demo-docs': {
         status: 'done', since: now - 150,
-        project: 'docs-site', detail: '部署完成:38 个页面全部通过校验',
+        project: 'docs-site', detail: T.docs,
         agents: 0, cwd: '/Users/demo/docs-site',
       },
     },
   };
   await kvPut(env, n, 'state/' + encodeURIComponent(mbp.host), JSON.stringify(mbp));
   await kvPut(env, n, 'state/' + encodeURIComponent(studio.host), JSON.stringify(studio));
-  await kvPut(env, n, 'capture/demo-checkout',
-    ['$ claude "迁移 orders 表到新 schema"', '',
-     '⏺ 分析了 14 个引用点,迁移脚本已生成:',
-     '  migrations/2026_08_orders_v2.sql', '',
-     '  执行前需要你确认:线上表有 210 万行,',
-     '  预计锁表 40 秒。现在执行还是等低峰?', '',
-     '❯ 待输入…'].join('\n'));
+  await kvPut(env, n, 'capture/demo-checkout', T.capture.join('\n'));
 }
 
 // ---------- onboarding ----------
@@ -304,7 +333,7 @@ async function handleSignup(req, env, url) {
   // App Review 演示租户:专用邀请码进入预置了模拟数据的固定命名空间,
   // 不产生新租户。数据由 seedDemo 维持新鲜。
   if (env.REVIEW_CODE && env.DEMO_SECRET && invite === env.REVIEW_CODE) {
-    await seedDemo(env);
+    await seedDemo(env, demoLang(req));
     return json({
       pairing_code: btoa(JSON.stringify({ u: url.origin, s: env.DEMO_SECRET })),
       demo: true,
@@ -363,7 +392,7 @@ export default {
       if (!n) return json({ error: 'unauthorized' }, 401);
       // 演示租户读状态时懒播种:即使 cron 停了,审核员看到的也永远新鲜。
       if (path === '/api/state' && req.method === 'GET' && n === await demoNs(env)) {
-        await seedDemo(env);
+        await seedDemo(env, demoLang(req));
       }
       if (path === '/api/token') return handleToken(req, env, n);
       if (path === '/api/state') return handleState(req, env, n);

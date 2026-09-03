@@ -11,10 +11,14 @@
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
 		3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
+		49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
 		608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
 		6B97A815BD156726B29C451F /* SessionBellWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		721778149B63D94120835CD8 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3FEDCE86DCEA60048F5354 /* EventStore.swift */; };
+		7245D196AF0B8C6835D5408F /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
+		7D25FDF327B92F1D4EA80CB5 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */; };
 		84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
+		855FE8483C735CA18034CCFC /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */; };
 		97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */; };
 		A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30D020BC225547233474D41 /* SessionBellWidgets.swift */; };
 		AF30E4ADFF8CEDE3FE091F5B /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
@@ -29,6 +33,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		CF02C196BE0F391C08DC633C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6892B6B7797B08E83F538D93 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 961754A823DF53CDB9AF0007;
+			remoteInfo = SessionBell;
+		};
 		D8099217A01013CE4A655CA2 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6892B6B7797B08E83F538D93 /* Project object */;
@@ -55,7 +66,9 @@
 /* Begin PBXFileReference section */
 		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
+		2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SessionBellScreenshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SessionBell.entitlements; sourceTree = "<group>"; };
+		39DF9CF186A28179A81D6783 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		4311A1BB8C2640EC4F314F5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
 		469C754931B58C4AFE74D4BB /* SBBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBrand.swift; sourceTree = "<group>"; };
@@ -67,8 +80,10 @@
 		87226E0B3CA9084D522406BA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A48AAD4446927227AC1392AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AD76974BED54CC776F7A6263 /* SessionBell.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SessionBell.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		BBA96AA6001059FA2279F3E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		E30D020BC225547233474D41 /* SessionBellWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellWidgets.swift; sourceTree = "<group>"; };
 		E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EE8E293B3D1F00243A36E9EF /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -79,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				AD76974BED54CC776F7A6263 /* SessionBell.app */,
+				2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */,
 				766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */,
 			);
 			name = Products;
@@ -87,6 +103,7 @@
 		8F8BD2AC3AAE620FB227ABA1 = {
 			isa = PBXGroup;
 			children = (
+				FCAEF5AC2D8DE9B9F623B078 /* Screenshots */,
 				BA5050CD55079163E1A582BD /* SessionBell */,
 				CE5C620D0E175E58E9721F65 /* SessionBellWidgets */,
 				C5BDA1F4F64A4AC6B865937B /* Shared */,
@@ -102,6 +119,7 @@
 				4311A1BB8C2640EC4F314F5C /* ContentView.swift */,
 				4B3FEDCE86DCEA60048F5354 /* EventStore.swift */,
 				A48AAD4446927227AC1392AB /* Info.plist */,
+				DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */,
 				4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */,
 				E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */,
 				EE8E293B3D1F00243A36E9EF /* Models.swift */,
@@ -116,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */,
+				39DF9CF186A28179A81D6783 /* Localizable.xcstrings */,
 				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
 				469C754931B58C4AFE74D4BB /* SBBrand.swift */,
 				4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */,
@@ -132,14 +151,41 @@
 			path = SessionBellWidgets;
 			sourceTree = "<group>";
 		};
+		FCAEF5AC2D8DE9B9F623B078 /* Screenshots */ = {
+			isa = PBXGroup;
+			children = (
+				B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */,
+			);
+			path = Screenshots;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0B052C4C7C75F654985DF6DE /* SessionBellScreenshots */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6356BF364F2BECE9662739B /* Build configuration list for PBXNativeTarget "SessionBellScreenshots" */;
+			buildPhases = (
+				372EB67AFD7EE88D67C246CB /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3D29E6DAA9BDD267AE60174B /* PBXTargetDependency */,
+			);
+			name = SessionBellScreenshots;
+			packageProductDependencies = (
+			);
+			productName = SessionBellScreenshots;
+			productReference = 2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		1F3E596A355708DE9968C54E /* SessionBellWidgets */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3B7124E72AB3E4054AEDDE33 /* Build configuration list for PBXNativeTarget "SessionBellWidgets" */;
 			buildPhases = (
 				790FE7E55295107BBECEA4D9 /* Sources */,
+				854C601F9EF23D04106D33CA /* Resources */,
 			);
 			buildRules = (
 			);
@@ -181,6 +227,11 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					0B052C4C7C75F654985DF6DE = {
+						DevelopmentTeam = 27Z3Z38H3M;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 961754A823DF53CDB9AF0007;
+					};
 					1F3E596A355708DE9968C54E = {
 						DevelopmentTeam = 27Z3Z38H3M;
 						ProvisioningStyle = Automatic;
@@ -197,6 +248,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 8F8BD2AC3AAE620FB227ABA1;
 			minimizedProjectReferenceProxies = 1;
@@ -206,6 +258,7 @@
 			projectRoot = "";
 			targets = (
 				961754A823DF53CDB9AF0007 /* SessionBell */,
+				0B052C4C7C75F654985DF6DE /* SessionBellScreenshots */,
 				1F3E596A355708DE9968C54E /* SessionBellWidgets */,
 			);
 		};
@@ -217,12 +270,30 @@
 			buildActionMask = 2147483647;
 			files = (
 				D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */,
+				7D25FDF327B92F1D4EA80CB5 /* InfoPlist.xcstrings in Resources */,
+				49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		854C601F9EF23D04106D33CA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7245D196AF0B8C6835D5408F /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		372EB67AFD7EE88D67C246CB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				855FE8483C735CA18034CCFC /* ScreenshotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		790FE7E55295107BBECEA4D9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -257,6 +328,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		3D29E6DAA9BDD267AE60174B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 961754A823DF53CDB9AF0007 /* SessionBell */;
+			targetProxy = CF02C196BE0F391C08DC633C /* PBXContainerItemProxy */;
+		};
 		507915276386EB59F354F41B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1F3E596A355708DE9968C54E /* SessionBellWidgets */;
@@ -265,6 +341,26 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		1AC545DBA9D6EEAEC600038B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Screenshots;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SessionBell;
+			};
+			name = Debug;
+		};
 		47CD1840C516FD893265E49F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -272,7 +368,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -415,7 +511,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -436,7 +532,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -457,7 +553,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -471,6 +567,26 @@
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E3CD80F6AF78E29FC2FBE8B6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 27Z3Z38H3M;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Screenshots;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SessionBell;
 			};
 			name = Release;
 		};
@@ -491,6 +607,15 @@
 			buildConfigurations = (
 				64B563E2DCFE89167A9DF136 /* Debug */,
 				5B4E93FBC2BE7EBAE4031731 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A6356BF364F2BECE9662739B /* Build configuration list for PBXNativeTarget "SessionBellScreenshots" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1AC545DBA9D6EEAEC600038B /* Debug */,
+				E3CD80F6AF78E29FC2FBE8B6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

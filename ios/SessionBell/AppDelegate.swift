@@ -12,13 +12,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
         // 授权请求通知上的操作按钮（长按/下拉展开可见）
         let allow = UNNotificationAction(
-            identifier: "SB_ALLOW", title: "✅ 允许", options: [.authenticationRequired])
+            identifier: "SB_ALLOW", title: String(localized: "✅ Allow"), options: [.authenticationRequired])
         let deny = UNNotificationAction(
-            identifier: "SB_DENY", title: "❌ 拒绝", options: [.destructive])
+            identifier: "SB_DENY", title: String(localized: "❌ Deny"), options: [.destructive])
         // 任务完成/等待通知：长按直接打字回复下一步指令
         let reply = UNTextInputNotificationAction(
-            identifier: "SB_SEND", title: "💬 回复指令", options: [],
-            textInputButtonTitle: "发送", textInputPlaceholder: "下一步做什么…")
+            identifier: "SB_SEND", title: String(localized: "💬 Reply"), options: [],
+            textInputButtonTitle: String(localized: "Send"),
+            textInputPlaceholder: String(localized: "What's next…"))
         center.setNotificationCategories([
             UNNotificationCategory(identifier: "SB_DECIDE", actions: [allow, deny],
                                    intentIdentifiers: [], options: []),

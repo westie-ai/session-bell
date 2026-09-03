@@ -18,7 +18,7 @@ targets:
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
         MARKETING_VERSION: "1.2"
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_CFBundleDisplayName: SessionBell
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -36,7 +36,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
-        NSLocalNetworkUsageDescription: 把 Live Activity 推送令牌回传给局域网内的 Mac，用于结束锁屏上的等待状态。
+        NSLocalNetworkUsageDescription: Sends the Live Activity push token back to a Mac on your local network so it can clear the waiting state on the Lock Screen.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     entitlements:
@@ -44,6 +44,21 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.usernotifications.time-sensitive: true
+  SessionBellScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Screenshots
+    dependencies:
+      - target: SessionBell
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yuesun.SessionBell.Screenshots
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 27Z3Z38H3M
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: SessionBell
+        GENERATE_INFOPLIST_FILE: YES
   SessionBellWidgets:
     type: app-extension
     platform: iOS
@@ -57,7 +72,7 @@ targets:
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
         MARKETING_VERSION: "1.2"
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         SKIP_INSTALL: true
     info:
       path: SessionBellWidgets/Info.plist
@@ -67,3 +82,20 @@ targets:
         CFBundleDisplayName: SessionBell
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+schemes:
+  SessionBell:
+    build:
+      targets:
+        SessionBell: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SessionBellScreenshots
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

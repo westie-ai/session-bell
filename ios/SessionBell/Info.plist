@@ -26,7 +26,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>把 Live Activity 推送令牌回传给局域网内的 Mac，用于结束锁屏上的等待状态。</string>
+	<string>Sends the Live Activity push token back to a Mac on your local network so it can clear the waiting state on the Lock Screen.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

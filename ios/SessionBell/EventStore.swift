@@ -148,19 +148,20 @@ final class EventStore: ObservableObject {
                    let weekOut = u["week_out"] as? Double {
                     let budget = u["week_budget"] as? Double ?? 0
                     let officialTotal = u["official_total_pct"] as? Double
-                    var text = "今日 \(fmtTokens(todayOut)) · 本周期 \(fmtTokens(weekOut))"
+                    var text = String(localized: "Today \(fmtTokens(todayOut)) · This cycle \(fmtTokens(weekOut))")
                         + (officialTotal == nil && budget > 0 ? "/\(fmtTokens(budget))" : "")
                     if let resetTs = u["reset_ts"] as? Double {
                         let remain = resetTs - now
                         if remain > 0 {
                             let d = Int(remain / 86400)
                             let h = Int(remain.truncatingRemainder(dividingBy: 86400) / 3600)
-                            text += " · 距重置 \(d > 0 ? "\(d)天" : "")\(h)时"
+                            let left = d > 0 ? String(localized: "\(d)d \(h)h") : String(localized: "\(h)h")
+                            text += " · " + String(localized: "resets in \(left)")
                         }
                     }
                     if let t = officialTotal {
                         // Ground truth straight from the OAuth usage endpoint.
-                        text += " · 官方口径"
+                        text += " · " + String(localized: "official figures")
                         fractionFor[key] = t / 100
                     } else if budget > 0 {
                         fractionFor[key] = weekOut / budget
@@ -168,13 +169,15 @@ final class EventStore: ObservableObject {
                     usageFor[key] = text
                     if let sessionPct = u["official_session_pct"] as? Double {
                         sessionFractionFor[key] = sessionPct / 100
-                        var stext = "官方口径"
+                        var stext = String(localized: "official figures")
                         if let sReset = u["session_reset_ts"] as? Double {
                             let remain = sReset - now
                             if remain > 0 {
                                 let h = Int(remain / 3600)
                                 let m = Int(remain.truncatingRemainder(dividingBy: 3600) / 60)
-                                stext = "距重置 \(h > 0 ? "\(h)时" : "")\(m)分 · 官方口径"
+                                let left = h > 0 ? String(localized: "\(h)h \(m)m") : String(localized: "\(m)m")
+                                stext = String(localized: "resets in \(left)") + " · "
+                                    + String(localized: "official figures")
                             }
                         }
                         sessionTextFor[key] = stext
@@ -183,7 +186,7 @@ final class EventStore: ObservableObject {
                         let name = u["premium_name"] as? String ?? "Fable"
                         if let officialPct = u["official_pct"] as? Double {
                             // Ground truth from the OAuth usage endpoint.
-                            fableTextFor[key] = "\(name) \(fmtTokens(weekFable)) · 官方口径"
+                            fableTextFor[key] = "\(name) \(fmtTokens(weekFable)) · " + String(localized: "official figures")
                             fableFractionFor[key] = officialPct / 100
                         } else if let fBudget = u["fable_budget"] as? Double, fBudget > 0 {
                             fableTextFor[key] = "\(name) \(fmtTokens(weekFable))/\(fmtTokens(fBudget))"
@@ -323,7 +326,7 @@ final class EventStore: ObservableObject {
             id: id,
             kind: kind,
             sessionId: sessionId,
-            project: sb["project"] as? String ?? "未知项目",
+            project: sb["project"] as? String ?? String(localized: "Unknown project"),
             cwd: sb["cwd"] as? String ?? "",
             host: sb["host"] as? String,
             title: title,

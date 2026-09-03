@@ -58,14 +58,14 @@ struct SessionLiveActivity: Widget {
     }
 }
 
-private func summaryLine(_ state: DashState) -> String {
+private func summaryLine(_ state: DashState) -> LocalizedStringKey {
     if state.waitingCount > 0 {
-        return "\(state.waitingCount) 个任务在等你"
+        return "\(state.waitingCount) tasks waiting for you"
     }
     if state.runningCount > 0 {
-        return "\(state.runningCount) 个任务运行中"
+        return "\(state.runningCount) tasks running"
     }
-    return "全部完成"
+    return "All done"
 }
 
 /// 锁屏空间金贵:机器名去掉主人前缀、机型缩写。只影响显示,不动数据里的 host。
@@ -108,7 +108,7 @@ private struct ElapsedText: View {
     let task: TaskItem
     var body: some View {
         if task.status == "done" {
-            Text("完成")
+            Text("Finished")
         } else {
             Text(timerInterval: task.sinceDate...task.sinceDate.addingTimeInterval(86400),
                  countsDown: false)
@@ -203,7 +203,7 @@ private struct LockScreenView: View {
                             showHost: sharedHost == nil)
                 }
                 if state.tasks.count > shown {
-                    Text("还有 \(state.tasks.count - shown) 个（App 内查看全部）")
+                    Text("\(state.tasks.count - shown) more (see all in the app)")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -263,7 +263,7 @@ private struct ApprovalButtons: View {
                     backend: attrs.backend, secret: attrs.secret,
                     requestId: state.approvalId ?? "", decision: "allow")
                 ) {
-                    Label("允许", systemImage: "checkmark")
+                    Label("Allow", systemImage: "checkmark")
                         .font(.subheadline.bold())
                         .frame(maxWidth: .infinity)
                 }
@@ -274,7 +274,7 @@ private struct ApprovalButtons: View {
                     backend: attrs.backend, secret: attrs.secret,
                     requestId: state.approvalId ?? "", decision: "deny")
                 ) {
-                    Label("拒绝", systemImage: "xmark")
+                    Label("Deny", systemImage: "xmark")
                         .font(.subheadline.bold())
                         .frame(maxWidth: .infinity)
                 }

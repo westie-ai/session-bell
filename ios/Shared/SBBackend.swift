@@ -71,7 +71,7 @@ enum SBBackend {
 
     /// 托管注册:邀请码换新租户。成功时已把后端配置保存好。
     static func signup(invite: String) async -> String? {
-        guard let url = URL(string: hostedBase + "/api/signup") else { return "地址不合法" }
+        guard let url = URL(string: hostedBase + "/api/signup") else { return String(localized: "Invalid address") }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 15
@@ -83,22 +83,22 @@ enum SBBackend {
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             guard code == 200, let pairing = obj?["pairing_code"] as? String else {
                 if let err = obj?["error"] as? String {
-                    return err == "bad invite code" ? "邀请码不对,检查一下再试" : err
+                    return err == "bad invite code" ? String(localized: "Invite code not recognized. Check it and try again.") : err
                 }
-                return "服务器返回 HTTP \(code)"
+                return String(localized: "Server returned HTTP \(code)")
             }
-            guard adoptPairingCode(pairing) else { return "配对码解析失败,请联系邀请你的人" }
+            guard adoptPairingCode(pairing) else { return String(localized: "Couldn't parse the pairing code. Contact the person who invited you.") }
             return nil
         } catch {
-            return "网络不通:\(error.localizedDescription)"
+            return String(localized: "Network error: \(error.localizedDescription)")
         }
     }
 
     /// 连接自检:把失败原因摊在台面上,不再静默装死。
     static func ping() async -> String {
-        guard let backend = saved else { return "❌ 未配置后端" }
+        guard let backend = saved else { return String(localized: "❌ No backend configured") }
         guard let url = URL(string: backend.url + "/api/token") else {
-            return "❌ 地址不合法: \(backend.url)"
+            return String(localized: "❌ Invalid address: \(backend.url)")
         }
         var req = URLRequest(url: url)
         req.timeoutInterval = 8
@@ -106,7 +106,7 @@ enum SBBackend {
         do {
             let (data, resp) = try await URLSession.shared.data(for: req)
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-            if code == 200 { return "✅ 已连接 \(url.host ?? "")" }
+            if code == 200 { return String(localized: "✅ Connected to \(url.host ?? "")") }
             let body = String(data: data, encoding: .utf8)?.prefix(60) ?? ""
             return "❌ HTTP \(code) \(body)"
         } catch {

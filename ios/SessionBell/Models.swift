@@ -9,10 +9,10 @@ enum EventKind: String, Codable {
 
     var label: String {
         switch self {
-        case .stop: return "任务完成"
-        case .notification: return "需要干预"
-        case .permission: return "请求授权"
-        case .test: return "测试"
+        case .stop: return String(localized: "Task Finished")
+        case .notification: return String(localized: "Needs Attention")
+        case .permission: return String(localized: "Permission Request")
+        case .test: return String(localized: "Test")
         }
     }
 
