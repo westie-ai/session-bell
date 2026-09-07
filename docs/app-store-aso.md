@@ -1,6 +1,6 @@
 # App Store & ASO Notes
 
-_Last updated: 2026-09-06_
+_Last updated: 2026-09-07_
 
 Working notes for SessionBell's App Store listing and App Store Optimization
 (ASO). This is not build config — the source of truth for version/build numbers
@@ -54,25 +54,25 @@ keep it unless we decide to optimize the CN listing separately.
 
 ### English screenshots
 
-The English (U.S.) localization currently **falls back to the Chinese-UI
-screenshots** (it has none of its own). Produce an English-UI screenshot set and
-upload it to the English (U.S.) localization. Screenshot changes also require a
-new version, so do this alongside the 1.3 metadata above.
+Done in 1.2: the English (U.S.) localization has its own English-UI set
+(iPhone 6.9" ×4, iPad 13" ×2), captured by the `SessionBellScreenshots` UI-test
+target against a local worker (see `ios/Screenshots/ScreenshotTests.swift`).
+Sources live in `appstore/screenshots/{en,zh-Hans}` and `appstore/ipad/en`.
+For 1.3 the onboarding screenshot must be re-captured: the welcome screen now
+shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.2**, build **4**.
-- Next: **1.3**, build **≥ 5**.
+- Last shipped: **1.2**, build **5** (build 4 was uploaded first, then replaced by build 5 with the English UI localization).
+- Next: **1.3**, build **≥ 6**.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> Note: the 1.2 / build 4 version bump does not appear as a commit on
-> `origin/main` — it was bumped on the build machine. Confirm
-> `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/project.yml` are
-> correct before the next build.
+> `ios/project.yml` on `main` is at 1.2 / build 5. Bump to 1.3 / 6 for the
+> next build.
 
 ## Context (not App Store)
 
