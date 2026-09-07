@@ -326,21 +326,42 @@ async function seedDemo(env, lang = 'en') {
 
 // ---------- onboarding ----------
 
+/// 简单滑动窗口限流(D1 的 sys 命名空间):同一 key 在 windowSec 内最多 limit 次。
+async function rateLimit(env, key, limit, windowSec) {
+  const now = Math.floor(Date.now() / 1000);
+  let n = 0, start = now;
+  const row = await kvGet(env, 'sys', 'rl/' + key);
+  if (row) {
+    try {
+      const o = JSON.parse(row.v);
+      if (now - o.start < windowSec) { n = o.n; start = o.start; }
+    } catch {}
+  }
+  if (n >= limit) return false;
+  await kvPut(env, 'sys', 'rl/' + key, JSON.stringify({ n: n + 1, start }));
+  return true;
+}
+
+/// 开放注册:不需要邀请码,点一下就开一个空租户。滥用靠每 IP 每小时限流兜底
+/// (租户只是一个 KV 前缀,开一个几乎零成本)。
+/// { demo: true } 或旧的审核码 → 进预置模拟数据的固定 demo 命名空间,给
+/// 还没连 Mac 的新用户和 App Review 看,不产生新租户。
 async function handleSignup(req, env, url) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   const b = await readBody(req);
   const invite = (b.invite || '').trim();
-  // App Review 演示租户:专用邀请码进入预置了模拟数据的固定命名空间,
-  // 不产生新租户。数据由 seedDemo 维持新鲜。
-  if (env.REVIEW_CODE && env.DEMO_SECRET && invite === env.REVIEW_CODE) {
+  const wantsDemo = b.demo === true || (env.REVIEW_CODE && invite && invite === env.REVIEW_CODE);
+  if (wantsDemo) {
+    if (!env.DEMO_SECRET) return json({ error: 'demo unavailable' }, 503);
     await seedDemo(env, demoLang(req));
     return json({
       pairing_code: btoa(JSON.stringify({ u: url.origin, s: env.DEMO_SECRET })),
       demo: true,
     });
   }
-  if (!env.INVITE_CODE || invite !== env.INVITE_CODE) {
-    return json({ error: 'bad invite code' }, 403);
+  const ip = req.headers.get('cf-connecting-ip') || 'unknown';
+  if (!(await rateLimit(env, 'signup/' + ip, 10, 3600))) {
+    return json({ error: 'rate limited' }, 429);
   }
   const raw = crypto.getRandomValues(new Uint8Array(24));
   const secret = [...raw].map((x) => x.toString(16).padStart(2, '0')).join('');

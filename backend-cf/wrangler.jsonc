@@ -14,7 +14,7 @@
       "database_id": "b4f4ff7d-6ba6-4ac1-ae6e-a6d6ce262c14"
     }
   ]
-  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, INVITE_CODE
+  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, REVIEW_CODE, DEMO_SECRET (INVITE_CODE 已不再使用)
   //
   // westie.ai 切换(等 Coffin 给 piper 开 Workers 权限后):
   //   account_id -> 6d26ebce69367b06e6c691ba627a26aa

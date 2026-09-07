@@ -11,7 +11,11 @@ struct ContentView: View {
     @State private var navPath = NavigationPath()
     @AppStorage("sb.tab") private var selectedTab = 0
     @AppStorage("sb.onboarded") private var onboarded = false
+    @AppStorage(SBBackend.demoKey) private var isDemo = false
     @State private var showOnboarding = false
+    @State private var onboardingStart: OnboardingView.Step = .welcome
+    @State private var creatingSpace = false
+    @State private var createError = ""
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -44,12 +48,63 @@ struct ContentView: View {
         .onAppear {
             if !onboarded && SBBackend.saved == nil { showOnboarding = true }
         }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            OnboardingView {
+        .fullScreenCover(isPresented: $showOnboarding, onDismiss: { onboardingStart = .welcome }) {
+            OnboardingView(initialStep: onboardingStart) {
                 showOnboarding = false
                 onboarded = true
                 Task { await store.refresh() }
             }
+        }
+    }
+
+    /// 演示租户 → 真实空间:开一个新租户,清空演示数据,直接跳到「连接 Mac」。
+    private func createOwnSpace() {
+        guard !creatingSpace else { return }
+        creatingSpace = true
+        createError = ""
+        Task {
+            if let err = await SBBackend.signup() {
+                createError = err
+                creatingSpace = false
+                return
+            }
+            store.clearAll()
+            await OnboardingView.registerTokens()
+            creatingSpace = false
+            onboardingStart = .connectMac
+            showOnboarding = true
+        }
+    }
+
+    @ViewBuilder
+    private var demoBanner: some View {
+        if isDemo {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Demo data", systemImage: "sparkles")
+                        .font(.headline)
+                    Text("These tasks are simulated. Create your own space and connect your Mac to see the real thing.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if !createError.isEmpty {
+                        Text(createError).font(.footnote).foregroundStyle(.red)
+                    }
+                    Button {
+                        createOwnSpace()
+                    } label: {
+                        Group {
+                            if creatingSpace { ProgressView() }
+                            else { Label("Create My Space", systemImage: "plus.circle.fill") }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(creatingSpace)
+                }
+                .padding(.vertical, 4)
+            }
+            .listRowBackground(Color.sbAccent.opacity(0.12))
         }
     }
 
@@ -65,12 +120,13 @@ struct ContentView: View {
     private var tasksTab: some View {
         NavigationStack(path: $navPath) {
             List {
+                demoBanner
                 approvalSection
                 liveTasksSection
                 sessionsSection
             }
             .overlay {
-                if store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
+                if !isDemo && store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
                     ContentUnavailableView {
                         Label("No Tasks Yet", systemImage: "bell")
                     } description: {
@@ -140,6 +196,16 @@ struct ContentView: View {
         NavigationStack {
             List {
                 Section("Setup") {
+                    if isDemo {
+                        Button {
+                            createOwnSpace()
+                        } label: {
+                            Label(creatingSpace ? String(localized: "Creating your space…")
+                                                : String(localized: "Demo mode · Create My Space"),
+                                  systemImage: "sparkles")
+                        }
+                        .disabled(creatingSpace)
+                    }
                     backendConfigRow
                     // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
                     if let code = SBBackend.pairingCode {

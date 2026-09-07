@@ -505,12 +505,52 @@
         }
       }
     },
+    "Create My Space": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建我的空间"
+          }
+        }
+      }
+    },
+    "Creating your space…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在创建空间…"
+          }
+        }
+      }
+    },
     "Default": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "普通"
+          }
+        }
+      }
+    },
+    "Demo data": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演示数据"
+          }
+        }
+      }
+    },
+    "Demo mode · Create My Space": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演示模式 · 创建我的空间"
           }
         }
       }
@@ -571,16 +611,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已结束"
-          }
-        }
-      }
-    },
-    "Enter Invite Code": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输入邀请码"
           }
         }
       }
@@ -685,42 +715,12 @@
         }
       }
     },
-    "I Have an Invite Code": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我有邀请码"
-          }
-        }
-      }
-    },
     "Invalid address": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "地址不合法"
-          }
-        }
-      }
-    },
-    "Invite code": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀请码"
-          }
-        }
-      }
-    },
-    "Invite code not recognized. Check it and try again.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀请码不对,检查一下再试"
           }
         }
       }
@@ -1275,12 +1275,22 @@
         }
       }
     },
-    "The person who invited you will send you a code.\nSigning up gives you your own private space.": {
+    "The demo isn't available right now.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "邀请你的人会把邀请码发给你。\n注册后你会得到一个独立的专属空间。"
+            "value": "演示暂时不可用。"
+          }
+        }
+      }
+    },
+    "These tasks are simulated. Create your own space and connect your Mac to see the real thing.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些任务是模拟的。创建自己的空间并连接 Mac,这里就会显示真实任务。"
           }
         }
       }
@@ -1301,6 +1311,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日 %@ · 本周期 %@"
+          }
+        }
+      }
+    },
+    "Too many sign-ups from this network. Try again in an hour.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个网络注册太频繁,一小时后再试。"
+          }
+        }
+      }
+    },
+    "Try the demo first": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先看看演示"
           }
         }
       }

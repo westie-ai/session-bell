@@ -72,6 +72,44 @@ final class ScreenshotTests: XCTestCase {
         save("3-tab1")
     }
 
+    // MARK: 接入流程(不截图,当回归测试用)
+    // 前提:模拟器钥匙串里没有 SessionBell 的项(否则不会进引导页),
+    // 且本地 worker 带 DEMO_SECRET。参数域覆盖 hostedBase 指向本地 worker。
+
+    private func launchFresh() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = langArgs() + [
+            "-sb.onboarded", "0",   // 不传 -sb.demo:参数域会盖住 App 之后写入的值
+            "-sb.hostedBase", env["SB_HOSTED"] ?? "http://localhost:8787",
+        ]
+        app.launch()
+        return app
+    }
+
+    /// 先看看演示 → 直接进 App,任务页顶部有演示横幅,demo 任务可见。
+    func testDemoFlow() {
+        let app = launchFresh()
+        let demo = app.buttons["Try the demo first"]
+        XCTAssertTrue(demo.waitForExistence(timeout: 10))
+        demo.tap()
+        XCTAssertTrue(app.staticTexts["Demo data"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["checkout"].waitForExistence(timeout: 20))
+        sleep(2)
+        save("5-demo")
+        // 横幅里「创建我的空间」→ 真实租户 → 直接落到「连接 Mac」
+        app.buttons["Create My Space"].tap()
+        XCTAssertTrue(app.staticTexts["Waiting for the Mac's first heartbeat…"].waitForExistence(timeout: 20))
+    }
+
+    /// 开始使用 → 开新租户 → 停在「连接 Mac」等心跳。
+    func testOpenSignup() {
+        let app = launchFresh()
+        let start = app.buttons["Get Started"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.tap()
+        XCTAssertTrue(app.staticTexts["Waiting for the Mac's first heartbeat…"].waitForExistence(timeout: 20))
+    }
+
     func testDetail() {
         let app = launchConnected(tab: 0)
         let row = app.staticTexts["checkout"]

@@ -7,7 +7,10 @@ enum SBBackend {
     static let secretKey = "sb.backendSecret"
 
     /// 托管服务的注册入口;自托管用户不经过这里(直接粘配对码/填地址)。
-    static let hostedBase = "https://sessionbell.westie.ai"
+    /// 启动参数 -sb.hostedBase 可指到本地 worker(UI 测试 / 截图用)。
+    static var hostedBase: String {
+        UserDefaults.standard.string(forKey: "sb.hostedBase") ?? "https://sessionbell.westie.ai"
+    }
 
     // No baked-in backend: each user points the app at their own deployment,
     // either in the app's 后端配置 section or automatically from the first
@@ -36,6 +39,7 @@ enum SBBackend {
 
     static func save(url: String, secret: String) {
         guard !url.isEmpty, !secret.isEmpty else { return }
+        isDemo = false
         if Keychain.write(url: url, secret: secret) {
             UserDefaults.standard.removeObject(forKey: urlKey)
             UserDefaults.standard.removeObject(forKey: secretKey)
@@ -148,25 +152,47 @@ enum SBBackend {
         return true
     }
 
-    /// 托管注册:邀请码换新租户。成功时已把后端配置保存好。
-    static func signup(invite: String) async -> String? {
+    /// 当前接的是共享的演示租户(数据是模拟的,由后端定时播种)。
+    /// 换成真实租户或粘配对码时自动清掉。
+    static let demoKey = "sb.demo"
+    static var isDemo: Bool {
+        get { UserDefaults.standard.bool(forKey: demoKey) }
+        set { UserDefaults.standard.set(newValue, forKey: demoKey) }
+    }
+
+    /// 托管注册:开放注册,不需要邀请码;demo=true 时接入演示租户。
+    /// 成功时已把后端配置保存好,返回 nil;失败返回可展示的错误文案。
+    static func signup(demo: Bool = false) async -> String? {
         guard let url = URL(string: hostedBase + "/api/signup") else { return String(localized: "Invalid address") }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 15
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["invite": invite])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: demo ? ["demo": true] : [:])
         do {
             let (data, resp) = try await URLSession.shared.data(for: req)
             let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             guard code == 200, let pairing = obj?["pairing_code"] as? String else {
-                if let err = obj?["error"] as? String {
-                    return err == "bad invite code" ? String(localized: "Invite code not recognized. Check it and try again.") : err
+                switch obj?["error"] as? String {
+                case "rate limited":
+                    return String(localized: "Too many sign-ups from this network. Try again in an hour.")
+                case "demo unavailable":
+                    return String(localized: "The demo isn't available right now.")
+                case let err?:
+                    return err
+                default:
+                    return String(localized: "Server returned HTTP \(code)")
                 }
-                return String(localized: "Server returned HTTP \(code)")
             }
-            guard adoptPairingCode(pairing) else { return String(localized: "Couldn't parse the pairing code. Contact the person who invited you.") }
+            // 地址以 App 自己的 hostedBase 为准(服务端回的 origin 在本地/代理环境下不可靠),
+            // 只取配对码里的租户密钥。
+            guard let pd = Data(base64Encoded: pairing),
+                  let po = try? JSONSerialization.jsonObject(with: pd) as? [String: String],
+                  let secret = po["s"], !secret.isEmpty
+            else { return String(localized: "Couldn't parse the pairing code. Contact the person who invited you.") }
+            save(url: hostedBase, secret: secret)
+            isDemo = demo
             return nil
         } catch {
             return String(localized: "Network error: \(error.localizedDescription)")

@@ -31,8 +31,7 @@
 <p>把 Agent 装进锁屏:任务通知、实时面板、手机批准与遥控。</p>
 
 <div id="gate" class="step">
-  <b>输入邀请码</b><br><br>
-  <input id="invite" placeholder="邀请码" autocomplete="off">
+  <b>不需要邀请码</b>,点一下就生成一个属于你的空间:<br><br>
   <button onclick="join()">生成我的接入包</button>
   <div id="err" style="color:#c0392b"></div>
 </div>
@@ -42,7 +41,7 @@
     App Store 装「TestFlight」,然后点
     <a href="https://testflight.apple.com/join/JhgVd9pZ">加入 SessionBell 测试</a>,安装。</div>
   <div class="step"><b>② App 里粘配对码</b><br>
-    打开 App → 本机 → 后端配置 → 粘贴:<br><br>
+    打开 App → 「已有配对码 / 自托管」→ 粘贴:<br><br>
     <code id="code"></code><button class="copy" onclick="copyCode()">复制</button></div>
   <div class="step"><b>③ Mac 装安装包</b><br>
     下载并双击安装(已签名公证,系统不会拦):<br>
@@ -54,12 +53,15 @@
 
 <script>
 async function join() {
-  const invite = document.getElementById('invite').value.trim();
   const r = await fetch('/api/signup', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invite }),
+    body: JSON.stringify({}),
   });
-  if (!r.ok) { document.getElementById('err').textContent = '邀请码不对'; return; }
+  if (!r.ok) {
+    document.getElementById('err').textContent =
+      r.status === 429 ? '这个网络注册太频繁,一小时后再试' : '暂时无法生成,稍后再试';
+    return;
+  }
   const d = await r.json();
   document.getElementById('code').textContent = d.pairing_code;
   document.getElementById('paircmd').textContent = 'sessionbell pair ' + d.pairing_code;
@@ -68,7 +70,6 @@ async function join() {
 }
 function copyCode() { navigator.clipboard.writeText(document.getElementById('code').textContent); }
 function copyPair() { navigator.clipboard.writeText(document.getElementById('paircmd').textContent); }
-document.getElementById('invite').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
 </script>
 </body>
 </html>

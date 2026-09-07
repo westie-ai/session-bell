@@ -1,24 +1,32 @@
 import SwiftUI
 
-/// 首跑三屏:欢迎 → 接入(邀请码 / 配对码 / 自托管)→ 连接 Mac。
+/// 首跑:欢迎(开始使用 / 先看看演示 / 配对码·自托管)→ 连接 Mac。
+/// 开放注册,点「开始使用」直接开一个空租户;演示走共享 demo 租户,
+/// 之后在任务页横幅里一键换成自己的空间(从 .connectMac 进来)。
 /// SBBackend.saved 已存在的老用户不会看到这里(ContentView 里判断)。
 struct OnboardingView: View {
-    enum Step { case welcome, invite, manual, connectMac }
-    @State private var step: Step = .welcome
+    enum Step { case welcome, manual, connectMac }
+    @State private var step: Step
+    @State private var busy = false
+    @State private var error = ""
     let onDone: () -> Void
+
+    init(initialStep: Step = .welcome, onDone: @escaping () -> Void) {
+        _step = State(initialValue: initialStep)
+        self.onDone = onDone
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 switch step {
                 case .welcome: welcome
-                case .invite: InviteStep(onSuccess: { step = .connectMac })
                 case .manual: ManualStep(onSuccess: { step = .connectMac })
                 case .connectMac: ConnectMacStep(onDone: onDone)
                 }
             }
             .toolbar {
-                if step == .invite || step == .manual {
+                if step == .manual {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Back") { step = .welcome }
                     }
@@ -63,21 +71,59 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 10) {
+                if !error.isEmpty {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
                 Button {
-                    step = .invite
+                    start(demo: false)
                 } label: {
-                    Text("I Have an Invite Code")
+                    Group {
+                        if busy { ProgressView().tint(.white) }
+                        else { Text("Get Started").font(.headline) }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(busy)
+
+                Button {
+                    start(demo: true)
+                } label: {
+                    Text("Try the demo first")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .disabled(busy)
 
                 Button("Have a pairing code / self-hosted") { step = .manual }
                     .font(.subheadline)
+                    .padding(.top, 2)
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 24)
+        }
+    }
+
+    /// 开放注册:真实空间 → 去连 Mac;演示 → 直接进 App 看模拟任务。
+    private func start(demo: Bool) {
+        guard !busy else { return }
+        busy = true
+        error = ""
+        Task {
+            if let err = await SBBackend.signup(demo: demo) {
+                error = err
+                busy = false
+                return
+            }
+            await OnboardingView.registerTokens()
+            busy = false
+            if demo { onDone() } else { step = .connectMac }
         }
     }
 
@@ -90,84 +136,6 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.weight(.medium))
                 Text(sub).font(.caption).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// 屏 2a:输入邀请码 → /api/signup → 自动配好一切。
-private struct InviteStep: View {
-    let onSuccess: () -> Void
-    @State private var invite = ""
-    @State private var busy = false
-    @State private var error = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Image(systemName: "ticket")
-                .font(.system(size: 44))
-                .foregroundStyle(Color.sbAccentDeep)
-            Text("Enter Invite Code")
-                .font(.title2.bold())
-            Text("The person who invited you will send you a code.\nSigning up gives you your own private space.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            TextField("Invite code", text: $invite)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.system(.title3, design: .monospaced))
-                .multilineTextAlignment(.center)
-                .padding(.vertical, 12)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-                .focused($focused)
-                .onSubmit { submit() }
-                .padding(.horizontal, 36)
-
-            if !error.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 36)
-            }
-
-            Button {
-                submit()
-            } label: {
-                Group {
-                    if busy { ProgressView().tint(.white) }
-                    else { Text("Get Started").font(.headline) }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(invite.trimmingCharacters(in: .whitespaces).isEmpty || busy)
-            .padding(.horizontal, 28)
-
-            Spacer()
-            Spacer()
-        }
-        .onAppear { focused = true }
-    }
-
-    private func submit() {
-        let code = invite.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !code.isEmpty, !busy else { return }
-        busy = true
-        error = ""
-        Task {
-            if let err = await SBBackend.signup(invite: code) {
-                error = err
-                busy = false
-            } else {
-                await OnboardingView.registerTokens()
-                busy = false
-                onSuccess()
             }
         }
     }
