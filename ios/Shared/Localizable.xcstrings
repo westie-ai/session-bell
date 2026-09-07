@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@\n\n⤷ 正在进行：%@\n（锁屏卡片可直接批准，或长按这条通知）": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@\n\n⤷ In progress: %@\n(Approve from the Lock Screen card, or long-press this notification)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@\n\n⤷ 正在进行：%@\n（锁屏卡片可直接批准，或长按这条通知）"
+          }
+        }
+      }
+    },
+    "%@\n（锁屏卡片可直接批准，或长按这条通知）": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@\n(Approve from the Lock Screen card, or long-press this notification)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@\n（锁屏卡片可直接批准，或长按这条通知）"
+          }
+        }
+      }
+    },
     "%@ (tap to copy)": {
       "localizations": {
         "zh-Hans": {
@@ -371,6 +405,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude 请求授权"
+          }
+        }
+      }
+    },
+    "Claude 在等待你的输入或授权": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude is waiting for your input or approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 在等待你的输入或授权"
+          }
+        }
+      }
+    },
+    "Claude 已完成本轮任务": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude finished this turn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 已完成本轮任务"
           }
         }
       }
@@ -1525,6 +1593,23 @@
         }
       }
     },
+    "⏳ %@ 个任务运行中": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ %@ tasks running"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ %@ 个任务运行中"
+          }
+        }
+      }
+    },
     "⏳ Connecting to terminal… (first frame in about 10 s)": {
       "localizations": {
         "zh-Hans": {
@@ -1571,6 +1656,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "① pkg 装完了吗(装完终端里才有 sessionbell 命令)\n② 命令是完整粘贴的吗(很长,别截断)\n③ Mac 弹的权限框都点了允许吗"
+          }
+        }
+      }
+    },
+    "✅ %@ · 任务完成": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ %@ · Task finished"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ %@ · 任务完成"
+          }
+        }
+      }
+    },
+    "✅ %@ · 完成「%@」": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ %@ · Finished “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ %@ · 完成「%@」"
           }
         }
       }
@@ -1625,12 +1744,114 @@
         }
       }
     },
+    "「%@」%@": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」%@"
+          }
+        }
+      }
+    },
+    "推送链路打通了！": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Push notifications are working!"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推送链路打通了！"
+          }
+        }
+      }
+    },
     "💬 Reply": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "💬 回复指令"
+          }
+        }
+      }
+    },
+    "🔐 %@ · 请求授权": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔐 %@ · Permission request"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔐 %@ · 请求授权"
+          }
+        }
+      }
+    },
+    "🔔 SessionBell 测试": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔔 SessionBell test"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔔 SessionBell 测试"
+          }
+        }
+      }
+    },
+    "🖐 %@ · 需要你": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🖐 %@ · Needs you"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🖐 %@ · 需要你"
+          }
+        }
+      }
+    },
+    "🖐 %@ 个任务在等你": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🖐 %@ tasks waiting for you"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🖐 %@ 个任务在等你"
           }
         }
       }

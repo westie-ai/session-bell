@@ -856,6 +856,16 @@ def gateway_push(device_token: str, topic: str, push_type: str, payload: dict):
     return r.get("status", 0), json.dumps(r.get("body") or "")[:200]
 
 
+def loc_alert(key: str, args: list) -> dict:
+    """APNs 标题本地化:key 是中文原文(带 %@ 占位),App 的 String Catalog 里有英文译文。
+    手机按自己的语言查表;老版本 App 查不到 key 就原样显示中文,所以完全向后兼容。
+    同时带上渲染好的 title,给不认 loc-key 的消费者(relay 日志等)看。"""
+    title = key
+    for a in args:
+        title = title.replace("%@", str(a), 1)
+    return {"title": title, "title-loc-key": key, "title-loc-args": [str(a) for a in args]}
+
+
 def send_la_push(jwt: str, apns_host: str, la_token: str, bundle_id: str, aps: dict):
     """Live Activity pushes use a dedicated topic suffix and push type."""
     if _GATEWAY_CFG and use_push_gateway(_GATEWAY_CFG):
@@ -1236,9 +1246,9 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
 
     waiting = [t for t in active if t["status"] == "waiting"]
     if waiting:
-        title = f"🖐 {len(waiting)} 个任务在等你"
+        title_key, title_args = "🖐 %@ 个任务在等你", [str(len(waiting))]
     else:
-        title = f"⏳ {len(active)} 个任务运行中"
+        title_key, title_args = "⏳ %@ 个任务运行中", [str(len(active))]
     aps = {
         "timestamp": now,
         "event": "start",
@@ -1248,7 +1258,7 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
         "stale-date": now + LA_STALE_SECONDS,
         # Apple requires an alert dict on push-to-start payloads.
         "alert": {
-            "title": title,
+            **loc_alert(title_key, title_args),
             "body": " · ".join(t["project"] for t in active[:3]),
         },
     }
@@ -1542,14 +1552,19 @@ def handle_permission(cfg: dict, hook: dict) -> None:
     jwt = make_jwt(cfg)
     env = cfg.get("environment", "sandbox")
 
+    if context:
+        body_key, body_args = "%@\n\n⤷ 正在进行：%@\n（锁屏卡片可直接批准，或长按这条通知）", [summary, context]
+    else:
+        body_key, body_args = "%@\n（锁屏卡片可直接批准，或长按这条通知）", [summary]
     payload = {
         "aps": {
             "alert": {
-                "title": f"🔐 {project} · 请求授权",
+                **loc_alert("🔐 %@ · 请求授权", [project]),
                 "subtitle": host,
-                "body": (f"{summary}"
-                         + (f"\n\n⤷ 正在进行：{context}" if context else "")
-                         + "\n（锁屏卡片可直接批准，或长按这条通知）"),
+                # body 只放 summary(老 App 的批准卡读它);带提示语的完整文案走 loc-key。
+                "body": summary,
+                "loc-key": body_key,
+                "loc-args": body_args,
             },
             "sound": "default",
             "thread-id": session_id,
@@ -2225,12 +2240,15 @@ def main():
     task_detail = (load_sessions()["local"].get(session_id) or {}).get("detail", "")
 
     raw_md = ""
+    body_key = body_args = None   # 固定短语走 loc-key;动态正文(Claude 的回复)原样发
     if kind == "stop":
-        title = f"✅ {project} · 任务完成"
+        title_key, title_args = "✅ %@ · 任务完成", [project]
         raw_md = last_assistant_text(hook.get("transcript_path", ""))
-        body = strip_markdown(raw_md) or "Claude 已完成本轮任务"
+        body = strip_markdown(raw_md)
+        if not body:
+            body, body_key, body_args = "Claude 已完成本轮任务", "Claude 已完成本轮任务", []
         if task_detail:
-            title = f"✅ {project} · 完成「{task_detail[:24]}」"
+            title_key, title_args = "✅ %@ · 完成「%@」", [project, task_detail[:24]]
     elif kind == "notification":
         # Permission prompts get their own actionable push from the
         # PermissionRequest hook — while that card is still live, don't
@@ -2243,18 +2261,21 @@ def main():
                         return
             except (OSError, ValueError):
                 pass
-        title = f"🖐 {project} · 需要你"
+        title_key, title_args = "🖐 %@ · 需要你", [project]
         # What is Claude actually asking? The last assistant message says.
         raw_md = last_assistant_text(hook.get("transcript_path", ""))
         if raw_md:
             body = strip_markdown(raw_md)
         else:
             body = hook.get("message") or "Claude 在等待你的输入或授权"
+            if not hook.get("message"):
+                body_key, body_args = "Claude 在等待你的输入或授权", []
             if task_detail:
+                body_key, body_args = "「%@」%@", [task_detail, body]
                 body = f"「{task_detail}」{body}"
     else:
-        title = "🔔 SessionBell 测试"
-        body = "推送链路打通了！"
+        title_key, title_args = "🔔 SessionBell 测试", []
+        body, body_key, body_args = "推送链路打通了！", "推送链路打通了！", []
         session_id = "test"
 
     # Full detail readable on the phone: long-press the banner, or open the
@@ -2263,9 +2284,12 @@ def main():
     body = clip_bytes(body, 1200)
     raw_md = clip_bytes(raw_md, 2000) if raw_md else ""
 
+    alert = {**loc_alert(title_key, title_args), "subtitle": host, "body": body}
+    if body_key is not None:
+        alert["loc-key"], alert["loc-args"] = body_key, [clip_bytes(a, 1200) for a in body_args]
     payload = {
         "aps": {
-            "alert": {"title": title, "subtitle": host, "body": body},
+            "alert": alert,
             "sound": "default",
             "thread-id": session_id,
             "interruption-level": "time-sensitive",

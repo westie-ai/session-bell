@@ -301,7 +301,7 @@ final class EventStore: ObservableObject {
             var summary = ""
             if let aps = userInfo["aps"] as? [String: Any],
                let alert = aps["alert"] as? [String: Any] {
-                summary = alert["body"] as? String ?? ""
+                summary = Self.alertText(alert, "body")
             }
             let date = Date(timeIntervalSince1970: ts)
             // Only surface approvals the Mac is still waiting on.
@@ -318,8 +318,8 @@ final class EventStore: ObservableObject {
         var title = "", body = ""
         if let aps = userInfo["aps"] as? [String: Any],
            let alert = aps["alert"] as? [String: Any] {
-            title = alert["title"] as? String ?? ""
-            body = alert["body"] as? String ?? ""
+            title = Self.alertText(alert, "title")
+            body = Self.alertText(alert, "body")
         }
 
         let event = SessionEvent(
@@ -377,5 +377,20 @@ final class EventStore: ObservableObject {
         if let data = try? JSONEncoder().encode(events) {
             try? data.write(to: fileURL, options: .atomic)
         }
+    }
+}
+
+extension EventStore {
+    /// 按系统通知的规则解析 alert 文案:优先 `title-loc-key`/`loc-key`(hook 发的中文原文
+    /// 作 key,catalog 里有英文译文),查不到就用 key 本身;没有 loc-key 才退回明文字段。
+    static func alertText(_ alert: [String: Any], _ field: String) -> String {
+        let keyName = field == "title" ? "title-loc-key" : "loc-key"
+        let argsName = field == "title" ? "title-loc-args" : "loc-args"
+        if let key = alert[keyName] as? String {
+            let format = NSLocalizedString(key, comment: "")
+            let args = (alert[argsName] as? [Any] ?? []).map { "\($0)" }
+            return String(format: format, arguments: args.map { $0 as NSString })
+        }
+        return alert[field] as? String ?? ""
     }
 }
