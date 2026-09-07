@@ -22,12 +22,15 @@ is `ios/project.yml`.
 - **China mainland** is in the availability list but has **no ICP filing** yet,
   so the mainland store may not fully activate until an ICP number is added.
 
-## 1.3 — submitted 2026-09-07 (build 6, Waiting for Review)
+## 1.3 — submitted 2026-09-07 (build 7, Waiting for Review)
 
 Shipped with it: open signup (no invite code), "Try the demo first" entry,
 tenant secret in iCloud Keychain, the English title/subtitle/keywords below,
 refreshed iPhone screenshots in both locales, review notes pointing reviewers
-at the demo button.
+at the demo button. Build 7 (replacing 6 before review started) adds
+localized push titles: the Mac hook sends APNs loc-keys, the app resolves
+them from the String Catalog. Requires the hook in backend-cf/public to be
+deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
 ## Pending / next version (1.3)
 
@@ -70,16 +73,15 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.2**, build **5** (build 4 was uploaded first, then replaced by build 5 with the English UI localization).
-- Next: **1.3**, build **≥ 6**.
+- Last shipped: **1.2**, build **5**. In review: **1.3**, build **7**.
+- Next build number: **≥ 8**.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> `ios/project.yml` on `main` is at 1.2 / build 5. Bump to 1.3 / 6 for the
-> next build.
+> `ios/project.yml` on `main` is at 1.3 / build 7.
 
 ## Context (not App Store)
 
