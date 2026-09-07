@@ -22,6 +22,13 @@ is `ios/project.yml`.
 - **China mainland** is in the availability list but has **no ICP filing** yet,
   so the mainland store may not fully activate until an ICP number is added.
 
+## 1.3 — submitted 2026-09-07 (build 6, Waiting for Review)
+
+Shipped with it: open signup (no invite code), "Try the demo first" entry,
+tenant secret in iCloud Keychain, the English title/subtitle/keywords below,
+refreshed iPhone screenshots in both locales, review notes pointing reviewers
+at the demo button.
+
 ## Pending / next version (1.3)
 
 Bundle all of the below into the **next** update. Do not spin a review cycle
