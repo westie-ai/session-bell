@@ -13,6 +13,15 @@ final class ScreenshotTests: XCTestCase {
     private var outDir: String { env["SB_SHOT_DIR"] ?? NSTemporaryDirectory() }
     private var lang: String { env["SB_LANG"] ?? "en" }
 
+    /// 新模拟器第一次启动会弹通知权限框,自动点允许(中英文按钮都认)。
+    override func setUp() {
+        continueAfterFailure = true
+        addUIInterruptionMonitor(withDescription: "notifications") { alert in
+            for t in ["Allow", "允许"] where alert.buttons[t].exists { alert.buttons[t].tap(); return true }
+            return false
+        }
+    }
+
     private func langArgs() -> [String] {
         ["-AppleLanguages", "(\(lang))", "-AppleLocale", lang == "en" ? "en_US" : "zh_CN"]
     }
