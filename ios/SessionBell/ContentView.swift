@@ -561,6 +561,7 @@ struct MachineControls: View {
                     .lineLimit(1)
             }
             .toggleStyle(.switch)
+            .controlSize(.mini)
             .tint(.orange)
             .disabled(caffePending)
             .fixedSize(horizontal: true, vertical: false)
