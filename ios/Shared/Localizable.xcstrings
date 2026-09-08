@@ -2455,6 +2455,26 @@
           }
         }
       }
+    },
+    "Send to the Mac with AirDrop instead": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用 AirDrop 发到 Mac"
+          }
+        }
+      }
+    },
+    "Paste didn't arrive on the Mac? AirDrop opens a page there with a copy button. Or just type it — the number is %@. Valid for 15 minutes; it renews by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 上粘不出来？AirDrop 过去会打开一个带复制按钮的网页。或者照着敲，数字是 %@。15 分钟内有效，过期会自动换新的。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -189,7 +189,7 @@ private struct ConnectMacStep: View {
                         .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                         .redacted(reason: short == nil ? .placeholder : [])
                     Button {
-                        UIPasteboard.general.string = command
+                        SBBackend.copyToPasteboard(command)
                         copied = true
                         SBBackend.event("command_copied")
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { copied = false }
@@ -201,8 +201,14 @@ private struct ConnectMacStep: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(short == nil)
-                    if let short {
-                        Text("Can't copy across? Just type it — the number is \(short.pretty). Valid for 15 minutes; it renews by itself.")
+                    if let short, let page = SBBackend.macPageURL(code: short.code) {
+                        ShareLink(item: page) {
+                            Label("Send to the Mac with AirDrop instead", systemImage: "airplayaudio")
+                                .font(.subheadline.weight(.medium))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        Text("Paste didn't arrive on the Mac? AirDrop opens a page there with a copy button. Or just type it — the number is \(short.pretty). Valid for 15 minutes; it renews by itself.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

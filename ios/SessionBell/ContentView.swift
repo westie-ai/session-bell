@@ -242,7 +242,7 @@ struct ContentView: View {
                         Button {
                             Task {
                                 guard let short = await SBBackend.mintShortCode() else { return }
-                                UIPasteboard.general.string = SBBackend.oneLiner(code: short.code)
+                                SBBackend.copyToPasteboard(SBBackend.oneLiner(code: short.code))
                                 copiedPair = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { copiedPair = false }
                             }

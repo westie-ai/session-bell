@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import UniformTypeIdentifiers
 
 /// 6 位短码配对(替代 150 字符的 base64 配对码在手机和 Mac 之间搬运):
 ///   手机先来:mintShortCode() → 用户在 Mac 上跑 `curl …/i | bash -s 483920`
@@ -17,6 +19,16 @@ extension SBBackend {
             .replacingOccurrences(of: "http://", with: "")
         let scheme = hostedBase.hasPrefix("http://") ? "http://" : ""
         return "curl -fsSL \(scheme)\(host)/i | bash -s \(code)"
+    }
+
+    /// 发给 Mac 的网页:大按钮复制命令 / 下载 .command 双击。AirDrop 这个链接,Mac 会直接用 Safari 打开。
+    static func macPageURL(code: String) -> URL? { URL(string: hostedBase + "/m/" + code) }
+
+    /// 写剪贴板。显式 setItems + localOnly=false,并给 15 分钟过期,让通用剪贴板能同步到 Mac。
+    static func copyToPasteboard(_ text: String) {
+        UIPasteboard.general.setItems(
+            [[UTType.utf8PlainText.identifier: text]],
+            options: [.localOnly: false, .expirationDate: Date().addingTimeInterval(15 * 60)])
     }
 
     /// 用当前租户的配对码换一个新的 6 位短码(15 分钟有效,单次使用)。

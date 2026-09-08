@@ -523,6 +523,46 @@ function aasa() {
 
 const STORE_URL = 'https://apps.apple.com/app/id6801045681';
 
+/// /m/<code> — 手机把这个链接 AirDrop / 发给 Mac 时打开的页面:一个大按钮复制那行命令,
+/// 或者下载一个 .command 双击运行。不兑换短码,所以页面本身不含密钥。
+function macPage(code, origin, lang) {
+  const zh = lang !== 'en';
+  const cmd = `curl -fsSL ${origin.replace(/^https?:\/\//, '')}/i | bash -s ${code}`;
+  const t = zh ? {
+    title: 'SessionBell · 在这台 Mac 上接入', h: '在这台 Mac 上接入 SessionBell',
+    copy: '复制命令', copied: '已复制,去终端里 ⌘V 回车', paste: '粘到「终端」里按回车(⌘空格 输入 Terminal 可打开)。',
+    or: '不想开终端?', dl: '下载 SessionBell接入.command,双击运行', exp: '这个码 15 分钟内有效。',
+  } : {
+    title: 'SessionBell · Connect this Mac', h: 'Connect this Mac to SessionBell',
+    copy: 'Copy command', copied: 'Copied — paste into Terminal and press Return', paste: 'Paste it into Terminal and press Return (⌘Space, type Terminal).',
+    or: 'Rather not open Terminal?', dl: 'Download SessionBell.command and double-click it', exp: 'This code is valid for 15 minutes.',
+  };
+  return `<!doctype html><html lang="${zh ? 'zh-CN' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.title}</title>
+<style>:root{color-scheme:light dark;--ground:#FFF8E6;--ink:#2B2723;--muted:#8A7F66}@media(prefers-color-scheme:dark){:root{--ground:#1a1a18;--ink:#F1EEE4;--muted:#A79E88}}
+*{box-sizing:border-box;margin:0}body{background:var(--ground);color:var(--ink);font:17px/1.6 -apple-system,"PingFang SC",system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{max-width:560px;width:100%}h1{font-size:24px;margin-bottom:18px}code{display:block;font:15px ui-monospace,"SF Mono",Menlo,monospace;background:rgba(127,127,127,.12);padding:14px 16px;border-radius:12px;word-break:break-all;margin-bottom:14px}
+.btn{display:inline-block;background:var(--ink);color:var(--ground);padding:14px 22px;border-radius:14px;border:0;font:600 17px -apple-system,system-ui;cursor:pointer}.muted{color:var(--muted);font-size:15px;margin-top:10px}a{color:inherit}</style></head>
+<body><div class="card"><h1>${t.h}</h1><code id="c">${cmd}</code><button class="btn" id="b">${t.copy}</button><p class="muted">${t.paste}</p>
+<p class="muted" style="margin-top:26px">${t.or} <a href="${origin}/m/${code}.command">${t.dl}</a></p><p class="muted">${t.exp}</p></div>
+<script>document.getElementById('b').onclick=function(){navigator.clipboard.writeText(document.getElementById('c').textContent).then(function(){document.getElementById('b').textContent=${JSON.stringify(t.copied)}})}</script></body></html>`;
+}
+
+function macCommandFile(code, origin) {
+  const script = `#!/bin/bash
+# SessionBell Mac 接入器(双击运行)
+clear
+echo "🔔 SessionBell 接入中……"
+curl -fsSL "${origin}/i" | bash -s ${code} \\
+  && echo "" && echo "✅ 完成!可以关闭这个窗口了。" \\
+  || { echo ""; echo "❌ 出错了,把上面的输出截图发给我们(App 设置页 → 发送反馈)。"; }
+read -n 1 -s -r -p "按任意键关闭…"
+`;
+  return new Response(script, { headers: {
+    'Content-Type': 'application/x-shellscript; charset=utf-8',
+    'Content-Disposition': "attachment; filename*=UTF-8''SessionBell%E6%8E%A5%E5%85%A5.command",
+  } });
+}
+
 /// /p/<code> — what the Mac's browser opens after the one-liner, and what the
 /// iPhone lands on when it scans the QR without the App installed.
 function pairPage(code, origin, lang) {
@@ -718,6 +758,12 @@ export default {
       const m = path.match(/^\/p\/([0-9]{6})$/);
       if (m) {
         return new Response(pairPage(m[1], url.origin, demoLang(req)), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        });
+      }
+      const mm = path.match(/^\/m\/([0-9]{6})(\.command)?$/);
+      if (mm) {
+        return mm[2] ? macCommandFile(mm[1], url.origin) : new Response(macPage(mm[1], url.origin, demoLang(req)), {
           headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
         });
       }
