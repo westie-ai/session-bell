@@ -23,7 +23,7 @@ struct OnboardingView: View {
             Group {
                 switch step {
                 case .welcome: welcome
-                case .atMac: ConnectMacStep(onDone: onDone)
+                case .atMac: ConnectMacStep(onDone: onDone, onEnterCode: { step = .code(prefill: nil) })
                 case .code(let prefill):
                     CodeEntryStep(prefill: prefill, onDone: onDone, onManual: { step = .manual })
                 case .manual: ManualStep(onSuccess: { step = .atMac })
@@ -32,7 +32,9 @@ struct OnboardingView: View {
             .toolbar {
                 if step != .welcome {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Back") { step = .welcome }
+                        Button("Back") {
+                            if case .code = step, SBBackend.saved != nil { step = .atMac } else { step = .welcome }
+                        }
                     }
                 }
                 if step == .atMac {
@@ -105,13 +107,10 @@ struct OnboardingView: View {
                     .buttonStyle(.bordered)
                     .disabled(busy)
 
-                    Button {
-                        step = .code(prefill: nil)
-                    } label: {
-                        Text("My Mac is showing a 6-digit code")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .padding(.top, 6)
+                    Button("Self-hosted server / advanced") { step = .manual }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
                 }
             }
             .padding(.horizontal, 28)
@@ -166,6 +165,7 @@ struct OnboardingView: View {
 
 private struct ConnectMacStep: View {
     let onDone: () -> Void
+    let onEnterCode: () -> Void
     @State private var short: SBBackend.ShortCode?
     @State private var minting = false
     @State private var copied = false
@@ -245,6 +245,18 @@ private struct ConnectMacStep: View {
                 }
             } header: {
                 Text("Then")
+            }
+
+            if hostFound.isEmpty {
+                Section {
+                    Button {
+                        onEnterCode()
+                    } label: {
+                        Label("Enter the 6 digits from the Mac", systemImage: "number")
+                    }
+                } header: {
+                    Text("Already ran a command on the Mac and it shows 6 digits?")
+                }
             }
         }
         .navigationTitle("Connect your Mac")
@@ -326,14 +338,14 @@ private struct CodeEntryStep: View {
             } header: {
                 Text("The 6 digits on the Mac screen")
             } footer: {
-                Text("They appear in Terminal and in the browser page that opened after the command finished. Scanning that page's QR code with the Camera app fills this in for you.")
+                Text("After the command finishes on the Mac, the digits are printed in Terminal and shown on the web page that opens. Scanning that page's QR code with the Camera app fills them in for you.")
             }
             Section {
                 Button("I have a long pairing code or a self-hosted server") { onManual() }
                     .font(.subheadline)
             }
         }
-        .navigationTitle("Enter the code")
+        .navigationTitle("Digits from the Mac")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let prefill, code.isEmpty { code = prefill } else { focused = true }

@@ -2405,6 +2405,56 @@
           }
         }
       }
+    },
+    "Self-hosted server / advanced": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自己部署的服务器 / 高级选项"
+          }
+        }
+      }
+    },
+    "Enter the 6 digits from the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入 Mac 上的那 6 位数字"
+          }
+        }
+      }
+    },
+    "Already ran a command on the Mac and it shows 6 digits?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 上已经跑过这行命令、屏幕上出现了 6 位数字？"
+          }
+        }
+      }
+    },
+    "Digits from the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 上的数字"
+          }
+        }
+      }
+    },
+    "After the command finishes on the Mac, the digits are printed in Terminal and shown on the web page that opens. Scanning that page's QR code with the Camera app fills them in for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 上命令跑完后，数字会打印在终端里，也显示在自动打开的网页上。用相机扫那个网页上的二维码，这里会自动填好。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

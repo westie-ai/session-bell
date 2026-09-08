@@ -101,7 +101,7 @@ final class ScreenshotTests: XCTestCase {
     }
     private var atMacBtn: [String] { ["I'm at my Mac now", "我现在就在 Mac 前"] }
     private var demoBtn: [String] { ["Not right now — show me the demo", "现在不在，先看看演示"] }
-    private var codeBtn: [String] { ["My Mac is showing a 6-digit code", "Mac 屏幕上有一个 6 位数字"] }
+    private var codeBtn: [String] { ["Enter the 6 digits from the Mac", "输入 Mac 上的那 6 位数字"] }
     private var copyBtn: [String] { ["Copy the line", "复制这一行"] }
 
     /// 先看看演示 → 直接进 App,任务页顶部是"还没连上 Mac"的卡,demo 任务可见。
@@ -145,7 +145,6 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
         save("onb-2-atmac")
 
-        first(app.buttons, ["Back", "返回"]).tap()
         first(app.buttons, codeBtn).tap()
         let field = app.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
