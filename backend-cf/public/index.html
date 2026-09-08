@@ -123,10 +123,10 @@ footer a:hover{color:var(--ink)}
     <h1>把 Agent<br>装进<span class="amp">锁屏</span></h1>
     <p class="tagline">Claude Code 等本地编程 agent 的手机指挥台。任务<b>等你、跑完、要授权</b>——推送直达;锁屏面板聚合所有电脑;授权请求锁屏一键批准,不用回电脑。</p>
     <div class="cta">
-      <a class="btn primary" href="https://testflight.apple.com/join/JhgVd9pZ">TestFlight 安装</a>
+      <a class="btn primary" href="https://apps.apple.com/app/id6801045681">App Store 下载</a>
       <a class="btn ghost" href="https://github.com/westie-ai/session-bell">GitHub · MIT 开源</a>
     </div>
-    <p class="cta-note">不用邀请码,打开 App 点「开始使用」就有自己的空间;<a href="/join">网页接入 →</a></p>
+    <p class="cta-note">需要一台装了 Claude Code 的 Mac。接入只要一行命令:<code>curl -fsSL sessionbell.westie.ai/i | bash</code></p>
   </div>
 
   <div class="stage">
@@ -189,18 +189,18 @@ footer a:hover{color:var(--ink)}
 
 <section>
   <div class="eyebrow">上手</div>
-  <h2>手机两步,电脑两步</h2>
-  <p class="lead">不需要邀请码;想先看看长什么样,App 里点「先看看演示」。想完全自己掌控,见下方自托管。</p>
+  <h2>Mac 一行命令,手机扫一下</h2>
+  <p class="lead">前提只有一个:一台装了 Claude Code 的 Mac。不需要邀请码;想先看看长什么样,App 里点「先看看演示」。</p>
   <div class="steps">
     <div class="side">
-      <div class="who">📱 iPhone</div>
-      <div class="step"><span class="no">1</span><p>TestFlight 装 SessionBell<span class="sm">iOS 17.2+</span></p></div>
-      <div class="step"><span class="no">2</span><p>打开 App,点「开始使用」<span class="sm">自动配好一切,然后点「拷贝配对命令」</span></p></div>
+      <div class="who">💻 MAC</div>
+      <div class="step"><span class="no">1</span><p>终端里粘这一行,回车<span class="sm"><code>curl -fsSL sessionbell.westie.ai/i | bash</code></span></p></div>
+      <div class="step"><span class="no">2</span><p>浏览器会弹出一个二维码<span class="sm">10 秒左右;终端里也会打印同样的 6 位数字</span></p></div>
     </div>
     <div class="side">
-      <div class="who">💻 MAC</div>
-      <div class="step"><span class="no">1</span><p>安装 <a href="/SessionBell.pkg" style="color:var(--accent-deep)">SessionBell.pkg</a><span class="sm">已签名公证,双击即装</span></p></div>
-      <div class="step"><span class="no">2</span><p>终端里运行 <code>sessionbell pair</code><span class="sm">配对码经通用剪贴板自动带到,回车即完成</span></p></div>
+      <div class="who">📱 iPhone</div>
+      <div class="step"><span class="no">1</span><p>相机扫那个二维码<span class="sm">没装 App 会先跳 App Store,iOS 17.2+</span></p></div>
+      <div class="step"><span class="no">2</span><p>配对完成,锁屏出现第一张卡<span class="sm">先装了 App 也行:首屏会给你一行带数字的命令,拿去 Mac 上跑</span></p></div>
     </div>
     <div class="side">
       <div class="who">🪟 WINDOWS · BETA</div>
@@ -222,7 +222,7 @@ footer a:hover{color:var(--ink)}
 <footer>
   <span>🔔 SessionBell · westie.ai</span>
   <span>
-    <a href="https://testflight.apple.com/join/JhgVd9pZ">TestFlight</a> ·
+    <a href="https://apps.apple.com/app/id6801045681">App Store</a> ·
     <a href="https://github.com/westie-ai/session-bell">GitHub</a> ·
     <a href="/join">接入</a> ·
     <a href="/privacy">隐私</a> ·

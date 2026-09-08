@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SessionBell 接入</title>
 <style>
   :root { color-scheme: light dark; }
@@ -10,66 +10,37 @@
          margin: 8vh auto; padding: 0 20px; line-height: 1.7;
          background: light-dark(#FAF9F5, #1a1a18); color: light-dark(#3D3929, #E8E6DC); }
   h1 { font-size: 1.5em; } .bell { color: #D97757; }
-  input, button { font-size: 1em; padding: 10px 14px; border-radius: 10px;
-                  border: 1px solid light-dark(#ccc, #444); }
-  input { width: 60%; background: light-dark(#fff, #262624); color: inherit; }
-  button { background: #D97757; color: #fff; border: none; cursor: pointer; }
-  button:hover { filter: brightness(1.06); }
   .step { margin: 1.2em 0; padding: 14px 18px; border-radius: 14px;
           background: light-dark(#f0eee6, #262624); }
-  code { word-break: break-all; font-size: .85em;
-         background: light-dark(#e6e3d8, #333); padding: 2px 6px; border-radius: 6px; }
-  #result { display: none; }
-  a.dl { display: inline-block; background: #D97757; color: #fff; padding: 10px 18px;
-         border-radius: 10px; text-decoration: none; margin-top: 6px; }
-  .copy { font-size: .8em; margin-left: 8px; background: light-dark(#e6e3d8,#3a3a37);
-          color: inherit; padding: 4px 10px; }
+  code { word-break: break-all; font-size: .95em; display: inline-block;
+         background: light-dark(#e6e3d8, #333); padding: 6px 10px; border-radius: 8px; }
+  button { font-size: .85em; margin-left: 8px; background: light-dark(#e6e3d8,#3a3a37);
+           color: inherit; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  .sm { color: light-dark(#8A7F66, #A79E88); font-size: .9em; }
+  a { color: #D97757; }
 </style>
 </head>
 <body>
-<h1><span class="bell">🔔</span> SessionBell 接入</h1>
-<p>把 Agent 装进锁屏:任务通知、实时面板、手机批准与遥控。</p>
+  <h1><span class="bell">🔔</span> SessionBell 接入</h1>
+  <p>前提只有一个:一台装了 Claude Code 的 Mac。</p>
 
-<div id="gate" class="step">
-  <b>不需要邀请码</b>,点一下就生成一个属于你的空间:<br><br>
-  <button onclick="join()">生成我的接入包</button>
-  <div id="err" style="color:#c0392b"></div>
-</div>
+  <div class="step"><b>① 在 Mac 的终端里粘这一行,回车</b><br><br>
+    <code id="cmd">curl -fsSL sessionbell.westie.ai/i | bash</code><button onclick="copy()">复制</button><br>
+    <span class="sm">10 秒左右跑完,浏览器会弹出一个二维码,终端里也会打印一个 6 位数字。</span></div>
 
-<div id="result">
-  <div class="step"><b>① 手机装 App</b><br>
-    App Store 装「TestFlight」,然后点
-    <a href="https://testflight.apple.com/join/JhgVd9pZ">加入 SessionBell 测试</a>,安装。</div>
-  <div class="step"><b>② App 里粘配对码</b><br>
-    打开 App → 「已有配对码 / 自托管」→ 粘贴:<br><br>
-    <code id="code"></code><button class="copy" onclick="copyCode()">复制</button></div>
-  <div class="step"><b>③ Mac 装安装包</b><br>
-    下载并双击安装(已签名公证,系统不会拦):<br>
-    <a class="dl" href="/SessionBell.pkg">⬇︎ 下载 SessionBell.pkg</a><br><br>
-    装完在终端里粘这行完成配对:<br><br>
-    <code id="paircmd"></code><button class="copy" onclick="copyPair()">复制</button></div>
-  <p style="font-size:.85em; opacity:.7">配对码等同密码,请勿转发给他人。</p>
-</div>
+  <div class="step"><b>② 拿起 iPhone,相机扫那个二维码</b><br>
+    <span class="sm">没装 App 会先跳到 App Store(iOS 17.2+);装完输入那 6 位数字就配对完成,锁屏出现第一张卡。</span></div>
+
+  <p class="sm">先装了 App 也一样:首屏会给你一行带数字的命令,拿到 Mac 上跑。
+    自己部署后端的话把域名换成你的,或者 <code>SB_BACKEND=https://你的域名 bash</code>。
+    Windows 见 <a href="/">首页</a>。</p>
 
 <script>
-async function join() {
-  const r = await fetch('/api/signup', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+function copy(){
+  navigator.clipboard.writeText(document.getElementById('cmd').textContent).then(function(){
+    var b=document.querySelector('button'); b.textContent='已复制'; setTimeout(function(){b.textContent='复制'},1500);
   });
-  if (!r.ok) {
-    document.getElementById('err').textContent =
-      r.status === 429 ? '这个网络注册太频繁,一小时后再试' : '暂时无法生成,稍后再试';
-    return;
-  }
-  const d = await r.json();
-  document.getElementById('code').textContent = d.pairing_code;
-  document.getElementById('paircmd').textContent = 'sessionbell pair ' + d.pairing_code;
-  document.getElementById('gate').style.display = 'none';
-  document.getElementById('result').style.display = 'block';
 }
-function copyCode() { navigator.clipboard.writeText(document.getElementById('code').textContent); }
-function copyPair() { navigator.clipboard.writeText(document.getElementById('paircmd').textContent); }
 </script>
 </body>
 </html>

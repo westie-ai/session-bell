@@ -74,6 +74,8 @@ async function gc(env) {
       .bind('decision/', 'decision/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
       .bind('sys', 'rl/', 'rl/\uffff', now - day),
+    env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
+      .bind('sys', 'pair/', 'pair/\uffff', now - 3600e3),
   ]);
 }
 
@@ -423,6 +425,178 @@ async function handleFeedback(req, env, n) {
   return json({ ok: true, id, via });
 }
 
+// ---------- short pairing codes ----------
+//
+// A 6-digit code stands in for the 150-char base64 pairing code for 15 minutes,
+// single use, so nothing has to travel between phone and Mac by clipboard.
+//   phone-first: App mints a code, Mac runs `curl …/i | bash -s 483920`
+//   Mac-first:   install script signs up + mints, phone scans /p/483920
+// Brute force: 10^6 space, 15-min window, per-IP rate limit on redeem/status.
+
+const PAIR_TTL = 15 * 60e3;
+const SHORT = /^[0-9]{6}$/;
+
+async function mintShortCode(env, pairingCode) {
+  for (let i = 0; i < 6; i++) {
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const row = await kvGet(env, 'sys', 'pair/' + code);
+    if (row && Date.now() - row.ts < PAIR_TTL) continue;
+    await kvPut(env, 'sys', 'pair/' + code, JSON.stringify({ pc: pairingCode, redeemed: 0 }));
+    return code;
+  }
+  return null;
+}
+
+async function readPair(env, code) {
+  if (!SHORT.test(code)) return null;
+  const row = await kvGet(env, 'sys', 'pair/' + code);
+  if (!row || Date.now() - row.ts > PAIR_TTL) return null;
+  try { return { ...JSON.parse(row.v), ts: row.ts }; } catch { return null; }
+}
+
+function secretOf(pairingCode) {
+  try { return JSON.parse(atob(pairingCode)).s || ''; } catch { return ''; }
+}
+
+/// POST /api/pair-code {pairing_code} — authed; the caller re-presents its own
+/// pairing code (the server only stores the hash of the secret) and gets a
+/// fresh short code for it. Used by the App's "I'm at my Mac" screen.
+async function handlePairCode(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
+  const b = await readBody(req);
+  const pc = typeof b.pairing_code === 'string' ? b.pairing_code : '';
+  const secret = secretOf(pc);
+  if (!secret || 'u/' + (await sha256hex(secret)).slice(0, 16) !== n) {
+    return json({ error: 'pairing code does not match this tenant' }, 400);
+  }
+  if (!(await rateLimit(env, 'paircode/' + n, 30, 3600))) return json({ error: 'rate limited' }, 429);
+  const code = await mintShortCode(env, pc);
+  if (!code) return json({ error: 'try again' }, 503);
+  return json({ short_code: code, expires_in: PAIR_TTL / 1000 });
+}
+
+/// GET /api/pair/<code>        → { pairing_code }  (single use)
+/// GET /api/pair/<code>/status → { redeemed, macs, phones }  (for the QR page)
+async function handlePair(req, env, url, code, sub) {
+  const ip = req.headers.get('cf-connecting-ip') || 'unknown';
+  if (!(await rateLimit(env, 'pair/' + ip, 60, 600))) return json({ error: 'rate limited' }, 429);
+  const pair = await readPair(env, code);
+  if (!pair) return json({ error: 'code expired or unknown' }, 404);
+  if (sub === 'status') {
+    const n = 'u/' + (await sha256hex(secretOf(pair.pc))).slice(0, 16);
+    const [macs, phones] = await Promise.all([kvList(env, n, 'state/'), kvList(env, n, 'devices/')]);
+    return json({ redeemed: !!pair.redeemed, macs: macs.length, phones: phones.length,
+      expires_in: Math.max(0, Math.round((pair.ts + PAIR_TTL - Date.now()) / 1000)) });
+  }
+  if (pair.redeemed) return json({ error: 'code already used' }, 410);
+  await kvPut(env, 'sys', 'pair/' + code, JSON.stringify({ ...pair, redeemed: Date.now() }), pair.ts);
+  return json({ pairing_code: pair.pc });
+}
+
+/// POST /api/event {name} — onboarding milestones, one row per name per tenant,
+/// so the board funnel can tell "saw the connect screen" from "copied the
+/// command" from "paired". Names are a fixed allow-list.
+const EVENTS = new Set(['connect_seen', 'connect_later', 'command_copied', 'code_entered', 'paired', 'demo_seen']);
+async function handleEvent(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
+  const b = await readBody(req);
+  if (!EVENTS.has(b.name)) return json({ error: 'unknown event' }, 400);
+  await kvPut(env, n, `onb/${b.name}`, '1');
+  return json({ ok: true });
+}
+
+// ---------- web: one-line installer, QR page, universal links ----------
+
+async function serveInstaller(req, env) {
+  const r = await env.ASSETS.fetch(new Request(new URL('/install.sh', req.url), { method: 'GET' }));
+  return new Response(r.body, { status: r.status, headers: {
+    'Content-Type': 'text/x-shellscript; charset=utf-8', 'Cache-Control': 'no-store',
+  } });
+}
+
+function aasa() {
+  const appID = '27Z3Z38H3M.dev.yuesun.SessionBell';
+  return new Response(JSON.stringify({
+    applinks: { apps: [], details: [{ appID, paths: ['/p/*'], components: [{ '/': '/p/*' }] }] },
+  }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } });
+}
+
+const STORE_URL = 'https://apps.apple.com/app/id6801045681';
+
+/// /p/<code> — what the Mac's browser opens after the one-liner, and what the
+/// iPhone lands on when it scans the QR without the App installed.
+function pairPage(code, origin, lang) {
+  const zh = lang !== 'en';
+  const t = zh ? {
+    title: 'SessionBell · 用 iPhone 扫一下',
+    h: 'Mac 这边好了，现在拿起 iPhone',
+    scan: '用 iPhone 的相机对准这个码',
+    or: '或者在 App 里输入这 6 位数字',
+    exp: '有效 15 分钟',
+    phoneH: '在这台 iPhone 上',
+    phoneStore: '第 1 步 · 装 SessionBell',
+    phoneCode: '第 2 步 · 打开 App，输入',
+    done: 'iPhone 已连上 🎉',
+    doneSub: '可以关掉这个页面了。下次 Claude Code 停下来等你时，锁屏上会出现一张卡片。',
+    expired: '这个码过期了。回到 Mac 终端重新跑一遍那行命令，会给你一个新码。',
+  } : {
+    title: 'SessionBell · Scan with your iPhone',
+    h: 'Mac is ready. Now pick up your iPhone',
+    scan: 'Point the iPhone camera at this code',
+    or: 'or type these 6 digits in the app',
+    exp: 'valid for 15 minutes',
+    phoneH: 'On this iPhone',
+    phoneStore: 'Step 1 · Install SessionBell',
+    phoneCode: 'Step 2 · Open the app and enter',
+    done: 'iPhone connected 🎉',
+    doneSub: 'You can close this page. Next time Claude Code stops for you, a card appears on your Lock Screen.',
+    expired: 'This code expired. Run the command on the Mac again for a fresh one.',
+  };
+  const link = `${origin}/p/${code}`;
+  const pretty = code.slice(0, 3) + ' ' + code.slice(3);
+  return `<!doctype html><html lang="${zh ? 'zh-CN' : 'en'}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.title}</title>
+<meta name="apple-itunes-app" content="app-id=6801045681">
+<style>
+:root{color-scheme:light dark;--ground:#FFF8E6;--ink:#2B2723;--muted:#8A7F66;--accent:#FECE23;--deep:#B27E00;--ok:#2F8F5B}
+@media(prefers-color-scheme:dark){:root{--ground:#1a1a18;--ink:#F1EEE4;--muted:#A79E88}}
+*{box-sizing:border-box;margin:0}body{background:var(--ground);color:var(--ink);font:17px/1.6 -apple-system,"PingFang SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{max-width:440px;width:100%;text-align:center}
+h1{font-size:24px;line-height:1.25;margin-bottom:22px;text-wrap:balance}
+#qr{width:240px;height:240px;margin:0 auto 18px;padding:14px;background:#fff;border-radius:18px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+#qr img,#qr canvas{width:100%!important;height:100%!important;display:block}
+.code{font:600 44px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.08em;margin:6px 0 4px}
+.muted{color:var(--muted);font-size:15px}
+.mac,.phone,.done,.expired{display:none}.show{display:block}
+.btn{display:inline-block;background:var(--ink);color:var(--ground);padding:14px 22px;border-radius:14px;text-decoration:none;font-weight:600;margin:10px 0 22px}
+.done h1{color:var(--ok)}
+.tick{font-size:64px;line-height:1;margin-bottom:12px}
+</style></head><body><div class="card">
+<section class="mac"><h1>${t.h}</h1><div id="qr"></div><p class="muted">${t.scan}</p><p class="muted" style="margin-top:14px">${t.or}</p><div class="code">${pretty}</div><p class="muted">${t.exp}</p></section>
+<section class="phone"><p class="muted">${t.phoneH}</p><h1>${t.phoneStore}</h1><a class="btn" href="${STORE_URL}">App Store</a><p class="muted">${t.phoneCode}</p><div class="code">${pretty}</div><p class="muted">${t.exp}</p></section>
+<section class="done"><div class="tick">✅</div><h1>${t.done}</h1><p class="muted">${t.doneSub}</p></section>
+<section class="expired"><h1>⌛</h1><p class="muted">${t.expired}</p></section>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+  var isPhone=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  var mac=document.querySelector('.mac'),phone=document.querySelector('.phone'),done=document.querySelector('.done'),exp=document.querySelector('.expired');
+  (isPhone?phone:mac).classList.add('show');
+  if(!isPhone&&window.QRCode){new QRCode(document.getElementById('qr'),{text:${JSON.stringify(link)},width:212,height:212,correctLevel:QRCode.CorrectLevel.M});}
+  function show(el){[mac,phone,done,exp].forEach(function(e){e.classList.remove('show')});el.classList.add('show');}
+  function tick(){
+    fetch('/api/pair/${code}/status',{cache:'no-store'}).then(function(r){return r.ok?r.json():{gone:true}}).then(function(j){
+      if(j.gone){show(exp);return;}
+      if(j.phones>0&&(j.redeemed||j.macs>0)){show(done);return;}
+      setTimeout(tick,3000);
+    }).catch(function(){setTimeout(tick,5000)});
+  }
+  tick();
+})();
+</script></body></html>`;
+}
+
 // ---------- onboarding ----------
 
 /// 简单滑动窗口限流(D1 的 sys 命名空间):同一 key 在 windowSec 内最多 limit 次。
@@ -470,6 +644,7 @@ async function handleSignup(req, env, url) {
   const pairingCode = btoa(JSON.stringify({ u: origin, s: secret }));
   return json({
     pairing_code: pairingCode,
+    short_code: await mintShortCode(env, pairingCode),
     installer_url: `${origin}/api/installer?code=${encodeURIComponent(pairingCode)}`,
   });
 }
@@ -537,6 +712,18 @@ export default {
     const path = url.pathname;
 
     if (path === '/board') return handleBoard(req, env, url);
+    if (path === '/i' || path === '/i/') return serveInstaller(req, env);
+    if (path === '/.well-known/apple-app-site-association') return aasa();
+    {
+      const m = path.match(/^\/p\/([0-9]{6})$/);
+      if (m) {
+        return new Response(pairPage(m[1], url.origin, demoLang(req)), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        });
+      }
+      const a = path.match(/^\/api\/pair\/([0-9]{6})(?:\/(status))?$/);
+      if (a) return handlePair(req, env, url, a[1], a[2]);
+    }
     if (path === '/api/installer') return handleInstaller(url);
     if (path === '/api/signup') return handleSignup(req, env, url);
 
@@ -554,6 +741,8 @@ export default {
       if (path === '/api/decision') return handleDecision(req, env, n, url);
       if (path === '/api/push') return handlePush(req, env, n);
       if (path === '/api/feedback') return handleFeedback(req, env, n);
+      if (path === '/api/pair-code') return handlePairCode(req, env, n);
+      if (path === '/api/event') return handleEvent(req, env, n);
       return json({ error: 'not found' }, 404);
     }
     return env.ASSETS.fetch(req);
