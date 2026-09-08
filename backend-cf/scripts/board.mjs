@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { snapshot as ascSnapshot, APP_ID as APP_ID_LABEL } from './asc.mjs';
+import { snapshot as ascSnapshot, countryTotals, APP_ID as APP_ID_LABEL } from './asc.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backend = resolve(here, '..');
@@ -250,6 +250,29 @@ function ascSection() {
   } else if (!asc.hasVendor) {
     units = `<p class="mini-note">asc.json 里没有 vendor_number,跳过下载量。</p>`;
   }
+  // 按地区:近 7 天首次下载,营销投放看这个。
+  let regions = '';
+  if (asc.dailyUnits) {
+    const tot = countryTotals(asc.dailyUnits);
+    const sum = tot.reduce((s, r) => s + r.downloads, 0) || 1;
+    const max = Math.max(1, ...tot.map((r) => r.downloads));
+    const NAME = { US: '美国', CN: '中国大陆', TW: '台湾', HK: '香港', KR: '韩国', JP: '日本', GB: '英国', TR: '土耳其',
+      DE: '德国', FR: '法国', SG: '新加坡', CA: '加拿大', AU: '澳大利亚', IN: '印度', MY: '马来西亚', TH: '泰国',
+      VN: '越南', ID: '印尼', NL: '荷兰', BR: '巴西', RU: '俄罗斯', MO: '澳门' };
+    const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1F1E6 + c.charCodeAt(0) - 65)) : '';
+    const rows = tot.map((r) => `<li>
+      <span class="rg-name">${flag(r.cc)} ${esc(NAME[r.cc] || r.cc)}<span class="dim mono"> ${esc(r.cc)}</span></span>
+      <span class="rg-track"><span class="rg-fill" style="width:${(r.downloads / max * 100).toFixed(1)}%"></span></span>
+      <span class="rg-n">${r.downloads}<small>${(r.downloads / sum * 100).toFixed(0)}%</small></span>
+      <span class="rg-upd dim">${r.updates ? `更新 ${r.updates}` : ''}</span>
+    </li>`).join('');
+    const daysWithData = asc.dailyUnits.filter((d) => d.downloads != null).map((d) => d.day.slice(5).replace('-', '/'));
+    regions = `<div class="panel regions">
+      <div class="panel-h">首次下载 · 按地区 <span class="dim">近 7 天有报告的日子:${daysWithData.join('、') || '无'}</span></div>
+      ${tot.length ? `<ol class="rg">${rows}</ol>` : '<p class="mini-note">这几天没有下载记录。</p>'}
+      <p class="mini-note">地区 = 用户 Apple ID 所属商店,不是 IP 所在地。</p>
+    </div>`;
+  }
   return `<div class="asc-grid">
     <div class="panel">
       <div class="panel-h">版本与构建</div>
@@ -261,6 +284,7 @@ function ascSection() {
     </div>
     ${units}
   </div>
+  ${regions}
   ${asc.errors?.length ? `<p class="mini-note">部分请求失败:${asc.errors.map(esc).join(' · ')}</p>` : ''}`;
 }
 
@@ -399,6 +423,15 @@ tbody tr:hover td{background:var(--surface-2)}
 .setup{font-size:13px;color:var(--ink-2)}
 .setup p{margin:0 0 8px}.setup ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .setup code{font-family:var(--mono);background:var(--mute-soft);padding:1px 5px;border-radius:3px;font-size:12px;word-break:break-all}
+.regions{margin-top:20px}
+.rg{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:8px 14px;align-items:center}
+.rg li{display:contents}
+.rg-name{white-space:nowrap}
+.rg-track{height:8px;background:var(--mute-soft);border-radius:4px;overflow:hidden;min-width:80px}
+.rg-fill{display:block;height:100%;background:var(--accent);border-radius:4px;min-width:2px}
+.rg-n{font:500 15px var(--mono);font-variant-numeric:tabular-nums;text-align:right;min-width:60px}
+.rg-n small{font-size:11px;color:var(--ink-3);margin-left:6px;font-family:var(--sans)}
+.rg-upd{font-size:12px;min-width:48px}
 .fb{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 .fb-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12px;margin-bottom:8px}
 .fb-head .chip{margin:0}

@@ -101,7 +101,7 @@ export async function dailyUnits(cfg, days = 7) {
   const out = [];
   for (let i = days; i >= 1; i--) {
     const d = new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10);
-    let downloads = null, updates = null;
+    let downloads = null, updates = null, byCountry = null;
     try {
       const gz = await get(cfg, '/v1/salesReports?filter[frequency]=DAILY&filter[reportType]=SALES' +
         `&filter[reportSubType]=SUMMARY&filter[reportDate]=${d}&filter[vendorNumber]=${cfg.vendor}`, { raw: true });
@@ -109,20 +109,39 @@ export async function dailyUnits(cfg, days = 7) {
       const [head, ...rows] = tsv.trim().split('\n').map((l) => l.split('\t'));
       const col = (name) => head.indexOf(name);
       const iType = col('Product Type Identifier'), iUnits = col('Units'), iApp = col('Apple Identifier');
-      downloads = 0; updates = 0;
+      const iCountry = col('Country Code');
+      downloads = 0; updates = 0; byCountry = {};
       for (const r of rows) {
         if (iApp >= 0 && r[iApp] !== APP_ID) continue;
         const t = r[iType] || '', u = Number(r[iUnits]) || 0;
-        if (/^(1|1F|1T|1E|1EP|1EU|F1)$/.test(t)) downloads += u;
-        else if (/^(7|7F|7T|F7)$/.test(t)) updates += u;
+        const cc = (iCountry >= 0 && r[iCountry]) || '??';
+        const kind = /^(1|1F|1T|1E|1EP|1EU|F1)$/.test(t) ? 'downloads'
+          : /^(7|7F|7T|F7)$/.test(t) ? 'updates' : null;
+        if (!kind) continue;
+        if (kind === 'downloads') downloads += u; else updates += u;
+        byCountry[cc] ??= { downloads: 0, updates: 0 };
+        byCountry[cc][kind] += u;
       }
     } catch (e) {
       // 404 = report not yet available (or no sales that day); anything else is real.
       if (e.status !== 404) throw e;
     }
-    out.push({ day: d, downloads, updates });
+    out.push({ day: d, downloads, updates, byCountry });
   }
   return out;
+}
+
+/** Sum a dailyUnits result per country, sorted by first-time downloads. */
+export function countryTotals(days) {
+  const acc = {};
+  for (const d of days || []) {
+    for (const [cc, v] of Object.entries(d.byCountry || {})) {
+      acc[cc] ??= { downloads: 0, updates: 0 };
+      acc[cc].downloads += v.downloads; acc[cc].updates += v.updates;
+    }
+  }
+  return Object.entries(acc).map(([cc, v]) => ({ cc, ...v }))
+    .sort((a, b) => b.downloads - a.downloads || b.updates - a.updates);
 }
 
 /** Everything the board needs, tolerating partial failures. */
