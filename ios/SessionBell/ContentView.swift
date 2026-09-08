@@ -571,7 +571,8 @@ struct MachineControls: View {
             Button {
                 showSpawn = true
             } label: {
-                Label("New Session", systemImage: "plus.circle.fill")
+                Label("Start a task on this Mac", systemImage: "terminal")
+                    .labelStyle(.titleAndIcon)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)

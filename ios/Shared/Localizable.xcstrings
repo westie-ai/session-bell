@@ -2575,6 +2575,16 @@
           }
         }
       }
+    },
+    "Start a task on this Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台 Mac 上开新任务"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
