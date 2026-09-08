@@ -51,7 +51,7 @@ struct FeedbackView: View {
                     Text("Sent with your app version and iOS version so we can reproduce it. No session content is included.")
                 }
                 Section {
-                    TextField("Email or WeChat (optional)", text: $contact)
+                    TextField("Email or any handle — X, Discord… (optional)", text: $contact)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)

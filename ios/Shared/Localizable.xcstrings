@@ -1926,16 +1926,6 @@
         }
       }
     },
-    "Email or WeChat (optional)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邮箱或微信（选填）"
-          }
-        }
-      }
-    },
     "How can we reach you?": {
       "localizations": {
         "zh-Hans": {
@@ -2452,6 +2442,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac 上命令跑完后，数字会打印在终端里，也显示在自动打开的网页上。用相机扫那个网页上的二维码，这里会自动填好。"
+          }
+        }
+      }
+    },
+    "Email or any handle — X, Discord… (optional)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮箱或微信（选填）"
           }
         }
       }
