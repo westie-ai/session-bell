@@ -82,17 +82,18 @@ private func shortHost(_ host: String) -> String {
 }
 
 private func statusColor(_ status: String) -> Color {
+    // 锁屏卡永远是深底白字,用深色那一档的状态色
     switch status {
-    case "waiting": return coral
-    case "running": return .blue
-    default: return .green
+    case "waiting": return Color(red: 0.94, green: 0.63, blue: 0.49)   // #F0A07C
+    case "running": return Color(red: 0.50, green: 0.70, blue: 0.94)   // #7FB2F0
+    default: return Color(red: 0.49, green: 0.78, blue: 0.60)          // #7CC79A
     }
 }
 
 private func statusSymbol(_ status: String) -> String {
     switch status {
-    case "waiting": return "hand.raised.fill"
-    case "running": return "play.circle.fill"
+    case "waiting": return "ellipsis.bubble.fill"
+    case "running": return "arrow.triangle.2.circlepath"
     default: return "checkmark.circle.fill"
     }
 }

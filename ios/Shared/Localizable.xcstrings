@@ -2585,6 +2585,126 @@
           }
         }
       }
+    },
+    "New task": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开新任务"
+          }
+        }
+      }
+    },
+    "Needs your approval": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你批准"
+          }
+        }
+      }
+    },
+    "Claude is asking for permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 请求授权"
+          }
+        }
+      }
+    },
+    "%lld sub-agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个子任务"
+          }
+        }
+      }
+    },
+    "Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MAC"
+          }
+        }
+      }
+    },
+    "This iPhone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 IPHONE"
+          }
+        }
+      }
+    },
+    "Connect my Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接我的 Mac"
+          }
+        }
+      }
+    },
+    "Add another Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再加一台 Mac"
+          }
+        }
+      }
+    },
+    "One line in Terminal on the new Mac; the command is copied for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在新 Mac 的终端里粘一行命令就好，点一下会把那行命令复制好。"
+          }
+        }
+      }
+    },
+    "Use this if the panel disappeared, for example after you swiped it away.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "面板不见了（比如你手动划掉了它）时点这个。"
+          }
+        }
+      }
+    },
+    "Source Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开源代码"
+          }
+        }
+      }
+    },
+    "Clear history": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空历史"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

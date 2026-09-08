@@ -18,19 +18,19 @@ enum EventKind: String, Codable {
 
     var symbol: String {
         switch self {
-        case .stop: return "checkmark.circle.fill"
-        case .notification: return "hand.raised.circle.fill"
-        case .permission: return "lock.circle.fill"
-        case .test: return "bell.circle.fill"
+        case .stop: return "checkmark"
+        case .notification: return "ellipsis.bubble"
+        case .permission: return "checkmark.shield"
+        case .test: return "bell"
         }
     }
 
     var color: Color {
         switch self {
-        case .stop: return .green
-        case .notification: return .orange
-        case .permission: return .purple
-        case .test: return .blue
+        case .stop: return .sbDone
+        case .notification: return .sbWaiting
+        case .permission: return .sbAccentText
+        case .test: return .sbRunning
         }
     }
 }

@@ -34,6 +34,7 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)
         }
+        .tint(Color.sbAccentText)
         .task {
             if #available(iOS 17.2, *) { LiveActivityManager.shared.syncNow() }
         }
@@ -163,6 +164,9 @@ struct ContentView: View {
                 liveTasksSection
                 sessionsSection
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color.sbBackground)
             .overlay {
                 if !isDemo && store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
                     ContentUnavailableView {
@@ -199,7 +203,7 @@ struct ContentView: View {
             .refreshable { await store.refresh() }
             .toolbar {
                 if !store.events.isEmpty {
-                    Button("Clear", role: .destructive) { store.clearAll() }
+                    Button("Clear history", role: .destructive) { store.clearAll() }
                 }
             }
         }
@@ -243,19 +247,36 @@ struct ContentView: View {
     private var settingsTab: some View {
         NavigationStack {
             List {
-                Section("Setup") {
+                // MAC:已连接的 + 再加一台
+                Section {
+                    ForEach(store.liveGroups) { group in
+                        HStack(spacing: 12) {
+                            Circle().fill(Color.sbDone).frame(width: 7, height: 7)
+                            Text(group.host)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.sbInk)
+                                .lineLimit(2)
+                            Spacer(minLength: 8)
+                            if group.awake {
+                                Image(systemName: "sun.max.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.sbAccentText)
+                            }
+                        }
+                        .frame(minHeight: 28)
+                    }
                     if isDemo {
                         Button {
                             createOwnSpace()
                         } label: {
                             Label(creatingSpace ? String(localized: "Creating your space…")
-                                                : String(localized: "Demo mode · Connect my Mac"),
-                                  systemImage: "laptopcomputer")
+                                                : String(localized: "Connect my Mac"),
+                                  systemImage: "plus")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.sbAccentText)
                         }
                         .disabled(creatingSpace)
-                    }
-                    // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
-                    if SBBackend.pairingCode != nil && !isDemo {
+                    } else if SBBackend.pairingCode != nil {
                         Button {
                             Task {
                                 guard let short = await SBBackend.mintShortCode() else { return }
@@ -265,45 +286,114 @@ struct ContentView: View {
                             }
                         } label: {
                             Label(copiedPair ? "Copied — paste it in Terminal on the other Mac (valid 15 min)"
-                                             : "Add another Mac (copy the one-line command)",
-                                  systemImage: copiedPair ? "checkmark" : "doc.on.doc")
+                                             : "Add another Mac",
+                                  systemImage: copiedPair ? "checkmark" : "plus")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.sbAccentText)
                         }
                     }
+                } header: {
+                    SectionLabel("Mac")
+                } footer: {
+                    Text("One line in Terminal on the new Mac; the command is copied for you.")
+                        .font(.caption).foregroundStyle(Color.sbInk3)
                 }
-                machinesSection
-                deviceSection
-                Section("Feedback") {
+                .listRowBackground(Color.sbCard)
+
+                // 这台 iPhone
+                Section {
+                    HStack {
+                        Label("Notifications", systemImage: "bell")
+                            .font(.subheadline).foregroundStyle(Color.sbInk)
+                        Spacer()
+                        Text(authLabel)
+                            .font(.footnote)
+                            .foregroundStyle(store.authStatus == .authorized ? Color.sbDone : Color.sbInk3)
+                    }
+                    if store.deviceToken.isEmpty {
+                        Text("Waiting for APNs registration… (requires a real device with notifications allowed)")
+                            .font(.footnote)
+                            .foregroundStyle(Color.sbInk3)
+                    }
+                    if #available(iOS 17.2, *) {
+                        Button {
+                            Task {
+                                localTestResult = String(localized: "Reviving…")
+                                localTestResult = await LiveActivityManager.shared.reviveDashboard()
+                            }
+                        } label: {
+                            HStack {
+                                Label(localTestResult.isEmpty ? String(localized: "Revive Lock Screen Panel") : localTestResult,
+                                      systemImage: "iphone")
+                                    .font(.subheadline).foregroundStyle(Color.sbInk)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.semibold)).foregroundStyle(Color.sbInk3)
+                            }
+                        }
+                    }
+                } header: {
+                    SectionLabel("This iPhone")
+                } footer: {
+                    Text("Use this if the panel disappeared, for example after you swiped it away.")
+                        .font(.caption).foregroundStyle(Color.sbInk3)
+                }
+                .listRowBackground(Color.sbCard)
+
+                Section {
                     Button {
                         showFeedback = true
                     } label: {
-                        Label("Send Feedback", systemImage: "bubble.left.and.text.bubble.right")
-                    }
-                }
-                Section("About") {
-                    LabeledContent("Version",
-                        value: "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
-                    Link(destination: URL(string: "https://github.com/westie-ai/session-bell")!) {
-                        Label("Source Code · westie-ai/session-bell", systemImage: "chevron.left.forwardslash.chevron.right")
+                        SettingsRow(title: "Send Feedback", symbol: "ellipsis.bubble")
                     }
                     Button {
                         showOnboarding = true
                     } label: {
-                        Label("Show Setup Guide Again", systemImage: "arrow.counterclockwise")
+                        SettingsRow(title: "Show Setup Guide Again", symbol: "book")
+                    }
+                    Link(destination: URL(string: "https://github.com/westie-ai/session-bell")!) {
+                        HStack {
+                            Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                                .font(.subheadline).foregroundStyle(Color.sbInk)
+                            Spacer()
+                            Text("westie-ai/session-bell")
+                                .font(.footnote).foregroundStyle(Color.sbInk3)
+                        }
+                    }
+                    HStack {
+                        Label("Version", systemImage: "info.circle")
+                            .font(.subheadline).foregroundStyle(Color.sbInk)
+                        Spacer()
+                        Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
+                            .font(.footnote).foregroundStyle(Color.sbInk3)
                     }
                 }
-                Section("Advanced · Self-hosted") {
+                .listRowBackground(Color.sbCard)
+
+                Section {
                     backendConfigRow
+                } header: {
+                    SectionLabel("Advanced · Self-hosted")
                 }
+                .listRowBackground(Color.sbCard)
+
                 Section {
                     Button(role: .destructive) {
                         confirmReset = true
                     } label: {
-                        Label("Reset and Start Over", systemImage: "trash")
+                        Text("Reset and Start Over")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
                     }
                 } footer: {
                     Text("Forgets the pairing on this phone and returns to the first screen, as if freshly installed. Your Macs keep their setup; pair again to reconnect them.")
+                        .font(.caption).foregroundStyle(Color.sbInk3)
                 }
+                .listRowBackground(Color.sbCard)
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color.sbBackground)
             .navigationTitle("Settings")
             .sheet(isPresented: $showFeedback) { FeedbackView() }
             .confirmationDialog("Reset SessionBell on this phone?", isPresented: $confirmReset, titleVisibility: .visible) {
@@ -316,57 +406,59 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var machinesSection: some View {
-        if !store.liveGroups.isEmpty {
-            Section("Connected Macs") {
-                ForEach(store.liveGroups) { group in
-                    HStack(spacing: 8) {
-                        Label(group.host, systemImage: "desktopcomputer")
-                            .lineLimit(2)
-                        Spacer(minLength: 8)
-                        if group.awake {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
     private var approvalSection: some View {
         if let approval = store.pendingApproval,
            Date().timeIntervalSince(approval.date) < 600 {
-            Section("Approval Needed") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(approval.summary.isEmpty ? "Claude is requesting permission" : approval.summary)
-                        .font(.system(.footnote, design: .monospaced))
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        Button {
-                            Task { await store.sendDecision("allow") }
-                        } label: {
-                            Label("Allow", systemImage: "checkmark")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
+                        StatusTile(symbol: "checkmark.shield", color: .sbAccentText, soft: .sbApprovalSoft)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Claude is asking for permission")
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(Color.sbInk)
+                            Text(approval.date, style: .relative)
+                                .font(.footnote)
+                                .foregroundStyle(Color.sbInk3)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
-
+                    }
+                    if !approval.summary.isEmpty {
+                        Text(approval.summary)
+                            .font(.system(.footnote, design: .monospaced))
+                            .foregroundStyle(Color.sbInk)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.sbBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    HStack(spacing: 10) {
                         Button {
                             Task { await store.sendDecision("deny") }
                         } label: {
-                            Label("Deny", systemImage: "xmark")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
+                            Text("Deny")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(Color.sbInk2)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                        .buttonStyle(.plain)
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.sbLine, lineWidth: 1))
+
+                        Button {
+                            Task { await store.sendDecision("allow") }
+                        } label: {
+                            Text("Allow")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(Color(red: 0.11, green: 0.106, blue: 0.094))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(Color.sbAccent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 4)
+            } header: {
+                SectionLabel("Needs your approval")
             }
+            .listRowBackground(Color.sbCard)
         }
     }
 
@@ -383,40 +475,15 @@ struct ContentView: View {
         } else {
             ForEach(store.liveGroups) { group in
                 Section {
-                    MachineControls(group: group)
+                    AwakeToggleRow(group: group)
                     // 每个主任务一张卡,子 agent 嵌在卡内(用量在「用量」Tab)
                     ForEach(group.cards) { card in
                         SessionCard(card: card) { navPath.append($0) }
                     }
                 } header: {
-                    Text("💻 \(group.host)")
+                    MachineHeader(group: group)
                 }
-            }
-        }
-    }
-
-    private var deviceSection: some View {
-        Section("This Device") {
-            HStack {
-                Label("Notifications", systemImage: "bell.badge")
-                Spacer()
-                Text(authLabel).foregroundStyle(.secondary)
-            }
-            if store.deviceToken.isEmpty {
-                Text("Waiting for APNs registration… (requires a real device with notifications allowed)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if #available(iOS 17.2, *) {
-                Button {
-                    Task {
-                        localTestResult = String(localized: "Reviving…")
-                        localTestResult = await LiveActivityManager.shared.reviveDashboard()
-                    }
-                } label: {
-                    Label(localTestResult.isEmpty ? String(localized: "Revive Lock Screen Panel") : localTestResult,
-                          systemImage: "bell.badge.waveform")
-                }
+                .listRowBackground(Color.sbCard)
             }
         }
     }
@@ -511,13 +578,16 @@ struct ContentView: View {
         let liveIds = Set(store.liveTasks.map(\.sessionId))
         let history = store.groups.filter { !liveIds.contains($0.sessionId) }
         if !history.isEmpty {
-            Section("Notification History") {
+            Section {
                 ForEach(history) { group in
                     NavigationLink(value: group) {
                         SessionRow(group: group)
                     }
                 }
+            } header: {
+                SectionLabel("Notification History")
             }
+            .listRowBackground(Color.sbCard)
         }
     }
 
@@ -531,13 +601,44 @@ struct ContentView: View {
     }
 }
 
-struct MachineControls: View {
+/// 分组头:在线点 + 主机名 + 「开新任务」。
+struct MachineHeader: View {
+    let group: EventStore.HostGroup
+    @State private var showSpawn = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(Color.sbDone).frame(width: 7, height: 7)
+            Text(group.host)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.sbInk)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Button {
+                showSpawn = true
+            } label: {
+                Label("New task", systemImage: "plus")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.sbAccentText)
+            }
+            .buttonStyle(.plain)
+        }
+        .textCase(nil)
+        .padding(.horizontal, 4)
+        .padding(.bottom, 2)
+        .sheet(isPresented: $showSpawn) {
+            SpawnSheet(group: group)
+        }
+    }
+}
+
+/// 卡片第一行:保持 Mac 常亮(caffeinate)开关。切换后等 Mac 回报,期间禁用。
+struct AwakeToggleRow: View {
     let group: EventStore.HostGroup
     @EnvironmentObject var store: EventStore
     @State private var caffePending = false
-    @State private var showSpawn = false
 
-    /// 开关直接映射 Mac 的 caffeinate 状态;切换后等 Mac 回报,期间禁用。
     private var awakeBinding: Binding<Bool> {
         Binding(get: { group.awake }, set: { on in
             caffePending = true
@@ -552,33 +653,61 @@ struct MachineControls: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle(isOn: awakeBinding) {
-                Label(caffePending ? "Applying…" : "Keep Mac awake",
-                      systemImage: group.awake ? "cup.and.saucer.fill" : "cup.and.saucer")
-                    .font(.subheadline)
-                    .foregroundStyle(group.awake ? .orange : .primary)
-                    .lineLimit(1)
-            }
-            .toggleStyle(.switch)
-            .tint(.orange)
-            .disabled(caffePending)
+        Toggle(isOn: awakeBinding) {
+            Label(caffePending ? "Applying…" : "Keep Mac awake", systemImage: "sun.max")
+                .font(.subheadline)
+                .foregroundStyle(Color.sbInk2)
+                .lineLimit(1)
+        }
+        .toggleStyle(.switch)
+        .tint(Color.sbAccentText)
+        .disabled(caffePending)
+    }
+}
 
-            Button {
-                showSpawn = true
-            } label: {
-                Label("Start a task on this Mac", systemImage: "terminal")
-                    .labelStyle(.titleAndIcon)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(Color.sbAccentDeep)
+/// 设置页普通行:图标 + 标题 + 右箭头。
+struct SettingsRow: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    var body: some View {
+        HStack {
+            Label(title, systemImage: symbol)
+                .font(.subheadline).foregroundStyle(Color.sbInk)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold)).foregroundStyle(Color.sbInk3)
         }
-        .sheet(isPresented: $showSpawn) {
-            SpawnSheet(group: group)
+    }
+}
+
+/// 区块标签:12pt 半粗 + 字距,三级墨色。
+struct SectionLabel: View {
+    let key: LocalizedStringKey
+    init(_ key: LocalizedStringKey) { self.key = key }
+    var body: some View {
+        Text(key)
+            .font(.caption.weight(.semibold))
+            .kerning(0.8)
+            .foregroundStyle(Color.sbInk3)
+            .textCase(nil)
+            .padding(.horizontal, 4)
+    }
+}
+
+/// 30pt 状态色块 + 线性图标。
+struct StatusTile: View {
+    let symbol: String
+    let color: Color
+    let soft: Color
+    var size: CGFloat = 30
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size / 3, style: .continuous).fill(soft)
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.5, weight: .semibold))
+                .foregroundStyle(color)
         }
+        .frame(width: size, height: size)
     }
 }
 
@@ -759,7 +888,7 @@ struct SessionCard: View {
                 LiveTaskRow(task: card.root, showHost: false)
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right")
-                    .font(.caption2).foregroundStyle(.tertiary)
+                    .font(.caption2.weight(.semibold)).foregroundStyle(Color.sbInk3)
             }
             .contentShape(Rectangle())
             .onTapGesture { onTap(card.root) }
@@ -781,7 +910,7 @@ struct SessionCard: View {
                 .padding(.leading, 14)
                 .overlay(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.blue.opacity(0.25))
+                        .fill(Color.sbLine)
                         .frame(width: 2)
                         .padding(.vertical, 6)
                 }
@@ -795,21 +924,7 @@ struct LiveTaskRow: View {
     let task: EventStore.LiveTask
     var showHost = true
 
-    private var color: Color {
-        switch task.status {
-        case "waiting": return .orange
-        case "running": return .blue
-        default: return .green
-        }
-    }
-
-    private var symbol: String {
-        switch task.status {
-        case "waiting": return "hand.raised.fill"
-        case "running": return "play.circle.fill"
-        default: return "checkmark.circle.fill"
-        }
-    }
+    private var color: Color { Color.sbStatus(task.status) }
 
     private var statusLabel: LocalizedStringKey {
         switch task.status {
@@ -819,111 +934,119 @@ struct LiveTaskRow: View {
         }
     }
 
+    /// 标题是 prompt 摘录;没有就退回项目名。
+    private var title: String {
+        let d = task.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return d.isEmpty ? task.project : d
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: task.isSub ? 7 : 9, style: .continuous)
-                    .fill(color.opacity(0.15))
-                Image(systemName: symbol)
-                    .font(.system(size: task.isSub ? 12 : 15, weight: .semibold))
-                    .foregroundStyle(color)
-            }
-            .frame(width: task.isSub ? 26 : 32, height: task.isSub ? 26 : 32)
+        HStack(alignment: .center, spacing: 12) {
+            StatusTile(symbol: Color.sbStatusSymbol(task.status), color: color,
+                       soft: Color.sbStatusSoft(task.status), size: task.isSub ? 24 : 30)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text(task.project)
-                        .font(task.isSub ? .footnote.weight(.medium)
-                              : .subheadline.weight(.semibold))
-                        .lineLimit(1)
+                Text(title)
+                    .font(task.isSub ? .subheadline.weight(.medium) : .callout.weight(.medium))
+                    .foregroundStyle(task.status == "done" ? Color.sbInk2 : Color.sbInk)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if title != task.project {
+                        Text(task.project).lineLimit(1)
+                        Dot()
+                    }
                     if task.isSub {
                         Text("sub-agent")
-                            .font(.caption2)
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(.blue.opacity(0.12), in: Capsule())
-                            .foregroundStyle(.blue)
+                        Dot()
                     }
                     if task.engine == "codex" {
-                        Text("CODEX")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(.teal.opacity(0.14), in: Capsule())
-                            .foregroundStyle(.teal)
+                        Tag("CODEX")
+                        Dot()
                     }
                     if let badge = EventStore.modeBadge(task.mode) {
-                        let color: Color = badge.tone == "plan" ? .purple
-                            : badge.tone == "auto" ? .orange : .red
-                        Text(badge.text)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(color.opacity(0.12), in: Capsule())
-                            .foregroundStyle(color)
+                        Tag(badge.text)
+                        Dot()
                     }
+                    Text(statusLabel)
+                        .fontWeight(.medium)
+                        .foregroundStyle(color)
+                    Dot()
+                    Text(task.since, style: .relative)
+                        .monospacedDigit()
                     if task.agents > 0 {
-                        Label("\(task.agents)", systemImage: "gearshape.2.fill")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.blue)
-                            .labelStyle(.titleAndIcon)
+                        Dot()
+                        Text("\(task.agents) sub-agents")
                     }
                     if showHost {
-                        Text(task.host)
-                            .font(.caption2)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
-                            .foregroundStyle(.secondary)
+                        Dot()
+                        Text(task.host).lineLimit(1)
                     }
                 }
-                if !task.detail.isEmpty {
-                    Text(task.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                .font(.footnote)
+                .foregroundStyle(Color.sbInk3)
+                .lineLimit(1)
             }
-
-            Spacer(minLength: 6)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(statusLabel)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(color)
-                Text(task.since, style: .relative)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-            }
+            Spacer(minLength: 0)
         }
         .padding(.vertical, 3)
+    }
+
+    private struct Dot: View {
+        var body: some View { Text("·") }
+    }
+    private struct Tag: View {
+        let text: String
+        init(_ text: String) { self.text = text }
+        var body: some View {
+            Text(text)
+                .font(.system(size: 10, weight: .semibold))
+                .kerning(0.6)
+                .foregroundStyle(Color.sbInk2)
+                .padding(.horizontal, 4).padding(.vertical, 1)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.sbLine, lineWidth: 1))
+        }
     }
 }
 
 struct SessionRow: View {
     let group: SessionGroup
 
+    /// 推送标题形如「✅ reply · 完成「prompt 摘录」」:把摘录抠出来当标题,没有就用项目名。
+    private var title: String {
+        let t = group.latest.title
+        if let open = t.range(of: "「"), let close = t.range(of: "」", range: open.upperBound..<t.endIndex) {
+            let inner = String(t[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !inner.isEmpty { return inner }
+        }
+        return group.project
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: group.latest.kind.symbol)
-                .font(.title2)
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(group.latest.kind.color)
+                .frame(width: 20)
+                .padding(.top, 2)
             VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(group.project).font(.headline)
-                    if let host = group.latest.host {
-                        Text(host)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Text(group.latest.date, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.sbInk)
+                    .lineLimit(1)
+                if !group.latest.body.isEmpty {
+                    Text(group.latest.body)
+                        .font(.footnote)
+                        .foregroundStyle(Color.sbInk2)
+                        .lineLimit(2)
                 }
-                Text(group.latest.body)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    if title != group.project { Text(group.project); Text("·") }
+                    if let host = group.latest.host { Text(host); Text("·") }
+                    Text(group.latest.date, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(Color.sbInk3)
+                .lineLimit(1)
             }
         }
         .padding(.vertical, 2)
