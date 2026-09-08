@@ -1275,9 +1275,49 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
 OTTY_CLI = "/Applications/Otty.app/Contents/MacOS/otty-cli"
 
 
-def self_update(cfg: dict) -> None:
+UPDATE_STAMP = os.path.join(CONFIG_DIR, "last-update-check")
+HOOK_UPDATE_INTERVAL = 6 * 3600   # hook-event driven check when no relay is alive
+
+
+def restart_relay() -> None:
+    """Bring the relay onto the code now on disk. Works whether the job is
+    running (kickstart -k), loaded-but-dead, or never bootstrapped."""
+    if IS_WIN:
+        subprocess.Popen(self_cmd("relay"), creationflags=WIN_DETACHED)
+        return
+    uid = os.getuid()
+    label = "dev.piper.sessionbell.relay"
+    r = subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/{label}"],
+                       capture_output=True)
+    if r.returncode != 0:
+        plist = os.path.expanduser(f"~/Library/LaunchAgents/{label}.plist")
+        if os.path.exists(plist):
+            subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", plist],
+                           capture_output=True)
+
+
+def self_update_from_hook(cfg: dict) -> None:
+    """Hook events (stop / session-end) also drive updates, throttled to once
+    per HOOK_UPDATE_INTERVAL, so a Mac whose relay died still converges on the
+    hosted version and gets its relay restarted in the process."""
+    try:
+        if time.time() - os.path.getmtime(UPDATE_STAMP) < HOOK_UPDATE_INTERVAL:
+            return
+    except OSError:
+        pass
+    try:
+        with open(UPDATE_STAMP, "w") as f:
+            f.write(str(int(time.time())))
+    except OSError:
+        return
+    self_update(cfg, exit_after=False)
+
+
+def self_update(cfg: dict, exit_after: bool = True) -> None:
     """Hosted installs (script lives in ~/.sessionbell/) auto-update from the
-    backend; git-checkout installs are the dev's business and are left alone."""
+    backend; git-checkout installs are the dev's business and are left alone.
+    exit_after=True is the relay's mode (launchd KeepAlive restarts it on the
+    new code); hook processes pass False and restart the relay explicitly."""
     import hashlib
     me = os.path.abspath(__file__)
     # normcase/normpath: on Windows expanduser mixes / and \ — a raw
@@ -1307,6 +1347,9 @@ def self_update(cfg: dict) -> None:
         os.replace(tmp, me)
         os.chmod(me, 0o755)
         log("self-update: new version installed, restarting daemon")
+        if not exit_after:
+            restart_relay()
+            return
         if IS_WIN:
             # No launchd KeepAlive here — hand off to a fresh copy ourselves.
             subprocess.Popen(self_cmd("relay"), creationflags=WIN_DETACHED)
@@ -2102,6 +2145,8 @@ def main():
     if kind == "relay":
         run_relay(cfg)
         return
+    if kind in ("stop", "session-end"):
+        self_update_from_hook(cfg)
 
     hook = {}
     if kind != "test" and not sys.stdin.isatty():
