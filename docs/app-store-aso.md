@@ -32,7 +32,7 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
-## 1.4 — ready to submit (build 8)
+## 1.4 — submitted 2026-09-08 20:06 (build 8, Waiting for Review)
 
 ### What changed (for the reviewer and for What's New)
 
@@ -86,6 +86,23 @@ as task names, the notification prompt no longer covers the first screen.
 - Review notes: unchanged demo button ("先看看演示" / "Not right now — show me
   the demo") works without a Mac; reviewers can pair nothing and still see the
   demo tasks.
+
+### How this release was shipped (repeatable)
+
+```
+# archive + upload (ASC API key from ~/.sessionbell/asc.json)
+xcodebuild archive -project ios/SessionBell.xcodeproj -scheme SessionBell -destination 'generic/platform=iOS' \
+  -configuration Release -archivePath /tmp/SessionBell.xcarchive -allowProvisioningUpdates \
+  -authenticationKeyPath ~/.sessionbell/AuthKey_<KEY>.p8 -authenticationKeyID <KEY> -authenticationKeyIssuerID <ISSUER>
+xcodebuild -exportArchive -archivePath /tmp/SessionBell.xcarchive -exportOptionsPlist ios/scripts/ExportOptions.plist \
+  -exportPath /tmp/export -allowProvisioningUpdates -authenticationKeyPath … -authenticationKeyID … -authenticationKeyIssuerID …
+# version, What's New, screenshots, subtitle, review notes, then attach build + submit
+python3 ios/scripts/asc_release.py prepare      # edit WHATS_NEW / SUBTITLE_ZH / REVIEW_NOTES at the top first
+python3 ios/scripts/asc_release.py submit <versionId>
+```
+App Privacy has no API: done in the ASC web UI (Contact Info → Email Address + Other
+User Contact Info, linked, app functionality; Usage Data → Product Interaction, not
+linked, analytics; nothing used for tracking).
 
 ### Screenshots
 
