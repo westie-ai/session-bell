@@ -20,7 +20,7 @@ const since7d = now - 7 * DAY;
 
 // ---------- queries ----------
 
-const accounts = await db(`
+let accounts = await db(`
   SELECT ns,
     SUM(k LIKE 'devices/%')                      AS iphones,
     SUM(k LIKE 'devices/%' AND ts > ${since7d})  AS iphones_7d,
@@ -47,9 +47,13 @@ const stateRows = await db(`SELECT ns, v, ts FROM kv WHERE k LIKE 'state/%'`);
 const sessionStatus = { running: 0, waiting: 0, done: 0, other: 0 };
 let sessionsTotal = 0;
 const macsOnlineByNs = new Map();
+// 演示租户:seedDemo 写的 state 带 hook_v = "demo"。它的 devices/ 是点过
+// 「先看演示」的手机,不是配对用户;从账号统计里剔掉,单独算一个数。
+const demoNs = new Set();
 for (const r of stateRows) {
   let doc;
   try { doc = JSON.parse(r.v); } catch { continue; }
+  if (doc.hook_v === 'demo') { demoNs.add(r.ns); continue; }
   const sessions = Object.values(doc.sessions || {});
   if (r.ts > now - DAY) {
     sessionsTotal += sessions.length;
@@ -67,6 +71,11 @@ const feedback = feedbackRows.map((r) => { try { return { ...JSON.parse(r.v), ts
 
 
 // ---------- derive ----------
+
+const demoAccounts = accounts.filter((a) => demoNs.has(a.ns));
+const demoPhones = demoAccounts.reduce((n, a) => n + a.iphones, 0);
+const demoPhones7d = demoAccounts.reduce((n, a) => n + a.iphones_7d, 0);
+accounts = accounts.filter((a) => !demoNs.has(a.ns));
 
 function classify(a) {
   const stale = a.last_seen < since7d;
@@ -444,7 +453,9 @@ footer code{font-family:var(--mono);background:var(--mute-soft);padding:1px 5px;
 <div class="two">
   <div>
     <h2>接入漏斗<small>各步骤累计账号数</small></h2>
-    <div class="panel"><ol class="funnel">${funnelHtml}</ol></div>
+    <div class="panel"><ol class="funnel">${funnelHtml}</ol>
+      <p class="status-note">另有 <b>${demoPhones}</b> 部 iPhone 只看过演示模式(近 7 天 ${demoPhones7d} 部),不计入上面任何一步。</p>
+    </div>
   </div>
   <div>
     <h2>此刻的 Claude Code 会话<small>来自 24 小时内在线的 ${macsOnline} 台 Mac</small></h2>
@@ -483,7 +494,7 @@ ${feedbackSection()}
 </div>
 
 <footer>
-  状态口径：<b>配对完成</b> = 有 iPhone token 且 Mac 上报过状态；<b>未接 Mac</b> = 只装了 App；<b>仅注册</b> = 只有账号记录；<b>沉寂</b> = 超过 7 天没有任何写入。
+  状态口径：<b>配对完成</b> = 有 iPhone token 且 Mac 上报过状态；<b>未接 Mac</b> = 只装了 App；<b>仅注册</b> = 只有账号记录；<b>沉寂</b> = 超过 7 天没有任何写入。演示租户已排除。
   Mac 列的绿点表示该账号 24 小时内有 Mac 在线。<br>
   ${mode === 'live'
     ? `每次打开都会现算;App Store 数据缓存 ${Math.round(ascTtlMin)} 分钟${asc.fetchedAt ? `,上次拉取 ${ago(asc.fetchedAt)}` : ''}。`
