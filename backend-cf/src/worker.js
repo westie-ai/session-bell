@@ -39,10 +39,40 @@ const kvPut = (env, n, k, v, ts) =>
     'INSERT INTO kv (ns,k,v,ts) VALUES (?,?,?,?) ' +
     'ON CONFLICT(ns,k) DO UPDATE SET v=excluded.v, ts=excluded.ts')
     .bind(n, k, v, ts ?? Date.now()).run();
+// Range scan instead of LIKE: LIKE is case-insensitive by default, so SQLite
+// cannot use the (ns, k) primary key for it and scans every row of the
+// namespace on each call (that alone burnt ~4.5M rows_read/day on D1's
+// 5M free tier). `k >= p AND k < p||'\uffff'` walks only the matching rows.
 const kvList = (env, n, prefix) =>
-  env.DB.prepare("SELECT k, v, ts FROM kv WHERE ns=? AND k LIKE ? ESCAPE '\\'")
-    .bind(n, prefix.replaceAll('_', '\\_').replaceAll('%', '\\%') + '%').all()
+  env.DB.prepare('SELECT k, v, ts FROM kv WHERE ns=? AND k>=? AND k<?')
+    .bind(n, prefix, prefix + '\uffff').all()
     .then((r) => r.results || []);
+
+// Housekeeping, run from the cron: rows that are only ever appended
+// (Live Activity tokens, captures, commands, decisions) would otherwise grow
+// forever and make every kvList/handleToken read slower and costlier.
+async function gc(env) {
+  const now = Date.now();
+  const day = 86400e3;
+  await env.DB.batch([
+    // A dashboard token marked ended (for over an hour) is dead: drop the
+    // registration itself, then the tombstone once it's a week old.
+    env.DB.prepare(
+      'DELETE FROM kv WHERE k>=? AND k<? AND EXISTS (SELECT 1 FROM kv e ' +
+      "WHERE e.ns=kv.ns AND e.k='dashended/'||substr(kv.k,6) AND e.ts<?)")
+      .bind('dash/', 'dash/\uffff', now - 3600e3),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('dashended/', 'dashended/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('capture/', 'capture/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('command/', 'command/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('decision/', 'decision/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
+      .bind('sys', 'rl/', 'rl/\uffff', now - day),
+  ]);
+}
 
 async function readBody(req) {
   try { return await req.json(); } catch { return {}; }
@@ -426,8 +456,8 @@ export default {
     return env.ASSETS.fetch(req);
   },
 
-  // 每 5 分钟刷新演示租户,保证锁屏/面板计时和状态轮转是"活"的。
+  // 每 5 分钟刷新演示租户,保证锁屏/面板计时和状态轮转是"活"的;顺便清理过期行。
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(seedDemo(env));
+    ctx.waitUntil(Promise.all([seedDemo(env), gc(env)]));
   },
 };
