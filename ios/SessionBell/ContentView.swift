@@ -322,21 +322,12 @@ struct ContentView: View {
                 ForEach(store.liveGroups) { group in
                     HStack(spacing: 8) {
                         Label(group.host, systemImage: "desktopcomputer")
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                            .lineLimit(2)
                         Spacer(minLength: 8)
                         if group.awake {
-                            Text("Awake")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                                .fixedSize()
-                        }
-                        if !group.sessionText.isEmpty {
-                            Text(group.sessionText)
+                            Image(systemName: "cup.and.saucer.fill")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .fixedSize()
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
@@ -546,27 +537,33 @@ struct MachineControls: View {
     @State private var caffePending = false
     @State private var showSpawn = false
 
+    /// 开关直接映射 Mac 的 caffeinate 状态;切换后等 Mac 回报,期间禁用。
+    private var awakeBinding: Binding<Bool> {
+        Binding(get: { group.awake }, set: { on in
+            caffePending = true
+            Task {
+                await store.sendMachineCommand("_sys-\(group.canonicalKey)",
+                    text: on ? "caffeinate:on" : "caffeinate:off")
+                try? await Task.sleep(for: .seconds(12))
+                await store.fetchLiveTasks()
+                caffePending = false
+            }
+        })
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                caffePending = true
-                Task {
-                    await store.sendMachineCommand("_sys-\(group.canonicalKey)",
-                        text: group.awake ? "caffeinate:off" : "caffeinate:on")
-                    try? await Task.sleep(for: .seconds(12))
-                    await store.fetchLiveTasks()
-                    caffePending = false
-                }
-            } label: {
-                Label(caffePending ? "Applying…" : (group.awake ? "Awake · tap to stop" : "Keep Awake"),
+            Toggle(isOn: awakeBinding) {
+                Label(caffePending ? "Applying…" : "Keep Mac awake",
                       systemImage: group.awake ? "cup.and.saucer.fill" : "cup.and.saucer")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(group.awake ? .orange : .secondary)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
             }
-            .buttonStyle(.bordered)
+            .toggleStyle(.switch)
+            .tint(.orange)
             .disabled(caffePending)
+            .fixedSize(horizontal: true, vertical: false)
 
             Spacer(minLength: 8)
 

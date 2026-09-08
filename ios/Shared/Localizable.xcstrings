@@ -2565,6 +2565,16 @@
           }
         }
       }
+    },
+    "Keep Mac awake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持 Mac 常亮"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
