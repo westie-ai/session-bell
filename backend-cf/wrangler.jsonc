@@ -14,13 +14,21 @@
       "database_id": "b4f4ff7d-6ba6-4ac1-ae6e-a6d6ce262c14"
     }
   ],
-  "vars": { "FEEDBACK_TO": "begin1314@gmail.com" },
+  "vars": {
+    "FEEDBACK_TO": "begin1314@gmail.com",
+    // 运营看板 /board 用的 App Store Connect 团队密钥(私钥本体是 secret ASC_KEY)
+    "ASC_KEY_ID": "38334UHWF2",
+    "ASC_ISSUER_ID": "256c14e6-70d9-4581-9bbe-b28e5588cbd3",
+    "ASC_VENDOR": "94043622"
+  },
+  // 看板:`wrangler secret put ASC_KEY < AuthKey_38334UHWF2.p8`,`wrangler secret put BOARD_KEY`
+  // (随机串,访问 https://sessionbell.westie.ai/board?k=<BOARD_KEY>;加 &fresh 跳过 ASC 缓存)
   // App 内反馈邮件通道(二选一,都不配则只落 D1,board 里能看到):
   //   a) Cloudflare Email Sending:`wrangler email sending enable westie.ai` 后加
   //      "send_email": [{ "name": "EMAIL" }],可选 var FEEDBACK_FROM=sessionbell@westie.ai
   //   b) Resend:`wrangler secret put RESEND_API_KEY`;未验证域名时 from 只能是
   //      onboarding@resend.dev,且只能发给 Resend 账号本人的邮箱
-  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, REVIEW_CODE, DEMO_SECRET, RESEND_API_KEY (INVITE_CODE 已不再使用)
+  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, REVIEW_CODE, DEMO_SECRET, RESEND_API_KEY, ASC_KEY, BOARD_KEY (INVITE_CODE 已不再使用)
   //
   // westie.ai 切换(等 Coffin 给 piper 开 Workers 权限后):
   //   account_id -> 6d26ebce69367b06e6c691ba627a26aa

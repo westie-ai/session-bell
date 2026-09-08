@@ -1,63 +1,44 @@
-// App Store Connect API client for the usage board (read-only).
+// App Store Connect API client (read-only) — runs in Workers and in Node ≥ 18.
+// Only WebCrypto, fetch and DecompressionStream; no node: imports.
 //
-// Config, first match wins:
-//   env ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH / ASC_VENDOR
-//   ~/.sessionbell/asc.json  { "key_id", "issuer_id", "p8_path", "vendor_number" }
-//
-// The key must be an App Store Connect API key (ASC → Users and Access →
-// Integrations → Team Keys), not an APNs key from the developer portal.
-// vendor_number is optional; without it the daily-download chart is skipped
-// (it comes from Sales Reports, which are keyed by vendor). Find it at
-// ASC → Payments and Financial Reports, top-left under the team name.
-
-import { createSign } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { gunzipSync } from 'node:zlib';
+// cfg = { keyId, issuerId, pem, vendor? }
+//   keyId / issuerId : ASC → Users and Access → Integrations → Team Keys
+//   pem              : contents of the AuthKey_<keyId>.p8 file
+//   vendor           : ASC → Payments and Financial Reports (top-left); optional,
+//                      without it the sales-report based download counts are skipped.
 
 export const APP_ID = '6801045681';
 const BASE = 'https://api.appstoreconnect.apple.com';
 
-export function loadConfig() {
-  const env = process.env;
-  if (env.ASC_KEY_ID && env.ASC_ISSUER_ID && env.ASC_KEY_PATH) {
-    return { keyId: env.ASC_KEY_ID, issuerId: env.ASC_ISSUER_ID,
-      p8Path: env.ASC_KEY_PATH, vendor: env.ASC_VENDOR || null };
-  }
-  const p = join(homedir(), '.sessionbell', 'asc.json');
-  if (!existsSync(p)) return null;
-  const j = JSON.parse(readFileSync(p, 'utf8'));
-  if (!j.key_id || !j.issuer_id || !j.p8_path) return null;
-  return { keyId: j.key_id, issuerId: j.issuer_id,
-    p8Path: j.p8_path.replace(/^~/, homedir()), vendor: j.vendor_number || null };
-}
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)))
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const utf8 = (s) => new TextEncoder().encode(s);
 
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-
-function jwt(cfg) {
+async function jwt(cfg) {
+  const der = Uint8Array.from(atob(cfg.pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')),
+    (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const now = Math.floor(Date.now() / 1000);
-  const header = b64url(JSON.stringify({ alg: 'ES256', kid: cfg.keyId, typ: 'JWT' }));
-  const claims = b64url(JSON.stringify({
+  const header = b64url(utf8(JSON.stringify({ alg: 'ES256', kid: cfg.keyId, typ: 'JWT' })));
+  const claims = b64url(utf8(JSON.stringify({
     iss: cfg.issuerId, iat: now, exp: now + 15 * 60, aud: 'appstoreconnect-v1',
-  }));
-  const signer = createSign('SHA256');
-  signer.update(`${header}.${claims}`);
-  const sig = signer.sign({ key: readFileSync(cfg.p8Path, 'utf8'), dsaEncoding: 'ieee-p1363' });
+  })));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, utf8(`${header}.${claims}`));
   return `${header}.${claims}.${b64url(sig)}`;
 }
 
-async function get(cfg, path, { raw = false } = {}) {
+async function get(cfg, path, { gzip = false } = {}) {
   const r = await fetch(BASE + path, { headers: {
-    Authorization: `Bearer ${jwt(cfg)}`, Accept: raw ? 'application/a-gzip' : 'application/json',
+    Authorization: `Bearer ${await jwt(cfg)}`, Accept: gzip ? 'application/a-gzip' : 'application/json',
   } });
   if (!r.ok) {
     const body = await r.text().catch(() => '');
-    const err = new Error(`ASC ${r.status} ${path}: ${body.slice(0, 300)}`);
+    const err = new Error(`ASC ${r.status} ${path.split('?')[0]}: ${body.slice(0, 200)}`);
     err.status = r.status;
     throw err;
   }
-  return raw ? Buffer.from(await r.arrayBuffer()) : r.json();
+  if (!gzip) return r.json();
+  return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
 }
 
 /** Latest App Store versions with their review state. */
@@ -91,21 +72,20 @@ export async function reviews(cfg, limit = 20) {
 }
 
 /**
- * Daily first-time downloads and updates for the last `days` days, from the
- * Sales Reports (SALES / SUMMARY / DAILY). Apple publishes a day's report the
- * following morning Pacific time, so today is usually missing and yesterday
- * may 404 until ~9am PT; missing days are returned as null.
+ * Daily first-time downloads and updates for the last `days` days, with a
+ * per-storefront-country split, from the Sales Reports (SALES/SUMMARY/DAILY).
+ * Apple publishes a day's report the next morning Pacific time and publishes
+ * nothing at all for days with zero units, so missing days come back as null.
  */
 export async function dailyUnits(cfg, days = 7) {
   if (!cfg.vendor) return null;
-  const out = [];
-  for (let i = days; i >= 1; i--) {
-    const d = new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10);
+  const dates = [];
+  for (let i = days; i >= 1; i--) dates.push(new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10));
+  return Promise.all(dates.map(async (d) => {
     let downloads = null, updates = null, byCountry = null;
     try {
-      const gz = await get(cfg, '/v1/salesReports?filter[frequency]=DAILY&filter[reportType]=SALES' +
-        `&filter[reportSubType]=SUMMARY&filter[reportDate]=${d}&filter[vendorNumber]=${cfg.vendor}`, { raw: true });
-      const tsv = gunzipSync(gz).toString('utf8');
+      const tsv = await get(cfg, '/v1/salesReports?filter[frequency]=DAILY&filter[reportType]=SALES' +
+        `&filter[reportSubType]=SUMMARY&filter[reportDate]=${d}&filter[vendorNumber]=${cfg.vendor}`, { gzip: true });
       const [head, ...rows] = tsv.trim().split('\n').map((l) => l.split('\t'));
       const col = (name) => head.indexOf(name);
       const iType = col('Product Type Identifier'), iUnits = col('Units'), iApp = col('Apple Identifier');
@@ -123,12 +103,10 @@ export async function dailyUnits(cfg, days = 7) {
         byCountry[cc][kind] += u;
       }
     } catch (e) {
-      // 404 = report not yet available (or no sales that day); anything else is real.
       if (e.status !== 404) throw e;
     }
-    out.push({ day: d, downloads, updates, byCountry });
-  }
-  return out;
+    return { day: d, downloads, updates, byCountry };
+  }));
 }
 
 /** Sum a dailyUnits result per country, sorted by first-time downloads. */
@@ -144,15 +122,20 @@ export function countryTotals(days) {
     .sort((a, b) => b.downloads - a.downloads || b.updates - a.updates);
 }
 
-/** Everything the board needs, tolerating partial failures. */
-export async function snapshot() {
-  const cfg = loadConfig();
+/** Everything the board needs, tolerating partial failures. cfg null → not configured. */
+export async function snapshot(cfg) {
   if (!cfg) return { configured: false };
-  const res = { configured: true, errors: [] };
+  const res = { configured: true, errors: [], fetchedAt: Date.now() };
   const tasks = { versions, latestBuild, reviews, dailyUnits };
   await Promise.all(Object.entries(tasks).map(async ([k, fn]) => {
     try { res[k] = await fn(cfg); } catch (e) { res.errors.push(`${k}: ${e.message}`); res[k] = null; }
   }));
   res.hasVendor = !!cfg.vendor;
   return res;
+}
+
+/** Build a cfg from Worker env (secret ASC_KEY = .p8 contents; vars for the rest). */
+export function configFromEnv(env) {
+  if (!env.ASC_KEY || !env.ASC_KEY_ID || !env.ASC_ISSUER_ID) return null;
+  return { keyId: env.ASC_KEY_ID, issuerId: env.ASC_ISSUER_ID, pem: env.ASC_KEY, vendor: env.ASC_VENDOR || null };
 }

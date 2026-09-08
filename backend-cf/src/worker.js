@@ -4,6 +4,9 @@
 //
 // Multi-tenant by construction: sha256(secret) → namespace. No user table.
 
+import { renderBoard } from './board.js';
+import { snapshot as ascSnapshot, configFromEnv as ascConfig } from './asc.js';
+
 const HEX = /^[0-9a-f]{16,400}$/;
 const SID = /^[A-Za-z0-9._-]{1,64}$/;
 const RID = /^[A-Za-z0-9._-]{1,128}$/;
@@ -494,6 +497,38 @@ read -n 1 -s -r -p "按任意键关闭…"
   });
 }
 
+// ---------- usage board ----------
+
+const ASC_TTL_MIN = 30;
+
+/// 运营看板:/board?k=<BOARD_KEY>。每次打开从 D1 现算;App Store Connect 的
+/// 数据(7 次销售报告 + 3 个接口)在 sys 命名空间缓存 30 分钟。没配 BOARD_KEY
+/// 时整个路由不存在,避免把账号列表和反馈内容暴露出去。
+async function handleBoard(req, env, url) {
+  if (!env.BOARD_KEY || url.searchParams.get('k') !== env.BOARD_KEY) {
+    return new Response('not found', { status: 404 });
+  }
+  const now = Date.now();
+  let asc = null;
+  const cached = await kvGet(env, 'sys', 'cache/asc');
+  if (cached && now - cached.ts < ASC_TTL_MIN * 60e3 && !url.searchParams.has('fresh')) {
+    try { asc = JSON.parse(cached.v); } catch {}
+  }
+  if (!asc) {
+    asc = await ascSnapshot(ascConfig(env));
+    if (asc.configured && !asc.errors.length) {
+      await kvPut(env, 'sys', 'cache/asc', JSON.stringify(asc), now);
+    }
+  }
+  const db = (sql) => env.DB.prepare(sql).all().then((r) => r.results || []);
+  const html = await renderBoard({ db, asc, mode: 'live', ascTtlMin: ASC_TTL_MIN, now });
+  return new Response(html, { headers: {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Robots-Tag': 'noindex',
+  } });
+}
+
 // ---------- router ----------
 
 export default {
@@ -501,6 +536,7 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname;
 
+    if (path === '/board') return handleBoard(req, env, url);
     if (path === '/api/installer') return handleInstaller(url);
     if (path === '/api/signup') return handleSignup(req, env, url);
 

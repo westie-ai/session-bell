@@ -7,3 +7,4 @@ __pycache__/
 # wrangler local dev state
 backend-cf/.wrangler/
 build/
+backend-cf/.dev.vars
