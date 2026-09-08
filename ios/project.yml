@@ -44,6 +44,9 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.usernotifications.time-sensitive: true
+        # universal links:https://sessionbell.westie.ai/p/<6 位码> 直接拉起 App 配对
+        com.apple.developer.associated-domains:
+          - applinks:sessionbell.westie.ai
   SessionBellScreenshots:
     type: bundle.ui-testing
     platform: iOS
