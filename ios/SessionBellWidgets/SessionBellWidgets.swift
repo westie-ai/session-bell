@@ -152,31 +152,36 @@ private struct TaskRow: View {
                 Image(systemName: statusSymbol(task.status))
                     .font(compact ? .caption2 : .subheadline)
                     .foregroundStyle(statusColor(task.status))
-                // prompt 摘录优先,截断的是它;右边只留一个不可压缩的小标签,不再互相挤成碎片。
+                // 布局顺序:右侧标签 / 计时先占位(标签最宽 120pt),prompt 拿剩下的全部宽度再截断。
+                // 不这样做的话 Text 和 Spacer 平分剩余空间,prompt 只显示一半、右边一大块空白。
                 Text(primary)
                     .font(compact ? .caption2 : .subheadline.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Spacer(minLength: 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
                 if let tag = tagText, !tag.isEmpty {
                     Text(tag)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .fixedSize()
+                        .truncationMode(.middle)
+                        .frame(maxWidth: compact ? 80 : 120, alignment: .trailing)
+                        .layoutPriority(2)
                 }
                 if let agents = task.agents, agents > 0 {
                     Text("⚙︎\(agents)")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.blue)
-                        .fixedSize()
+                        .layoutPriority(2)
                 }
                 // 只有"等你"的任务才显示等了多久;运行中 / 已完成的时间没有决策价值。
                 if task.status == "waiting" {
                     ElapsedText(task: task)
                         .font((compact ? Font.caption2 : .caption).monospacedDigit())
                         .foregroundStyle(coral)
-                        .fixedSize()
+                        .frame(width: compact ? 44 : 52, alignment: .trailing)
+                        .layoutPriority(2)
                 }
             }
         }
