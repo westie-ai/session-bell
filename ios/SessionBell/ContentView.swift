@@ -254,7 +254,6 @@ struct ContentView: View {
                         }
                         .disabled(creatingSpace)
                     }
-                    backendConfigRow
                     // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
                     if SBBackend.pairingCode != nil && !isDemo {
                         Button {
@@ -292,6 +291,9 @@ struct ContentView: View {
                         Label("Show Setup Guide Again", systemImage: "arrow.counterclockwise")
                     }
                 }
+                Section("Advanced · Self-hosted") {
+                    backendConfigRow
+                }
                 Section {
                     Button(role: .destructive) {
                         confirmReset = true
@@ -316,7 +318,7 @@ struct ContentView: View {
     @ViewBuilder
     private var machinesSection: some View {
         if !store.liveGroups.isEmpty {
-            Section("Computers") {
+            Section("Connected Macs") {
                 ForEach(store.liveGroups) { group in
                     HStack {
                         Label(group.host, systemImage: "desktopcomputer")
@@ -326,9 +328,11 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
                         }
-                        Text("\(group.cards.count) tasks")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if !group.sessionText.isEmpty {
+                            Text(group.sessionText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -406,11 +410,6 @@ struct ContentView: View {
                 Text("Waiting for APNs registration… (requires a real device with notifications allowed)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else {
-                tokenRow(label: "Device Token", value: store.deviceToken, flag: $copied)
-            }
-            if !store.pushToStartToken.isEmpty {
-                tokenRow(label: String(localized: "Live Activity Start Token"), value: store.pushToStartToken, flag: $copiedPTS)
             }
             if #available(iOS 17.2, *) {
                 Button {
