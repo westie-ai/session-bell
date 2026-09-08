@@ -57,6 +57,13 @@ final class LiveActivityManager {
         }
     }
 
+    /// 结束本机所有 Live Activity(重置用)。
+    func endAll() async {
+        for activity in Activity<SessionActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
     /// Re-send everything we know; called on app foreground as a safety net.
     func syncNow() {
         Task {

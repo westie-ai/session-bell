@@ -86,6 +86,10 @@ enum SBBackend {
             return (u, s)
         }
 
+        static func delete() {
+            SecItemDelete(base as CFDictionary)
+        }
+
         static func write(url: String, secret: String) -> Bool {
             guard let data = try? JSONSerialization.data(withJSONObject: ["u": url, "s": secret])
             else { return false }
@@ -105,6 +109,17 @@ enum SBBackend {
             if status != errSecSuccess { NSLog("SessionBell keychain add failed: %d", status) }
             return status == errSecSuccess
         }
+    }
+
+    /// 「重置并重新开始」:忘掉租户(钥匙串 + 旧 UserDefaults + 内存缓存)和引导标记,
+    /// 下次进 ContentView 就是全新的第一屏。不碰后端,那边的空间还在,重新配对可再用。
+    static func reset() {
+        Keychain.delete()
+        let d = UserDefaults.standard
+        for k in [urlKey, secretKey, demoKey, "sb.onboarded", "sb.tab", "sb.installFlag"] {
+            d.removeObject(forKey: k)
+        }
+        cache = nil
     }
 
     static func getJSON(_ path: String) async -> Any? {

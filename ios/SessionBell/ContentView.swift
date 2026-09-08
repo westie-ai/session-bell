@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var creatingSpace = false
     @State private var createError = ""
     @State private var showFeedback = false
+    @State private var confirmReset = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -62,6 +63,27 @@ struct ContentView: View {
                 onboarded = true
                 Task { await store.refresh() }
             }
+        }
+    }
+
+    /// 「重置并重新开始」:手机侧全部忘掉,回到第一屏。真机上反复走引导用。
+    private func resetEverything() {
+        Task {
+            if #available(iOS 17.2, *) { await LiveActivityManager.shared.endAll() }
+            if let backend = SBBackend.saved {
+                await SBBackend.post("/api/token", body: ["reset_dashboard": "1"],
+                                     to: backend.url, secret: backend.secret)
+            }
+            SBBackend.reset()
+            store.clearAll()
+            store.pendingApproval = nil
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [OnboardingView.reminderId])
+            isDemo = false
+            onboarded = false
+            selectedTab = 0
+            navPath = NavigationPath()
+            onboardingStart = .welcome
+            showOnboarding = true
         }
     }
 
@@ -252,9 +274,24 @@ struct ContentView: View {
                         Label("Show Setup Guide Again", systemImage: "arrow.counterclockwise")
                     }
                 }
+                Section {
+                    Button(role: .destructive) {
+                        confirmReset = true
+                    } label: {
+                        Label("Reset and Start Over", systemImage: "trash")
+                    }
+                } footer: {
+                    Text("Forgets the pairing on this phone and returns to the first screen, as if freshly installed. Your Macs keep their setup; pair again to reconnect them.")
+                }
             }
             .navigationTitle("Settings")
             .sheet(isPresented: $showFeedback) { FeedbackView() }
+            .confirmationDialog("Reset SessionBell on this phone?", isPresented: $confirmReset, titleVisibility: .visible) {
+                Button("Reset and Start Over", role: .destructive) { resetEverything() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Pairing, history and Lock Screen cards on this phone are removed. Nothing is deleted on your Macs or the server.")
+            }
         }
     }
 

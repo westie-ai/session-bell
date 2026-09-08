@@ -2365,6 +2365,46 @@
           }
         }
       }
+    },
+    "Reset and Start Over": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置并重新开始"
+          }
+        }
+      }
+    },
+    "Forgets the pairing on this phone and returns to the first screen, as if freshly installed. Your Macs keep their setup; pair again to reconnect them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘掉这台手机上的配对，回到第一屏，就像刚装上一样。Mac 那边的设置保留，重新配对即可再接上。"
+          }
+        }
+      }
+    },
+    "Reset SessionBell on this phone?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置这台手机上的 SessionBell？"
+          }
+        }
+      }
+    },
+    "Pairing, history and Lock Screen cards on this phone are removed. Nothing is deleted on your Macs or the server.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会清掉这台手机上的配对、历史记录和锁屏卡片。Mac 和服务器上的东西不会被删。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
