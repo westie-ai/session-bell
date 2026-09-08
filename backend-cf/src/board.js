@@ -31,6 +31,11 @@ let accounts = await db(`
     SUM(k LIKE 'command/%')                      AS commands,
     SUM(k LIKE 'decision/%')                     AS decisions,
     SUM(k LIKE 'capture/%')                      AS captures,
+    SUM(k = 'onb/connect_seen')                  AS onb_seen,
+    SUM(k = 'onb/command_copied')                AS onb_copied,
+    SUM(k = 'onb/connect_later')                 AS onb_later,
+    SUM(k = 'onb/code_entered')                  AS onb_code,
+    SUM(k = 'onb/paired')                        AS onb_paired,
     MIN(ts) AS first_seen, MAX(ts) AS last_seen
   FROM kv WHERE ns LIKE 'u/%' GROUP BY ns ORDER BY MAX(ts) DESC`);
 
@@ -165,6 +170,15 @@ const accountRows = accounts.map((a) => `<tr class="k-${a.kind}">
   <td class="mono dim">${fmtDate(a.first_seen)}</td>
   <td class="mono" title="${new Date(a.last_seen).toISOString()}">${ago(a.last_seen)}</td>
 </tr>`).join('');
+
+// 新版引导(1.4 起)的埋点:每个账号每个里程碑最多一行。老版本用户没有这些行。
+const onb = ['onb_seen', 'onb_copied', 'onb_code', 'onb_paired', 'onb_later']
+  .map((k) => [k, accounts.filter((a) => a[k] > 0).length]);
+const ONB_ZH = { onb_seen: '看到「连接 Mac」页', onb_copied: '复制了那行命令', onb_code: '输入了 6 位码',
+  onb_paired: '配对成功(App 侧确认)', onb_later: '点了「稍后」' };
+const onbAny = onb.some(([, n]) => n > 0);
+const onbHtml = `<details class="onb"${onbAny ? ' open' : ''}><summary>新版引导埋点${onbAny ? '' : '(还没有新版 App 用户)'}</summary>
+  <ul>${onb.map(([k, n]) => `<li><span>${ONB_ZH[k]}</span><b>${n}</b></li>`).join('')}</ul></details>`;
 
 const funnelMax = funnel[0].n || 1;
 const funnelHtml = funnel.map((f, i) => {
@@ -411,6 +425,11 @@ tbody tr:hover td{background:var(--surface-2)}
 .setup{font-size:13px;color:var(--ink-2)}
 .setup p{margin:0 0 8px}.setup ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .setup code{font-family:var(--mono);background:var(--mute-soft);padding:1px 5px;border-radius:3px;font-size:12px;word-break:break-all}
+.onb{margin-top:12px;font-size:12px;color:var(--ink-3)}
+.onb summary{cursor:pointer}
+.onb ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.onb li{display:flex;justify-content:space-between;color:var(--ink-2)}
+.onb b{font-family:var(--mono);font-weight:500}
 .regions{margin-top:20px}
 .rg{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:8px 14px;align-items:center}
 .rg li{display:contents}
@@ -455,6 +474,7 @@ footer code{font-family:var(--mono);background:var(--mute-soft);padding:1px 5px;
     <h2>接入漏斗<small>各步骤累计账号数</small></h2>
     <div class="panel"><ol class="funnel">${funnelHtml}</ol>
       <p class="status-note">另有 <b>${demoPhones}</b> 部 iPhone 只看过演示模式(近 7 天 ${demoPhones7d} 部),不计入上面任何一步。</p>
+      ${onbHtml}
     </div>
   </div>
   <div>
