@@ -952,7 +952,7 @@ struct LiveTaskRow: View {
 
     /// 标题是 prompt 摘录;没有就退回项目名。
     private var title: String {
-        let d = task.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let d = task.detail.sbCleanPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         return d.isEmpty ? task.project : d
     }
 
@@ -1032,7 +1032,7 @@ struct SessionRow: View {
         let t = group.latest.title
         if let open = t.range(of: "「"), let close = t.range(of: "」", range: open.upperBound..<t.endIndex) {
             let inner = String(t[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespaces)
-            if !inner.isEmpty { return inner }
+            if !inner.isEmpty, !inner.sbIsInjectedPrompt { return inner }
         }
         return group.project
     }

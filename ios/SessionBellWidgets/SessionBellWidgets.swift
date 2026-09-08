@@ -130,7 +130,7 @@ private struct TaskRow: View {
 
     /// 一行说清"在干嘛":有 prompt 摘录就以它为主、项目名缩成小字;没有就只剩项目名。
     private var primary: String {
-        let d = (task.detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let d = (task.detail ?? "").sbCleanPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         return d.isEmpty ? task.project : d
     }
     private var showsProjectTag: Bool { primary != task.project }

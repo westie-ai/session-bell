@@ -51,3 +51,17 @@ extension Color {
         switch status { case "waiting": return "ellipsis.bubble"; case "running": return "arrow.triangle.2.circlepath"; default: return "checkmark" }
     }
 }
+
+
+extension String {
+    /// Claude Code 注入的伪 prompt(后台任务完成通知、系统提醒、斜杠命令回显…),不是用户敲的。
+    /// 旧版 hook 会把它当任务名上报;界面上一律不显示,退回项目名。
+    var sbIsInjectedPrompt: Bool {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.hasPrefix("<task-notification") || t.hasPrefix("<system-reminder")
+            || t.hasPrefix("<command-name") || t.hasPrefix("<local-command")
+            || t.hasPrefix("<user-prompt-submit-hook") || t.hasPrefix("[Request interrupted")
+    }
+    /// 过滤后的任务名:注入文本 → 空串。
+    var sbCleanPrompt: String { sbIsInjectedPrompt ? "" : self }
+}
