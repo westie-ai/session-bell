@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var onboardingStart: OnboardingView.Step = .welcome
     @State private var creatingSpace = false
     @State private var createError = ""
+    @State private var showFeedback = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -221,6 +222,13 @@ struct ContentView: View {
                 }
                 machinesSection
                 deviceSection
+                Section("Feedback") {
+                    Button {
+                        showFeedback = true
+                    } label: {
+                        Label("Send Feedback", systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                }
                 Section("About") {
                     LabeledContent("Version",
                         value: "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
@@ -235,6 +243,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showFeedback) { FeedbackView() }
         }
     }
 

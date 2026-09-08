@@ -131,6 +131,23 @@ enum SBBackend {
         _ = try? await URLSession.shared.data(for: req)
     }
 
+    /// 与 post 相同,但用当前保存的后端,并返回是否 2xx(反馈等需要知道结果的场景)。
+    static func postChecked(_ path: String, body: [String: String]) async -> Bool {
+        guard let backend = saved,
+              let url = URL(string: backend.url + path),
+              let data = try? JSONSerialization.data(withJSONObject: body)
+        else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 15
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(backend.secret, forHTTPHeaderField: "x-sb-secret")
+        req.httpBody = data
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else { return false }
+        return (200..<300).contains(http.statusCode)
+    }
+
     /// 由当前保存的配置反推配对码(与 /api/signup 下发的格式一致),
     /// 用于首跑第三屏「拷贝给 Mac」。
     static var pairingCode: String? {

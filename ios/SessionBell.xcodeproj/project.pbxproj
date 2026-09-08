@@ -10,6 +10,7 @@
 		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
+		31C59B7328A6BA9BC6EE4EC0 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */; };
 		3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
 		49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
 		608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
@@ -83,6 +84,7 @@
 		B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		BBA96AA6001059FA2279F3E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		E30D020BC225547233474D41 /* SessionBellWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellWidgets.swift; sourceTree = "<group>"; };
 		E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 				BBA96AA6001059FA2279F3E1 /* Assets.xcassets */,
 				4311A1BB8C2640EC4F314F5C /* ContentView.swift */,
 				4B3FEDCE86DCEA60048F5354 /* EventStore.swift */,
+				DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */,
 				A48AAD4446927227AC1392AB /* Info.plist */,
 				DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */,
 				4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */,
@@ -314,6 +317,7 @@
 				608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */,
 				C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */,
 				721778149B63D94120835CD8 /* EventStore.swift in Sources */,
+				31C59B7328A6BA9BC6EE4EC0 /* FeedbackView.swift in Sources */,
 				E56FBBE5FDF669C9EEBB395A /* LiveActivityManager.swift in Sources */,
 				C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */,
 				FFB63F2543A97D8D6571FDF6 /* Models.swift in Sources */,

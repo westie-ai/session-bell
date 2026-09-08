@@ -13,8 +13,14 @@
       "database_name": "sessionbell",
       "database_id": "b4f4ff7d-6ba6-4ac1-ae6e-a6d6ce262c14"
     }
-  ]
-  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, REVIEW_CODE, DEMO_SECRET (INVITE_CODE 已不再使用)
+  ],
+  "vars": { "FEEDBACK_TO": "begin1314@gmail.com" },
+  // App 内反馈邮件通道(二选一,都不配则只落 D1,board 里能看到):
+  //   a) Cloudflare Email Sending:`wrangler email sending enable westie.ai` 后加
+  //      "send_email": [{ "name": "EMAIL" }],可选 var FEEDBACK_FROM=sessionbell@westie.ai
+  //   b) Resend:`wrangler secret put RESEND_API_KEY`;未验证域名时 from 只能是
+  //      onboarding@resend.dev,且只能发给 Resend 账号本人的邮箱
+  // secrets (wrangler secret put): APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, REVIEW_CODE, DEMO_SECRET, RESEND_API_KEY (INVITE_CODE 已不再使用)
   //
   // westie.ai 切换(等 Coffin 给 piper 开 Workers 权限后):
   //   account_id -> 6d26ebce69367b06e6c691ba627a26aa

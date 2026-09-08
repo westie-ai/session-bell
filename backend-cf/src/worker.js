@@ -354,6 +354,72 @@ async function seedDemo(env, lang = 'en') {
   await kvPut(env, n, 'capture/demo-checkout', T.capture.join('\n'));
 }
 
+// ---------- feedback ----------
+
+/// App 内反馈:落 D1(sys 命名空间,board 脚本会读),再尽力发一封邮件到
+/// FEEDBACK_TO。邮件通道按可用性依次尝试:Cloudflare Email Sending binding
+/// (env.EMAIL)→ Resend(RESEND_API_KEY)。都没配也返回 ok,反馈不丢。
+async function sendFeedbackMail(env, subject, text, replyTo) {
+  const to = env.FEEDBACK_TO;
+  if (!to) return 'stored';
+  if (env.EMAIL && typeof env.EMAIL.send === 'function') {
+    try {
+      await env.EMAIL.send({
+        to, from: { email: env.FEEDBACK_FROM || 'sessionbell@westie.ai', name: 'SessionBell' },
+        subject, text, ...(replyTo ? { replyTo } : {}),
+      });
+      return 'cloudflare';
+    } catch (e) { console.log('feedback: cloudflare email failed', String(e)); }
+  }
+  if (env.RESEND_API_KEY) {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: env.FEEDBACK_FROM || 'SessionBell <onboarding@resend.dev>',
+        to: [to], subject, text, ...(replyTo ? { reply_to: replyTo } : {}),
+      }),
+    });
+    if (r.ok) return 'resend';
+    console.log('feedback: resend failed', r.status, await r.text());
+  }
+  return 'stored';
+}
+
+async function handleFeedback(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
+  const b = await readBody(req);
+  const text = typeof b.text === 'string' ? b.text.trim().slice(0, 4000) : '';
+  if (text.length < 2) return json({ error: 'empty' }, 400);
+  if (!(await rateLimit(env, 'feedback/' + n, 10, 86400))) {
+    return json({ error: 'rate limited' }, 429);
+  }
+  const contact = typeof b.contact === 'string' ? b.contact.trim().slice(0, 200) : '';
+  const meta = {};
+  for (const k of ['app_version', 'build', 'os', 'device', 'locale', 'kind']) {
+    if (typeof b[k] === 'string' && b[k]) meta[k] = b[k].slice(0, 80);
+  }
+  const now = Date.now();
+  const id = `${now}-${crypto.randomUUID().slice(0, 8)}`;
+  const doc = { ns: n, text, contact, ...meta, ts: now };
+  await kvPut(env, 'sys', `feedback/${id}`, JSON.stringify(doc), now);
+
+  const acct = n.slice(2, 8);
+  const subject = `[SessionBell 反馈] ${meta.kind || 'feedback'} · ${acct} · ${text.slice(0, 40).replace(/\s+/g, ' ')}`;
+  const body = [
+    text, '',
+    '——',
+    `账号: ${acct}`,
+    contact ? `联系方式: ${contact}` : '联系方式: (未留)',
+    `App: ${meta.app_version || '?'} (${meta.build || '?'})  iOS ${meta.os || '?'}  ${meta.device || '?'}  ${meta.locale || ''}`,
+    `时间: ${new Date(now).toISOString()}`,
+    `id: ${id}`,
+  ].join('\n');
+  const replyTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact) ? contact : undefined;
+  const via = await sendFeedbackMail(env, subject, body, replyTo);
+  return json({ ok: true, id, via });
+}
+
 // ---------- onboarding ----------
 
 /// 简单滑动窗口限流(D1 的 sys 命名空间):同一 key 在 windowSec 内最多 limit 次。
@@ -451,6 +517,7 @@ export default {
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);
       if (path === '/api/push') return handlePush(req, env, n);
+      if (path === '/api/feedback') return handleFeedback(req, env, n);
       return json({ error: 'not found' }, 404);
     }
     return env.ASSETS.fetch(req);
