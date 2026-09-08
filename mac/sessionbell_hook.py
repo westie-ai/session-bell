@@ -1045,8 +1045,29 @@ def pid_alive(pid) -> bool:
 TERM_REGISTRY_MAX_AGE = 7 * 24 * 3600   # pane handles outlive sessions a week
 
 
+INJECTED_PREFIXES = ("<task-notification", "<system-reminder", "<command-name",
+                     "<local-command", "<user-prompt-submit-hook", "[Request interrupted")
+
+
+def injected_text(text) -> bool:
+    """Claude Code 注入的伪 prompt(后台任务完成通知、系统提醒、斜杠命令回显…),
+    不是用户敲的,不能当任务名。"""
+    return bool(text) and str(text).lstrip().startswith(INJECTED_PREFIXES)
+
+
+def clean_detail(text) -> str:
+    return "" if injected_text(text) else (text or "")
+
+
 def prune_sessions(state: dict, now: int) -> None:
     local = state["local"]
+    # 一次性洗掉修复前已经被污染的任务名 / prompt 登记,否则 stop 推送会一直沿用旧值。
+    for entry in local.values():
+        if injected_text(entry.get("detail")):
+            entry["detail"] = ""
+    prompts = state.get("prompts", {})
+    for sid in [k for k, v in prompts.items() if injected_text(v.get("text"))]:
+        del prompts[sid]
     limits = {"done": DONE_LINGER_SECONDS,
               "waiting": WAITING_LINGER_SECONDS,
               "running": RUNNING_MAX_AGE}
@@ -2211,16 +2232,11 @@ def main():
         prev = state["local"].get(session_id) or {}
         # Last-prompt registry: outlives the session record (like `terms`),
         # so stop/notification after a prune/resurrect still name the task.
-        last_prompt = (state.get("prompts", {}).get(session_id) or {}).get("text", "")
+        last_prompt = clean_detail((state.get("prompts", {}).get(session_id) or {}).get("text", ""))
         if kind == "prompt":
             own_pid, parent_pid = claude_pids()
-            raw_prompt = (hook.get("prompt") or "").lstrip()
-            # 后台任务完成、系统提醒、斜杠命令回显等是 Claude Code 注入的,不是用户敲的:
-            # 不能当任务名,否则锁屏上全是 <task-notification> <task-id>…;沿用上一条真实 prompt。
-            injected = raw_prompt.startswith(("<task-notification", "<system-reminder",
-                                              "<command-name", "<local-command",
-                                              "<user-prompt-submit-hook", "[Request interrupted"))
-            ptext = "" if injected else excerpt(hook.get("prompt"))
+            # 注入的伪 prompt 不能当任务名,否则锁屏上全是 <task-notification> <task-id>…;沿用上一条真实 prompt。
+            ptext = "" if injected_text(hook.get("prompt")) else excerpt(hook.get("prompt"))
             if ptext:
                 state.setdefault("prompts", {})[session_id] = {
                     "text": ptext, "ts": int(now)}
@@ -2229,7 +2245,7 @@ def main():
                 "project": project, "status": "running", "since": now,
                 # Slash commands / spawned first beats carry no prompt text —
                 # never blank out a task that already has a name.
-                "detail": ptext or prev.get("detail") or last_prompt, "agents": 0,
+                "detail": ptext or clean_detail(prev.get("detail")) or last_prompt, "agents": 0,
                 "cwd": cwd,
                 "root": project_root(cwd),
                 "pid": own_pid or prev.get("pid"),
@@ -2259,7 +2275,7 @@ def main():
             # "waiting for your input" message does not.
             state["local"][session_id] = {
                 "project": project, "status": "waiting", "since": now,
-                "detail": prev.get("detail") or last_prompt or excerpt(
+                "detail": clean_detail(prev.get("detail")) or last_prompt or excerpt(
                     hook.get("message") or hook.get("tool_name")),
                 "agents": prev.get("agents", 0),
                 "cmd_ts": prev.get("cmd_ts", 0),
@@ -2273,7 +2289,7 @@ def main():
         elif kind == "stop":
             state["local"][session_id] = {
                 "project": project, "status": "done", "since": now,
-                "detail": prev.get("detail") or last_prompt, "agents": 0,
+                "detail": clean_detail(prev.get("detail")) or last_prompt, "agents": 0,
                 "cmd_ts": prev.get("cmd_ts", 0),
                 "pid": prev.get("pid") or find_claude_pid(),
                 "parent_pid": prev.get("parent_pid") or claude_pids()[1],
@@ -2321,7 +2337,7 @@ def main():
                                    10, watch_return=False)
             return
 
-    task_detail = (load_sessions()["local"].get(session_id) or {}).get("detail", "")
+    task_detail = clean_detail((load_sessions()["local"].get(session_id) or {}).get("detail", ""))
 
     raw_md = ""
     body_key = body_args = None   # 固定短语走 loc-key;动态正文(Claude 的回复)原样发
