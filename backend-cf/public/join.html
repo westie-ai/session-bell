@@ -24,16 +24,15 @@
   <h1><span class="bell">🔔</span> SessionBell 接入</h1>
   <p>前提只有一个:一台装了 Claude Code 的 Mac。</p>
 
-  <div class="step"><b>① 在 Mac 的终端里粘这一行,回车</b><br><br>
-    <code id="cmd">curl -fsSL sessionbell.westie.ai/i | bash</code><button onclick="copy()">复制</button><br>
-    <span class="sm">10 秒左右跑完,浏览器会弹出一个二维码,终端里也会打印一个 6 位数字。</span></div>
+  <div class="step"><b>① iPhone 装 SessionBell</b><br>
+    <a href="https://apps.apple.com/app/id6801045681">App Store 下载</a>(iOS 17.2+),打开后点「我现在就在 Mac 前」。<br>
+    <span class="sm">App 会给你一行带 6 位数字的命令,点一下就复制好了。</span></div>
 
-  <div class="step"><b>② 拿起 iPhone,相机扫那个二维码</b><br>
-    <span class="sm">没装 App 会先跳到 App Store(iOS 17.2+);装完输入那 6 位数字就配对完成,锁屏出现第一张卡。</span></div>
+  <div class="step"><b>② 在 Mac 的终端里粘那一行,回车</b><br>
+    <span class="sm">10 秒左右跑完。手机页面会自己跳走,锁屏上出现第一张卡片。之后 Claude Code 停下来等你时,手机就会响。</span></div>
 
-  <p class="sm">先装了 App 也一样:首屏会给你一行带数字的命令,拿到 Mac 上跑。
-    自己部署后端的话把域名换成你的,或者 <code>SB_BACKEND=https://你的域名 bash</code>。
-    Windows 见 <a href="/">首页</a>。</p>
+  <p class="sm">也可以反过来:先在 Mac 上跑 <code id="cmd">curl -fsSL sessionbell.westie.ai/i | bash</code><button onclick="copy()">复制</button>,再用 iPhone 扫弹出的二维码。
+    自己部署后端的话把域名换成你的。Windows 见 <a href="/">首页</a>。</p>
 
 <script>
 function copy(){

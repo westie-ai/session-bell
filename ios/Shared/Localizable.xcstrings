@@ -2715,6 +2715,16 @@
           }
         }
       }
+    },
+    "Have 6 digits from a Mac instead? Enter them here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手里有 Mac 给的 6 位数字？在这里输入"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

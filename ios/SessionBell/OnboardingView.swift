@@ -265,14 +265,11 @@ struct ConnectMacStep: View {
 
             if hostFound.isEmpty && firstTime {
                 Section {
-                    Button {
-                        onEnterCode()
-                    } label: {
-                        Label("Enter the 6 digits from the Mac", systemImage: "number")
-                    }
-                } header: {
-                    Text("Already ran a command on the Mac and it shows 6 digits?")
+                    Button("Have 6 digits from a Mac instead? Enter them here") { onEnterCode() }
+                        .font(.footnote)
+                        .foregroundStyle(Color.sbInk3)
                 }
+                .listRowBackground(Color.clear)
             }
         }
         .navigationTitle("Connect your Mac")
