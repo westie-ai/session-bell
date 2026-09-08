@@ -552,30 +552,26 @@ struct MachineControls: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Toggle(isOn: awakeBinding) {
                 Label(caffePending ? "Applying…" : "Keep Mac awake",
                       systemImage: group.awake ? "cup.and.saucer.fill" : "cup.and.saucer")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(group.awake ? .orange : .secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(group.awake ? .orange : .primary)
                     .lineLimit(1)
             }
             .toggleStyle(.switch)
-            .controlSize(.mini)
             .tint(.orange)
             .disabled(caffePending)
-            .fixedSize(horizontal: true, vertical: false)
-
-            Spacer(minLength: 8)
 
             Button {
                 showSpawn = true
             } label: {
                 Label("Start a task on this Mac", systemImage: "terminal")
                     .labelStyle(.titleAndIcon)
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .tint(Color.sbAccentDeep)
