@@ -2475,6 +2475,36 @@
           }
         }
       }
+    },
+    "One line in Terminal on your Mac, about 30 seconds. Tap below when you're in front of it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 的终端里粘一行命令，大约 30 秒。人到 Mac 前了就点下面。"
+          }
+        }
+      }
+    },
+    "Look up: the panel is already in the Dynamic Island. Lock the phone and it's on the Lock Screen too.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抬头看，面板已经在灵动岛里了。锁上屏幕，锁屏上也有。"
+          }
+        }
+      }
+    },
+    "From now on it fills in whenever Claude Code stops and waits for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从现在起，Claude Code 停下来等你时，它就会显示具体任务。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

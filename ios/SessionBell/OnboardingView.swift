@@ -225,7 +225,10 @@ private struct ConnectMacStep: View {
                     Label("Connected to \(hostFound) 🎉", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
-                    Text("From now on, when Claude Code stops and waits for you, a card shows up on this Lock Screen.")
+                    Label("Look up: the panel is already in the Dynamic Island. Lock the phone and it's on the Lock Screen too.", systemImage: "platter.filled.top.iphone")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("From now on it fills in whenever Claude Code stops and waits for you.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button {
@@ -291,8 +294,11 @@ private struct ConnectMacStep: View {
             if let obj = await SBBackend.getJSON("/api/state") as? [String: Any],
                let host = obj.keys.first {
                 hostFound = host
+                UserDefaults.standard.set(true, forKey: "sb.macSeen")
                 SBBackend.event("paired")
                 await EventStore.shared.refresh()
+                // 引导的最后一步就是第一张卡:灵动岛 / 锁屏上立刻出现面板。
+                if #available(iOS 17.2, *) { _ = await LiveActivityManager.shared.reviveDashboard() }
                 UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [OnboardingView.reminderId])
                 return
             }
@@ -334,6 +340,8 @@ private struct CodeEntryStep: View {
                 if !host.isEmpty {
                     Label("Connected to \(host) 🎉", systemImage: "checkmark.circle.fill")
                         .font(.headline).foregroundStyle(.green)
+                    Label("Look up: the panel is already in the Dynamic Island. Lock the phone and it's on the Lock Screen too.", systemImage: "platter.filled.top.iphone")
+                        .font(.footnote).foregroundStyle(.secondary)
                     Button {
                         onDone()
                     } label: {
@@ -376,6 +384,7 @@ private struct CodeEntryStep: View {
             await OnboardingView.registerTokens()
             let state = await SBBackend.getJSON("/api/state") as? [String: Any]
             host = state?.keys.first ?? String(localized: "your Mac")
+            UserDefaults.standard.set(true, forKey: "sb.macSeen")
             SBBackend.event("paired")
             await EventStore.shared.refresh()
             if #available(iOS 17.2, *) { _ = await LiveActivityManager.shared.reviveDashboard() }

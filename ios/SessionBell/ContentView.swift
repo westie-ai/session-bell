@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var createError = ""
     @State private var showFeedback = false
     @State private var confirmReset = false
+    /// 这台手机是否见过任何一台 Mac 的心跳:没见过 → 任务页空态引导去连 Mac,而不是"给 agent 派活"。
+    @AppStorage("sb.macSeen") private var macSeen = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -46,6 +48,9 @@ struct ContentView: View {
         }
         .onReceive(store.$pendingApproval) { approval in
             if approval != nil { selectedTab = 0 }
+        }
+        .onReceive(store.$liveGroups) { groups in
+            if !groups.isEmpty && !isDemo { macSeen = true }
         }
         .onReceive(store.$pendingPairCode) { code in
             guard let code else { return }
@@ -80,6 +85,7 @@ struct ContentView: View {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [OnboardingView.reminderId])
             isDemo = false
             onboarded = false
+            macSeen = false
             selectedTab = 0
             navPath = NavigationPath()
             onboardingStart = .welcome
@@ -158,15 +164,25 @@ struct ContentView: View {
             .overlay {
                 if !isDemo && store.pendingApproval == nil && store.liveGroups.isEmpty && store.groups.isEmpty {
                     ContentUnavailableView {
-                        Label("No Tasks Yet", systemImage: "bell")
+                        Label(macSeen ? "No Tasks Yet" : "Not connected to a Mac yet", systemImage: macSeen ? "bell" : "laptopcomputer.slash")
                     } description: {
                         Text(SBBackend.saved == nil
                              ? "Finish setup first. Tasks will show up here once a Mac connects."
-                             : "Give an agent a job on your Mac. Tasks appear here and on the Lock Screen in real time, and your phone rings when they finish.")
+                             : macSeen
+                             ? "Give an agent a job on your Mac. Tasks appear here and on the Lock Screen in real time, and your phone rings when they finish."
+                             : "One line in Terminal on your Mac, about 30 seconds. Tap below when you're in front of it.")
                     } actions: {
                         if SBBackend.saved == nil {
                             Button("Start Setup") { showOnboarding = true }
                                 .buttonStyle(.borderedProminent)
+                        } else if !macSeen {
+                            Button {
+                                onboardingStart = .atMac
+                                showOnboarding = true
+                            } label: {
+                                Label("I'm at my Mac now", systemImage: "laptopcomputer")
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                 }

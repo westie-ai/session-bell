@@ -116,7 +116,7 @@ enum SBBackend {
     static func reset() {
         Keychain.delete()
         let d = UserDefaults.standard
-        for k in [urlKey, secretKey, demoKey, "sb.onboarded", "sb.tab", "sb.installFlag"] {
+        for k in [urlKey, secretKey, demoKey, "sb.onboarded", "sb.tab", "sb.installFlag", "sb.macSeen"] {
             d.removeObject(forKey: k)
         }
         cache = nil
