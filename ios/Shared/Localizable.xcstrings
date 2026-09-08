@@ -2505,6 +2505,36 @@
           }
         }
       }
+    },
+    "Switch this phone to another Mac?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把这台手机切到另一台 Mac？"
+          }
+        }
+      }
+    },
+    "Switch and pair": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换并配对"
+          }
+        }
+      }
+    },
+    "This phone is already paired. Entering the new code moves it to that Mac's space; the current Mac stops showing up until you pair it again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台手机已经配过对了。输入新数字会把它切到那台 Mac 的空间，当前的 Mac 会消失，直到你再次配对它。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

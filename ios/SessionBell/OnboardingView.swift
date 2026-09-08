@@ -7,7 +7,7 @@ import UserNotifications
 ///   「Mac 上有 6 位数字」→ Mac 先跑了脚本,手机输码 / 扫码进来认领
 /// SBBackend.saved 已存在的老用户不会看到这里(ContentView 里判断)。
 struct OnboardingView: View {
-    enum Step: Equatable { case welcome, atMac, code(prefill: String?), manual }
+    enum Step: Hashable { case welcome, atMac, code(prefill: String?), manual }
     @State private var step: Step
     @State private var busy = false
     @State private var error = ""
@@ -33,7 +33,7 @@ struct OnboardingView: View {
                 if step != .welcome {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Back") {
-                            if case .code = step, SBBackend.saved != nil { step = .atMac } else { step = .welcome }
+                            if case .code = step, SBBackend.saved != nil, !SBBackend.isDemo { step = .atMac } else { step = .welcome }
                         }
                     }
                 }
@@ -133,6 +133,9 @@ struct OnboardingView: View {
             busy = false
             if demo {
                 SBBackend.event("demo_seen")
+                // 静默授权(不弹窗)足够投递 24h 后那条本地提醒;正式的权限弹窗留到连接页。
+                _ = try? await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.provisional, .alert, .sound])
                 OnboardingView.scheduleConnectReminder()
                 onDone()
             } else {
@@ -281,9 +284,17 @@ private struct ConnectMacStep: View {
         .onDisappear { polling = false }
     }
 
+    @State private var lastMintAttempt = Date.distantPast
+
     private func mint() async {
         guard !minting else { return }
         minting = true
+        lastMintAttempt = Date()
+        // 从演示模式过来:先开一个真实空间,绝不给共享的演示租户铸码。
+        if SBBackend.isDemo {
+            if await SBBackend.signup() != nil { minting = false; return }
+            await OnboardingView.registerTokens()
+        }
         short = await SBBackend.mintShortCode()
         minting = false
     }
@@ -303,7 +314,8 @@ private struct ConnectMacStep: View {
                 return
             }
             if Date().timeIntervalSince(started) > 120 { waitedLong = true }
-            if short?.isExpired ?? false { await mint() }
+            // 没铸到(断网 / 限流)或过期 → 重试,最快 20 秒一次,别把每小时 30 次的额度打光。
+            if (short == nil || short!.isExpired) && Date().timeIntervalSince(lastMintAttempt) > 20 { await mint() }
             try? await Task.sleep(for: .seconds(4))
         }
     }
@@ -319,6 +331,7 @@ private struct CodeEntryStep: View {
     @State private var busy = false
     @State private var error = ""
     @State private var host = ""
+    @State private var switchTarget: String?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -362,7 +375,27 @@ private struct CodeEntryStep: View {
         .navigationTitle("Digits from the Mac")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if let prefill, code.isEmpty { code = prefill } else { focused = true }
+            if let prefill, code.isEmpty {
+                // 已经配好真实空间的手机再扫码 = 要切到另一台 Mac 的空间:让用户确认,不自动切。
+                if SBBackend.saved != nil && !SBBackend.isDemo {
+                    switchTarget = prefill
+                } else {
+                    code = prefill
+                }
+            } else {
+                focused = true
+            }
+        }
+        .confirmationDialog("Switch this phone to another Mac?", isPresented: Binding(
+            get: { switchTarget != nil }, set: { if !$0 { switchTarget = nil } }
+        ), titleVisibility: .visible) {
+            Button("Switch and pair") {
+                if let t = switchTarget { code = t }
+                switchTarget = nil
+            }
+            Button("Cancel", role: .cancel) { switchTarget = nil; onDone() }
+        } message: {
+            Text("This phone is already paired. Entering the new code moves it to that Mac's space; the current Mac stops showing up until you pair it again.")
         }
     }
 

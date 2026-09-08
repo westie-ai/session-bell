@@ -1169,6 +1169,14 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
     tasks = merged_tasks(state, my_label, now)
     active = [t for t in tasks if t["status"] in ("waiting", "running")]
     content_state = {"tasks": tasks, "updatedAt": now}
+    # 5h 窗口 / 周用量:锁屏卡标题右侧那个小数字。没有缓存就不带,卡片自动不显示。
+    u = cached_usage()
+    if u.get("official_session_pct") is not None:
+        content_state["usage5h"] = int(u["official_session_pct"])
+        if u.get("session_reset_ts"):
+            content_state["usage5hResets"] = int(u["session_reset_ts"])
+    if u.get("official_pct") is not None:
+        content_state["usageWeek"] = int(u["official_pct"])
     # Keep approval buttons on the card across unrelated dashboard updates.
     try:
         with open(PENDING_APPROVAL_PATH) as f:
@@ -1299,18 +1307,35 @@ def restart_relay() -> None:
 def self_update_from_hook(cfg: dict) -> None:
     """Hook events (stop / session-end) also drive updates, throttled to once
     per HOOK_UPDATE_INTERVAL, so a Mac whose relay died still converges on the
-    hosted version and gets its relay restarted in the process."""
+    hosted version. Runs DETACHED: the hook itself must not spend up to 20 s on
+    a download before it has even read its event (session-end has a 30 s budget)."""
     try:
         if time.time() - os.path.getmtime(UPDATE_STAMP) < HOOK_UPDATE_INTERVAL:
             return
     except OSError:
         pass
     try:
+        kwargs = {"creationflags": WIN_DETACHED} if IS_WIN else {"start_new_session": True}
+        subprocess.Popen(self_cmd("self-update"), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs)
+    except Exception as exc:
+        log(f"self-update spawn failed: {exc}")
+
+
+def cmd_self_update(cfg: dict) -> None:
+    """Detached worker: check for a newer hosted script, then make sure the relay
+    is alive either way. The throttle stamp is written only after a completed
+    check, so an offline attempt does not silence updates for 6 h."""
+    self_update(cfg, exit_after=False)
+    if not IS_WIN:
+        # kickstart WITHOUT -k: starts the job only if it is not running.
+        subprocess.run(["launchctl", "kickstart", f"gui/{os.getuid()}/dev.piper.sessionbell.relay"],
+                       capture_output=True)
+    try:
         with open(UPDATE_STAMP, "w") as f:
             f.write(str(int(time.time())))
     except OSError:
-        return
-    self_update(cfg, exit_after=False)
+        pass
 
 
 def self_update(cfg: dict, exit_after: bool = True) -> None:
@@ -2144,6 +2169,9 @@ def main():
 
     if kind == "relay":
         run_relay(cfg)
+        return
+    if kind == "self-update":
+        cmd_self_update(cfg)
         return
     if kind in ("stop", "session-end"):
         self_update_from_hook(cfg)

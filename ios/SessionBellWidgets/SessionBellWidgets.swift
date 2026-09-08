@@ -127,6 +127,13 @@ private struct TaskRow: View {
     /// 全部任务同一台 Mac 时,host 收进标题行,行内不再重复
     var showHost = true
 
+    /// 一行说清"在干嘛":有 prompt 摘录就以它为主、项目名缩成小字;没有就只剩项目名。
+    private var primary: String {
+        let d = (task.detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return d.isEmpty ? task.project : d
+    }
+    private var showsProjectTag: Bool { primary != task.project }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: compact ? 5 : 8) {
@@ -138,9 +145,16 @@ private struct TaskRow: View {
                 Image(systemName: statusSymbol(task.status))
                     .font(compact ? .caption2 : .subheadline)
                     .foregroundStyle(statusColor(task.status))
-                Text(task.project)
+                Text(primary)
                     .font(compact ? .caption2 : .subheadline.weight(.medium))
                     .lineLimit(1)
+                    .layoutPriority(1)
+                if showsProjectTag {
+                    Text(task.project)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 if showHost {
                     Text(shortHost(task.host))
                         .font(.caption2)
@@ -159,13 +173,29 @@ private struct TaskRow: View {
                     .foregroundStyle(task.status == "waiting" ? coral : .secondary)
                     .frame(maxWidth: 64, alignment: .trailing)
             }
-            if !compact, showDetail, let detail = task.detail, !detail.isEmpty {
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.leading, 26)
+        }
+    }
+}
+
+/// 标题右侧的用量角标:5 小时窗口为主,周用量为辅。≥ 80% 变珊瑚色提醒。
+private struct UsageChip: View {
+    let state: DashState
+    var body: some View {
+        if let five = state.usage5h {
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                Text("\(five)%")
+                if let week = state.usageWeek {
+                    Text("·").foregroundStyle(.tertiary)
+                    Text("wk \(week)%")
+                }
             }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(five >= 80 ? coral : .secondary)
+        } else {
+            Image(systemName: "bell.fill")
+                .font(.caption)
+                .foregroundStyle(coral.opacity(0.6))
         }
     }
 }
@@ -179,7 +209,7 @@ private struct LockScreenView: View {
         let dense = state.tasks.count > 2
         let hosts = Set(state.tasks.map(\.host))
         let sharedHost = hosts.count == 1 ? hosts.first : nil
-        let shown = dense ? 4 : 3
+        let shown = dense ? 5 : 3
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -194,9 +224,7 @@ private struct LockScreenView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "bell.fill")
-                    .font(.caption)
-                    .foregroundStyle(coral.opacity(0.6))
+                UsageChip(state: state)
             }
             VStack(alignment: .leading, spacing: dense ? 4 : 6) {
                 ForEach(Array(state.tasks.prefix(shown).enumerated()), id: \.element) { i, task in
@@ -237,7 +265,7 @@ private struct LockScreenView: View {
             .init(project: "wesdget", host: "Piper的 MacBook Pro (2)", status: "done",
                   since: now - 100, detail: nil),
         ],
-        updatedAt: now)
+        updatedAt: now, usage5h: 8, usage5hResets: now + 3400, usageWeek: 23)
     SessionActivityAttributes.ContentState(
         tasks: [
             .init(project: "reply", host: "Piper的 MacBook Pro (2)", status: "waiting",

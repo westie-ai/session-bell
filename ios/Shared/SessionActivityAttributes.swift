@@ -24,6 +24,11 @@ struct SessionActivityAttributes: ActivityAttributes {
         var approvalId: String?
         var approvalSummary: String?
 
+        // Claude usage from the Mac's cached OAuth usage endpoint (optional: older hooks omit them).
+        var usage5h: Int?             // 5-hour window, percent used
+        var usage5hResets: TimeInterval?  // unix seconds when the window resets
+        var usageWeek: Int?           // weekly quota, percent used
+
         var waitingCount: Int { tasks.filter { $0.status == "waiting" }.count }
         var runningCount: Int { tasks.filter { $0.status == "running" }.count }
         var activeCount: Int { waitingCount + runningCount }

@@ -13,16 +13,20 @@ extension SBBackend {
         var isExpired: Bool { Date() >= expires }
     }
 
-    /// 给 Mac 端看的那一行。域名跟着 hostedBase 走,自托管也成立。
+    /// 短码所在的后端 = 当前租户的后端(码就是往那里铸的);没配对时退回托管服务。
+    static var pairingBase: String { saved?.url ?? hostedBase }
+
+    /// 给 Mac 端看的那一行。域名跟着租户的后端走,自托管的 `/i` 会把自己的域名烤进脚本。
     static func oneLiner(code: String) -> String {
-        let host = hostedBase.replacingOccurrences(of: "https://", with: "")
+        let base = pairingBase
+        let host = base.replacingOccurrences(of: "https://", with: "")
             .replacingOccurrences(of: "http://", with: "")
-        let scheme = hostedBase.hasPrefix("http://") ? "http://" : ""
+        let scheme = base.hasPrefix("http://") ? "http://" : ""
         return "curl -fsSL \(scheme)\(host)/i | bash -s \(code)"
     }
 
-    /// 发给 Mac 的网页:大按钮复制命令 / 下载 .command 双击。AirDrop 这个链接,Mac 会直接用 Safari 打开。
-    static func macPageURL(code: String) -> URL? { URL(string: hostedBase + "/m/" + code) }
+    /// 发给 Mac 的网页:大按钮复制命令。AirDrop 这个链接,Mac 会直接用 Safari 打开。
+    static func macPageURL(code: String) -> URL? { URL(string: pairingBase + "/m/" + code) }
 
     /// 写剪贴板。显式 setItems + localOnly=false,并给 15 分钟过期,让通用剪贴板能同步到 Mac。
     static func copyToPasteboard(_ text: String) {

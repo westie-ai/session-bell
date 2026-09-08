@@ -47,16 +47,26 @@ EOF
 curl -fsSL "$BACKEND_URL/sessionbell_hook.py" -o "$DIR/sessionbell_hook.py"
 chmod +x "$DIR/sessionbell_hook.py"
 
-# 写配置(网关模式:无 p8、无 device_tokens,全部走后端)
-[ -f "$DIR/config.json" ] || cat > "$DIR/config.json" <<EOF
-{
-  "bundle_id": "dev.yuesun.SessionBell",
-  "environment": "production",
-  "min_idle_seconds": 120,
-  "backend_url": "$BACKEND_URL",
-  "backend_secret": "$BACKEND_SECRET"
-}
-EOF
+# 写配置(网关模式:无 p8、无 device_tokens,全部走后端)。已有配置就只换后端坐标,
+# 其余设置保留 —— 重装 / 手机重置后重新配对时,Mac 必须跟着进新空间,否则手机永远等不到心跳。
+python3 - "$DIR/config.json" "$BACKEND_URL" "$BACKEND_SECRET" <<'PYEOF'
+import json, os, sys
+p, url, secret = sys.argv[1:4]
+cfg = {}
+if os.path.exists(p):
+    try:
+        cfg = json.load(open(p))
+    except ValueError:
+        cfg = {}
+cfg.setdefault("bundle_id", "dev.yuesun.SessionBell")
+cfg.setdefault("environment", "production")
+cfg.setdefault("min_idle_seconds", 120)
+if cfg.get("backend_url") != url or cfg.get("backend_secret") != secret:
+    if cfg.get("backend_secret"):
+        print("↻ 换到新的配对空间")
+    cfg["backend_url"], cfg["backend_secret"] = url, secret
+json.dump(cfg, open(p, "w"), indent=2, ensure_ascii=False)
+PYEOF
 
 # 挂 hooks
 HOOK="$DIR/sessionbell_hook.py"

@@ -63,11 +63,13 @@ struct ContentView: View {
             if !onboarded && SBBackend.saved == nil { showOnboarding = true }
         }
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: { onboardingStart = .welcome }) {
+            // .id:引导页已经打开时扫码进来(onboardingStart 变成 .code),要重建视图才能落到输码页。
             OnboardingView(initialStep: onboardingStart) {
                 showOnboarding = false
                 onboarded = true
                 Task { await store.refresh() }
             }
+            .id(onboardingStart)
         }
     }
 

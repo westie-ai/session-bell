@@ -396,7 +396,8 @@ async function handleFeedback(req, env, n) {
   const b = await readBody(req);
   const text = typeof b.text === 'string' ? b.text.trim().slice(0, 4000) : '';
   if (text.length < 2) return json({ error: 'empty' }, 400);
-  if (!(await rateLimit(env, 'feedback/' + n, 10, 86400))) {
+  const fbIp = req.headers.get('cf-connecting-ip') || 'unknown';
+  if (!(await rateLimit(env, `feedback/${n}/${fbIp}`, 10, 86400))) {
     return json({ error: 'rate limited' }, 429);
   }
   const contact = typeof b.contact === 'string' ? b.contact.trim().slice(0, 200) : '';
@@ -479,9 +480,20 @@ async function handlePairCode(req, env, n) {
 /// GET /api/pair/<code>/status → { redeemed, macs, phones }  (for the QR page)
 async function handlePair(req, env, url, code, sub) {
   const ip = req.headers.get('cf-connecting-ip') || 'unknown';
-  if (!(await rateLimit(env, 'pair/' + ip, 60, 600))) return json({ error: 'rate limited' }, 429);
+  // /status 是二维码页每 5 秒轮询一次的,单独一个宽松的桶;兑换才是要防猜的那个。
+  const ok = sub === 'status'
+    ? await rateLimit(env, 'pairstatus/' + ip, 600, 600)
+    : await rateLimit(env, 'pair/' + ip, 60, 600);
+  if (!ok) return json({ error: 'rate limited' }, 429);
   const pair = await readPair(env, code);
-  if (!pair) return json({ error: 'code expired or unknown' }, 404);
+  if (!pair) {
+    // 猜码防线:除了每 IP 限流,全站 10 分钟内的兑换未命中总数也封顶(只算兑换,不算轮询),
+    // 分布式猜 10^6 空间也划不来;1000/10min 对正常的手误绰绰有余。
+    if (sub !== 'status' && !(await rateLimit(env, 'pair-miss', 1000, 600))) {
+      return json({ error: 'rate limited' }, 429);
+    }
+    return json({ error: 'code expired or unknown' }, 404);
+  }
   if (sub === 'status') {
     const n = 'u/' + (await sha256hex(secretOf(pair.pc))).slice(0, 16);
     const [macs, phones] = await Promise.all([kvList(env, n, 'state/'), kvList(env, n, 'devices/')]);
@@ -509,7 +521,11 @@ async function handleEvent(req, env, n) {
 
 async function serveInstaller(req, env) {
   const r = await env.ASSETS.fetch(new Request(new URL('/install.sh', req.url), { method: 'GET' }));
-  return new Response(r.body, { status: r.status, headers: {
+  // 脚本默认后端 = 它是从哪里下载的:自托管的 `curl my.host/i | bash` 也就自动指向 my.host。
+  const origin = new URL(req.url).origin;
+  const text = (await r.text()).replace(
+    'BASE="${SB_BACKEND:-https://sessionbell.westie.ai}"', 'BASE="${SB_BACKEND:-' + origin + '}"');
+  return new Response(text, { status: r.status, headers: {
     'Content-Type': 'text/x-shellscript; charset=utf-8', 'Cache-Control': 'no-store',
   } });
 }
@@ -543,7 +559,7 @@ function macPage(code, origin, lang) {
 .card{max-width:560px;width:100%}h1{font-size:24px;margin-bottom:18px}code{display:block;font:15px ui-monospace,"SF Mono",Menlo,monospace;background:rgba(127,127,127,.12);padding:14px 16px;border-radius:12px;word-break:break-all;margin-bottom:14px}
 .btn{display:inline-block;background:var(--ink);color:var(--ground);padding:14px 22px;border-radius:14px;border:0;font:600 17px -apple-system,system-ui;cursor:pointer}.muted{color:var(--muted);font-size:15px;margin-top:10px}a{color:inherit}</style></head>
 <body><div class="card"><h1>${t.h}</h1><code id="c">${cmd}</code><button class="btn" id="b">${t.copy}</button><p class="muted">${t.paste}</p>
-<p class="muted" style="margin-top:26px">${t.or} <a href="${origin}/m/${code}.command">${t.dl}</a></p><p class="muted">${t.exp}</p></div>
+<p class="muted" style="margin-top:26px">${t.exp}</p></div>
 <script>document.getElementById('b').onclick=function(){navigator.clipboard.writeText(document.getElementById('c').textContent).then(function(){document.getElementById('b').textContent=${JSON.stringify(t.copied)}})}</script></body></html>`;
 }
 
@@ -626,11 +642,14 @@ h1{font-size:24px;line-height:1.25;margin-bottom:22px;text-wrap:balance}
   if(!isPhone&&window.QRCode){new QRCode(document.getElementById('qr'),{text:${JSON.stringify(link)},width:212,height:212,correctLevel:QRCode.CorrectLevel.M});}
   function show(el){[mac,phone,done,exp].forEach(function(e){e.classList.remove('show')});el.classList.add('show');}
   function tick(){
-    fetch('/api/pair/${code}/status',{cache:'no-store'}).then(function(r){return r.ok?r.json():{gone:true}}).then(function(j){
+    fetch('/api/pair/${code}/status',{cache:'no-store'}).then(function(r){
+      if(r.status===404||r.status===410){return {gone:true};}
+      return r.ok?r.json():{retry:true};
+    }).then(function(j){
       if(j.gone){show(exp);return;}
       if(j.phones>0&&(j.redeemed||j.macs>0)){show(done);return;}
-      setTimeout(tick,3000);
-    }).catch(function(){setTimeout(tick,5000)});
+      setTimeout(tick,j.retry?15000:5000);
+    }).catch(function(){setTimeout(tick,10000)});
   }
   tick();
 })();
@@ -796,6 +815,8 @@ export default {
 
   // 每 5 分钟刷新演示租户,保证锁屏/面板计时和状态轮转是"活"的;顺便清理过期行。
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(Promise.all([seedDemo(env), gc(env)]));
+    // 演示数据每 5 分钟刷;gc 的几条 DELETE 没有 ns 前缀会全表扫,一小时一次足够。
+    const hourly = new Date(event.scheduledTime).getMinutes() < 5;
+    ctx.waitUntil(Promise.all([seedDemo(env), hourly ? gc(env) : Promise.resolve()]));
   },
 };
