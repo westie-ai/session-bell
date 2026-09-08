@@ -658,7 +658,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已完成"
+            "value": "完成"
           }
         }
       }
@@ -2702,6 +2702,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "清空历史"
+          }
+        }
+      }
+    },
+    "One line in Terminal on the new Mac. This page waits and shows the Mac as soon as it connects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在新 Mac 的终端里粘一行命令。页面会一直等着，Mac 一接上就显示出来。"
           }
         }
       }

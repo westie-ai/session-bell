@@ -166,9 +166,13 @@ struct OnboardingView: View {
 
 // MARK: 屏 2a:我在 Mac 前 —— 一行命令 + 6 位码,等心跳
 
-private struct ConnectMacStep: View {
+struct ConnectMacStep: View {
     let onDone: () -> Void
     let onEnterCode: () -> Void
+    /// 从设置页「再加一台 Mac」进来时为 false:不显示输码入口(那会切换空间),
+    /// 且成功判定为"出现了之前没有的主机",而不是"有任意主机"。
+    var firstTime = true
+    @State private var baseline: Set<String> = []
     @State private var short: SBBackend.ShortCode?
     @State private var minting = false
     @State private var copied = false
@@ -259,7 +263,7 @@ private struct ConnectMacStep: View {
                 Text("Then")
             }
 
-            if hostFound.isEmpty {
+            if hostFound.isEmpty && firstTime {
                 Section {
                     Button {
                         onEnterCode()
@@ -274,7 +278,11 @@ private struct ConnectMacStep: View {
         .navigationTitle("Connect your Mac")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            SBBackend.event("connect_seen")
+            if firstTime { SBBackend.event("connect_seen") }
+            // 加第二台时先记下现有主机,之后只认新出现的那台。
+            if !firstTime, let obj = await SBBackend.getJSON("/api/state") as? [String: Any] {
+                baseline = Set(obj.keys)
+            }
             // 先把命令亮出来,再问通知权限:用户刚点了「我在 Mac 前」,知道弹窗是为了什么,
             // 而且弹窗背后那行命令已经在了。
             await mint()
@@ -303,10 +311,10 @@ private struct ConnectMacStep: View {
         let started = Date()
         while polling && hostFound.isEmpty {
             if let obj = await SBBackend.getJSON("/api/state") as? [String: Any],
-               let host = obj.keys.first {
+               let host = Set(obj.keys).subtracting(baseline).sorted().first {
                 hostFound = host
                 UserDefaults.standard.set(true, forKey: "sb.macSeen")
-                SBBackend.event("paired")
+                if firstTime { SBBackend.event("paired") }
                 await EventStore.shared.refresh()
                 // 引导的最后一步就是第一张卡:灵动岛 / 锁屏上立刻出现面板。
                 if #available(iOS 17.2, *) { _ = await LiveActivityManager.shared.reviveDashboard() }

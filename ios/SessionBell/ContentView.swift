@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var createError = ""
     @State private var showFeedback = false
     @State private var confirmReset = false
+    @State private var showAddMac = false
     /// 这台手机是否见过任何一台 Mac 的心跳:没见过 → 任务页空态引导去连 Mac,而不是"给 agent 派活"。
     @AppStorage("sb.macSeen") private var macSeen = false
 
@@ -292,16 +293,9 @@ struct ContentView: View {
                         .disabled(creatingSpace)
                     } else if SBBackend.pairingCode != nil {
                         Button {
-                            Task {
-                                guard let short = await SBBackend.mintShortCode() else { return }
-                                SBBackend.copyToPasteboard(SBBackend.oneLiner(code: short.code))
-                                copiedPair = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { copiedPair = false }
-                            }
+                            showAddMac = true
                         } label: {
-                            Label(copiedPair ? "Copied — paste it in Terminal on the other Mac (valid 15 min)"
-                                             : "Add another Mac",
-                                  systemImage: copiedPair ? "checkmark" : "plus")
+                            Label("Add another Mac", systemImage: "plus")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.sbAccentText)
                         }
@@ -309,7 +303,7 @@ struct ContentView: View {
                 } header: {
                     SectionLabel("Mac")
                 } footer: {
-                    Text("One line in Terminal on the new Mac; the command is copied for you.")
+                    Text("One line in Terminal on the new Mac. This page waits and shows the Mac as soon as it connects.")
                         .font(.caption).foregroundStyle(Color.sbInk3)
                 }
                 .listRowBackground(Color.sbCard)
@@ -410,6 +404,16 @@ struct ContentView: View {
             .background(Color.sbBackground)
             .navigationTitle("Settings")
             .sheet(isPresented: $showFeedback) { FeedbackView() }
+            .sheet(isPresented: $showAddMac) {
+                NavigationStack {
+                    ConnectMacStep(onDone: { showAddMac = false }, onEnterCode: {}, firstTime: false)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { showAddMac = false }
+                            }
+                        }
+                }
+            }
             .confirmationDialog("Reset SessionBell on this phone?", isPresented: $confirmReset, titleVisibility: .visible) {
                 Button("Reset and Start Over", role: .destructive) { resetEverything() }
                 Button("Cancel", role: .cancel) {}
