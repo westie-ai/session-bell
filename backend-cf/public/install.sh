@@ -120,8 +120,20 @@ cat > "$PLIST" <<EOF
 </dict>
 </plist>
 EOF
-launchctl bootout "gui/$(id -u)/dev.piper.sessionbell.relay" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+# (重新)拉起 relay。bootout 是异步的,紧接着 bootstrap 会撞上"5: Input/output error";
+# 重试几次,实在不行就 kickstart -k 让已加载的服务用新配置重启。任何一步失败都不中断安装。
+LABEL="dev.piper.sessionbell.relay"
+launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+started=""
+for i in 1 2 3 4 5; do
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then started=1; break; fi
+  sleep 1
+done
+if [ -z "$started" ]; then
+  launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null \
+    || launchctl load -w "$PLIST" 2>/dev/null \
+    || echo "⚠️ 后台服务没能自动启动;重启一次 Mac 就好,不影响接下来的配对。"
+fi
 
 # Otty 即时注入(可选,非 Otty 终端自动跳过)
 OTTY_CFG="$HOME/.config/otty/config.toml"
