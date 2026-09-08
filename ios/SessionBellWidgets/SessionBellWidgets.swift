@@ -18,7 +18,9 @@ struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
             LockScreenView(state: context.state, attrs: context.attributes)
-                .activityBackgroundTint(Color(.systemBackground).opacity(0.85))
+                // 不指定 tint:让锁屏用系统的半透明材质(和通知横幅一致)。指定 85% 的
+                // systemBackground 在锁屏上解析成白色,而锁屏文字是系统给的白字,白底白字看不清。
+                .activityBackgroundTint(nil)
                 .activitySystemActionForegroundColor(coral)
         } dynamicIsland: { context in
             DynamicIsland {
