@@ -223,11 +223,25 @@ struct ContentView: View {
                 ForEach(store.liveGroups.filter {
                     !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
                 }) { group in
-                    Section("💻 \(group.host)") {
+                    Section {
                         UsageDashboard(group: group)
+                    } header: {
+                        HStack(spacing: 8) {
+                            Circle().fill(Color.sbDone).frame(width: 7, height: 7)
+                            Text(group.host)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.sbInk)
+                                .lineLimit(1)
+                        }
+                        .textCase(nil)
+                        .padding(.horizontal, 4)
                     }
+                    .listRowBackground(Color.sbCard)
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color.sbBackground)
             .overlay {
                 if !hasUsage {
                     ContentUnavailableView {
@@ -803,8 +817,9 @@ struct SpawnSheet: View {
 struct UsageDashboard: View {
     let group: EventStore.HostGroup
 
+    /// 用量条平时是品牌深黄;只有快用完(≥ 85%)才换成"等待"那档珊瑚色提醒。
     private func statusColor(_ f: Double) -> Color {
-        f > 0.85 ? .red : f > 0.6 ? .orange : .green
+        f >= 0.85 ? .sbWaiting : .sbAccentText
     }
 
     var body: some View {
@@ -820,11 +835,11 @@ struct UsageDashboard: View {
                       fraction: fraction, color: statusColor(fraction),
                       detail: group.usage)
             } else if !group.usage.isEmpty {
-                Text(group.usage).font(.caption2).foregroundStyle(.secondary)
+                Text(group.usage).font(.footnote).foregroundStyle(Color.sbInk3)
             }
             if let fableFraction = group.fableFraction {
                 Meter(icon: "sparkles", label: "Premium Model",
-                      fraction: fableFraction, color: .purple,
+                      fraction: fableFraction, color: statusColor(fableFraction),
                       detail: group.fableText)
             } else if !group.fableText.isEmpty {
                 HStack(spacing: 5) {
@@ -846,35 +861,36 @@ struct Meter: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Label(label, systemImage: icon)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(Color.sbInk2)
                 Spacer()
                 Text("\(Int(min(fraction, 9.99) * 100))")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .foregroundStyle(color)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(fraction >= 0.85 ? Color.sbWaiting : Color.sbInk)
                     .monospacedDigit()
                 + Text(" %")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(color)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Color.sbInk3)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
+                    Capsule().fill(Color.sbLine)
                     Capsule()
-                        .fill(color.gradient)
+                        .fill(color)
                         .frame(width: max(6, geo.size.width * min(fraction, 1.0)))
                 }
             }
             .frame(height: 6)
             if !detail.isEmpty {
                 Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .foregroundStyle(Color.sbInk3)
             }
         }
+        .padding(.vertical, 4)
     }
 }
 
