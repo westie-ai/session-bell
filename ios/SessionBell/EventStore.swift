@@ -19,6 +19,8 @@ final class EventStore: ObservableObject {
     }
     @Published var pendingApproval: PendingApproval?
     @Published var openSessionId: String?
+    /// 从 universal link https://…/p/483920 进来的 6 位码,由 ContentView 消费。
+    @Published var pendingPairCode: String?
 
     struct LiveTask: Identifiable, Equatable, Hashable {
         let id: String

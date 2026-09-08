@@ -92,7 +92,7 @@ final class LiveActivityManager {
         if items.isEmpty {
             items = [.init(project: "SessionBell", host: String(localized: "Phone"), status: "running",
                            since: Date().timeIntervalSince1970,
-                           detail: String(localized: "Panel ready, waiting for task events"), agents: 0)]
+                           detail: String(localized: "Connected. This card fills in when Claude Code next stops for you."), agents: 0)]
         }
         let state = SessionActivityAttributes.ContentState(
             tasks: items, updatedAt: Date().timeIntervalSince1970,

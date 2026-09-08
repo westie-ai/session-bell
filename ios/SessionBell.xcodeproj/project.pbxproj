@@ -15,12 +15,14 @@
 		49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
 		608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
 		6B97A815BD156726B29C451F /* SessionBellWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		717C53A85F93386D16208B76 /* SBPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04728A4EDC1F6FE46294F21C /* SBPairing.swift */; };
 		721778149B63D94120835CD8 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3FEDCE86DCEA60048F5354 /* EventStore.swift */; };
 		7245D196AF0B8C6835D5408F /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
 		7D25FDF327B92F1D4EA80CB5 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */; };
 		84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
 		855FE8483C735CA18034CCFC /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */; };
 		97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */; };
+		9E14F41520BDB4100D6C26F0 /* SBPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04728A4EDC1F6FE46294F21C /* SBPairing.swift */; };
 		A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30D020BC225547233474D41 /* SessionBellWidgets.swift */; };
 		AF30E4ADFF8CEDE3FE091F5B /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		B69C92A0F01B60AC263AEF27 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */; };
@@ -65,6 +67,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		04728A4EDC1F6FE46294F21C /* SBPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBPairing.swift; sourceTree = "<group>"; };
 		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
 		2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SessionBellScreenshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -140,6 +143,7 @@
 				39DF9CF186A28179A81D6783 /* Localizable.xcstrings */,
 				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
 				469C754931B58C4AFE74D4BB /* SBBrand.swift */,
+				04728A4EDC1F6FE46294F21C /* SBPairing.swift */,
 				4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */,
 			);
 			path = Shared;
@@ -304,6 +308,7 @@
 				84585BCA7E1C43A2CDD08FD6 /* ApprovalIntent.swift in Sources */,
 				DA4F7919CAA57C5154D5BCD9 /* SBBackend.swift in Sources */,
 				1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */,
+				9E14F41520BDB4100D6C26F0 /* SBPairing.swift in Sources */,
 				3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */,
 				A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */,
 			);
@@ -324,6 +329,7 @@
 				B69C92A0F01B60AC263AEF27 /* OnboardingView.swift in Sources */,
 				3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */,
 				AF30E4ADFF8CEDE3FE091F5B /* SBBrand.swift in Sources */,
+				717C53A85F93386D16208B76 /* SBPairing.swift in Sources */,
 				087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */,
 				97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */,
 			);

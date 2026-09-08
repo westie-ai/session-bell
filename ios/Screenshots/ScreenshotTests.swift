@@ -86,28 +86,78 @@ final class ScreenshotTests: XCTestCase {
         return app
     }
 
-    /// 先看看演示 → 直接进 App,任务页顶部有演示横幅,demo 任务可见。
+    // 按钮 / 文案在两种语言下都要能找到:用 label 的中英文候选。
+    private func first(_ q: XCUIElementQuery, _ labels: [String], timeout: TimeInterval = 10) -> XCUIElement {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for l in labels where q[l].exists { return q[l] }
+            for l in labels {
+                let m = q.containing(NSPredicate(format: "label CONTAINS %@", l)).firstMatch
+                if m.exists { return m }
+            }
+            usleep(300_000)
+        }
+        return q[labels[0]]
+    }
+    private var atMacBtn: [String] { ["I'm at my Mac now", "我现在就在 Mac 前"] }
+    private var demoBtn: [String] { ["Not right now — show me the demo", "现在不在，先看看演示"] }
+    private var codeBtn: [String] { ["My Mac is showing a 6-digit code", "Mac 屏幕上有一个 6 位数字"] }
+    private var copyBtn: [String] { ["Copy the line", "复制这一行"] }
+
+    /// 先看看演示 → 直接进 App,任务页顶部是"还没连上 Mac"的卡,demo 任务可见。
     func testDemoFlow() {
         let app = launchFresh()
-        let demo = app.buttons["Try the demo first"]
+        let demo = first(app.buttons, demoBtn)
         XCTAssertTrue(demo.waitForExistence(timeout: 10))
         demo.tap()
-        XCTAssertTrue(app.staticTexts["Demo data"].waitForExistence(timeout: 20))
+        XCTAssertTrue(first(app.staticTexts, ["Not connected to a Mac yet", "还没连上 Mac"], timeout: 20).exists)
         XCTAssertTrue(app.staticTexts["checkout"].waitForExistence(timeout: 20))
         sleep(2)
         save("5-demo")
-        // 横幅里「创建我的空间」→ 真实租户 → 直接落到「连接 Mac」
-        app.buttons["Create My Space"].tap()
-        XCTAssertTrue(app.staticTexts["Waiting for the Mac's first heartbeat…"].waitForExistence(timeout: 20))
+        // 卡片里「我现在就在 Mac 前」→ 真实租户 → 直接落到「连接 Mac」
+        first(app.buttons, atMacBtn).tap()
+        XCTAssertTrue(first(app.buttons, copyBtn, timeout: 20).exists)
     }
 
-    /// 开始使用 → 开新租户 → 停在「连接 Mac」等心跳。
+    /// 我在 Mac 前 → 开新租户 → 停在「连接 Mac」,命令里带 6 位码。
     func testOpenSignup() {
         let app = launchFresh()
-        let start = app.buttons["Get Started"]
+        let start = first(app.buttons, atMacBtn)
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         start.tap()
-        XCTAssertTrue(app.staticTexts["Waiting for the Mac's first heartbeat…"].waitForExistence(timeout: 20))
+        XCTAssertTrue(first(app.buttons, copyBtn, timeout: 20).exists)
+        app.navigationBars.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "| bash -s ")).firstMatch.waitForExistence(timeout: 15))
+    }
+
+    /// 新引导的每一屏各截一张:首屏 / 我在 Mac 前 / 输码 / 输码成功。
+    /// TEST_RUNNER_SB_CODE = 本地 worker 上一个已有 Mac 心跳的租户的 6 位码。
+    func testOnboardingScreens() {
+        let app = launchFresh()
+        XCTAssertTrue(first(app.buttons, atMacBtn).waitForExistence(timeout: 10))
+        sleep(2)
+        save("onb-1-welcome")
+
+        first(app.buttons, atMacBtn).tap()
+        XCTAssertTrue(first(app.buttons, copyBtn, timeout: 20).exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "| bash -s ")).firstMatch.waitForExistence(timeout: 15))
+        app.navigationBars.firstMatch.tap()   // 触发中断监视器,点掉通知权限弹窗
+        sleep(1)
+        save("onb-2-atmac")
+
+        first(app.buttons, ["Back", "返回"]).tap()
+        first(app.buttons, codeBtn).tap()
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        sleep(1)
+        save("onb-3-code")
+
+        guard let code = env["SB_CODE"], code.count == 6 else { return }
+        field.tap()
+        field.typeText(code)
+        XCTAssertTrue(first(app.staticTexts, ["Connected to", "已连接"], timeout: 25).exists)
+        sleep(2)
+        save("onb-4-paired")
     }
 
     func testDetail() {

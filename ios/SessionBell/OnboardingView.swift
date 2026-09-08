@@ -1,11 +1,13 @@
 import SwiftUI
+import UserNotifications
 
-/// 首跑:欢迎(开始使用 / 先看看演示 / 配对码·自托管)→ 连接 Mac。
-/// 开放注册,点「开始使用」直接开一个空租户;演示走共享 demo 租户,
-/// 之后在任务页横幅里一键换成自己的空间(从 .connectMac 进来)。
+/// 首跑。第一句话就是前提:SessionBell 需要和一台 Mac 配对。
+///   「我现在在 Mac 前」 → 开空间 → 一行命令 + 6 位码,等 Mac 心跳
+///   「现在不在」        → 演示租户,任务页常驻一张"回到 Mac 前时跑这一行"的卡,24h 后本地提醒
+///   「Mac 上有 6 位数字」→ Mac 先跑了脚本,手机输码 / 扫码进来认领
 /// SBBackend.saved 已存在的老用户不会看到这里(ContentView 里判断)。
 struct OnboardingView: View {
-    enum Step { case welcome, manual, connectMac }
+    enum Step: Equatable { case welcome, atMac, code(prefill: String?), manual }
     @State private var step: Step
     @State private var busy = false
     @State private var error = ""
@@ -21,19 +23,21 @@ struct OnboardingView: View {
             Group {
                 switch step {
                 case .welcome: welcome
-                case .manual: ManualStep(onSuccess: { step = .connectMac })
-                case .connectMac: ConnectMacStep(onDone: onDone)
+                case .atMac: ConnectMacStep(onDone: onDone)
+                case .code(let prefill):
+                    CodeEntryStep(prefill: prefill, onDone: onDone, onManual: { step = .manual })
+                case .manual: ManualStep(onSuccess: { step = .atMac })
                 }
             }
             .toolbar {
-                if step == .manual {
+                if step != .welcome {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Back") { step = .welcome }
                     }
                 }
-                if step == .connectMac {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Connect Later") { onDone() }
+                if step == .atMac {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Later") { later() }
                     }
                 }
             }
@@ -41,76 +45,81 @@ struct OnboardingView: View {
         .interactiveDismissDisabled()
     }
 
+    // MARK: 屏 1
+
     private var welcome: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            Image(systemName: "bell.badge.waveform.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Color.sbAccent.gradient)
-                .padding(.bottom, 20)
-            Text("Your Agents, on the Lock Screen")
-                .font(.largeTitle.bold())
-            Text("A phone command center for\nClaude Code and other local coding agents")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.top, 6)
+        ScrollView {
+            VStack(spacing: 0) {
+                Image(systemName: "bell.badge.waveform.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(Color.sbAccent.gradient)
+                    .padding(.top, 36)
+                    .padding(.bottom, 18)
+                Text("SessionBell pairs with your Mac")
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+                Text("It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
 
-            VStack(alignment: .leading, spacing: 16) {
-                featureRow("bell.badge", "Waiting, finished, or needs approval — pushed straight to you",
-                           "Stays quiet while you're at the Mac")
-                featureRow("platter.filled.bottom.iphone", "One Lock Screen panel for every Mac",
-                           "Waiting / running / done, with live timers")
-                featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
-                           "Allow or deny without going back to the Mac")
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 36)
-
-            Spacer()
-            Spacer()
-
-            VStack(spacing: 10) {
-                if !error.isEmpty {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 14) {
+                    featureRow("bell.badge", "Waiting, finished, or needs approval — pushed straight to you",
+                               "Stays quiet while you're at the Mac")
+                    featureRow("platter.filled.bottom.iphone", "One Lock Screen panel for every Mac",
+                               "Waiting / running / done, with live timers")
+                    featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
+                               "Allow or deny without going back to the Mac")
                 }
-                Button {
-                    start(demo: false)
-                } label: {
-                    Group {
-                        if busy { ProgressView().tint(.white) }
-                        else { Text("Get Started").font(.headline) }
+                .padding(.horizontal, 8)
+                .padding(.top, 28)
+                .padding(.bottom, 28)
+
+                VStack(spacing: 10) {
+                    if !error.isEmpty {
+                        Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(busy)
-
-                Button {
-                    start(demo: true)
-                } label: {
-                    Text("Try the demo first")
-                        .font(.headline)
+                    Button {
+                        start(demo: false)
+                    } label: {
+                        Group {
+                            if busy { ProgressView().tint(.white) }
+                            else { Label("I'm at my Mac now", systemImage: "laptopcomputer").font(.headline) }
+                        }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                }
-                .buttonStyle(.bordered)
-                .disabled(busy)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy)
 
-                Button("Have a pairing code / self-hosted") { step = .manual }
-                    .font(.subheadline)
-                    .padding(.top, 2)
+                    Button {
+                        start(demo: true)
+                    } label: {
+                        Text("Not right now — show me the demo")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(busy)
+
+                    Button {
+                        step = .code(prefill: nil)
+                    } label: {
+                        Text("My Mac is showing a 6-digit code")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .padding(.top, 6)
+                }
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 24)
         }
     }
 
-    /// 开放注册:真实空间 → 去连 Mac;演示 → 直接进 App 看模拟任务。
+    /// 真实空间 → 去连 Mac;演示 → 直接进 App 看模拟任务,并约一个 24h 后的提醒。
     private func start(demo: Bool) {
         guard !busy else { return }
         busy = true
@@ -123,8 +132,20 @@ struct OnboardingView: View {
             }
             await OnboardingView.registerTokens()
             busy = false
-            if demo { onDone() } else { step = .connectMac }
+            if demo {
+                SBBackend.event("demo_seen")
+                OnboardingView.scheduleConnectReminder()
+                onDone()
+            } else {
+                step = .atMac
+            }
         }
+    }
+
+    private func later() {
+        SBBackend.event("connect_later")
+        OnboardingView.scheduleConnectReminder()
+        onDone()
     }
 
     private func featureRow(_ icon: String, _ title: LocalizedStringKey, _ sub: LocalizedStringKey) -> some View {
@@ -141,7 +162,212 @@ struct OnboardingView: View {
     }
 }
 
-/// 屏 2b:粘配对码,或自托管手动填地址+密钥。
+// MARK: 屏 2a:我在 Mac 前 —— 一行命令 + 6 位码,等心跳
+
+private struct ConnectMacStep: View {
+    let onDone: () -> Void
+    @State private var short: SBBackend.ShortCode?
+    @State private var minting = false
+    @State private var copied = false
+    @State private var hostFound = ""
+    @State private var polling = true
+    @State private var waitedLong = false
+
+    private var command: String { SBBackend.oneLiner(code: short?.code ?? "······") }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Paste this one line into Terminal on your Mac and press Return")
+                        .font(.subheadline.weight(.medium))
+                    Text(command)
+                        .font(.system(.footnote, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        .redacted(reason: short == nil ? .placeholder : [])
+                    Button {
+                        UIPasteboard.general.string = command
+                        copied = true
+                        SBBackend.event("command_copied")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { copied = false }
+                    } label: {
+                        Label(copied ? "Copied — now ⌘V on the Mac" : "Copy the line",
+                              systemImage: copied ? "checkmark" : "doc.on.doc")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(short == nil)
+                    if let short {
+                        Text("Can't copy across? Just type it — the number is \(short.pretty). Valid for 15 minutes; it renews by itself.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+            } header: {
+                Text("On the Mac")
+            } footer: {
+                Text("Terminal is in Applications › Utilities, or press ⌘Space and type Terminal.")
+            }
+
+            Section {
+                if !hostFound.isEmpty {
+                    Label("Connected to \(hostFound) 🎉", systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                        .foregroundStyle(.green)
+                    Text("From now on, when Claude Code stops and waits for you, a card shows up on this Lock Screen.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        onDone()
+                    } label: {
+                        Text("Open SessionBell")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Waiting for the Mac… this page moves on by itself once it's done.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    if waitedLong {
+                        Text("Nothing yet? Make sure the whole line was pasted and you pressed Return. If the Mac asked for permission, allow it.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Then")
+            }
+        }
+        .navigationTitle("Connect your Mac")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            SBBackend.event("connect_seen")
+            // 先把命令亮出来,再问通知权限:用户刚点了「我在 Mac 前」,知道弹窗是为了什么,
+            // 而且弹窗背后那行命令已经在了。
+            await mint()
+            await AppDelegate.requestNotifications()
+        }
+        .task { await poll() }
+        .onDisappear { polling = false }
+    }
+
+    private func mint() async {
+        guard !minting else { return }
+        minting = true
+        short = await SBBackend.mintShortCode()
+        minting = false
+    }
+
+    private func poll() async {
+        let started = Date()
+        while polling && hostFound.isEmpty {
+            if let obj = await SBBackend.getJSON("/api/state") as? [String: Any],
+               let host = obj.keys.first {
+                hostFound = host
+                SBBackend.event("paired")
+                await EventStore.shared.refresh()
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [OnboardingView.reminderId])
+                return
+            }
+            if Date().timeIntervalSince(started) > 120 { waitedLong = true }
+            if short?.isExpired ?? false { await mint() }
+            try? await Task.sleep(for: .seconds(4))
+        }
+    }
+}
+
+// MARK: 屏 2b:Mac 先跑了脚本 —— 输 6 位数字(扫码进来会预填)
+
+private struct CodeEntryStep: View {
+    let prefill: String?
+    let onDone: () -> Void
+    let onManual: () -> Void
+    @State private var code = ""
+    @State private var busy = false
+    @State private var error = ""
+    @State private var host = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("483 920", text: $code)
+                    .keyboardType(.numberPad)
+                    .font(.system(size: 34, weight: .semibold, design: .monospaced))
+                    .multilineTextAlignment(.center)
+                    .focused($focused)
+                    .onChange(of: code) { _, new in
+                        let digits = String(new.filter(\.isNumber).prefix(6))
+                        if digits != new { code = digits }
+                        if digits.count == 6 { submit() }
+                    }
+                    .disabled(busy || !host.isEmpty)
+                if busy { HStack { ProgressView(); Text("Connecting…").foregroundStyle(.secondary) } }
+                if !error.isEmpty { Text(error).font(.footnote).foregroundStyle(.red) }
+                if !host.isEmpty {
+                    Label("Connected to \(host) 🎉", systemImage: "checkmark.circle.fill")
+                        .font(.headline).foregroundStyle(.green)
+                    Button {
+                        onDone()
+                    } label: {
+                        Text("Open SessionBell").font(.headline).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            } header: {
+                Text("The 6 digits on the Mac screen")
+            } footer: {
+                Text("They appear in Terminal and in the browser page that opened after the command finished. Scanning that page's QR code with the Camera app fills this in for you.")
+            }
+            Section {
+                Button("I have a long pairing code or a self-hosted server") { onManual() }
+                    .font(.subheadline)
+            }
+        }
+        .navigationTitle("Enter the code")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let prefill, code.isEmpty { code = prefill } else { focused = true }
+        }
+    }
+
+    private func submit() {
+        guard !busy else { return }
+        busy = true
+        error = ""
+        focused = false
+        Task {
+            await AppDelegate.requestNotifications()
+            if let err = await SBBackend.redeemShortCode(code) {
+                error = err
+                busy = false
+                code = ""
+                focused = true
+                return
+            }
+            SBBackend.event("code_entered")
+            await OnboardingView.registerTokens()
+            let state = await SBBackend.getJSON("/api/state") as? [String: Any]
+            host = state?.keys.first ?? String(localized: "your Mac")
+            SBBackend.event("paired")
+            await EventStore.shared.refresh()
+            if #available(iOS 17.2, *) { _ = await LiveActivityManager.shared.reviveDashboard() }
+            busy = false
+        }
+    }
+}
+
+// MARK: 屏 2c:粘配对码,或自托管手动填地址+密钥。
+
 private struct ManualStep: View {
     let onSuccess: () -> Void
     @State private var pairing = ""
@@ -199,6 +425,7 @@ private struct ManualStep: View {
     private func finish() {
         status = String(localized: "⏳ Testing connection…")
         Task {
+            await AppDelegate.requestNotifications()
             status = await SBBackend.ping()
             if status.hasPrefix("✅") {
                 await OnboardingView.registerTokens()
@@ -209,126 +436,9 @@ private struct ManualStep: View {
     }
 }
 
-/// 屏 3:连接 Mac —— 拷贝配对命令,轮询心跳。
-private struct ConnectMacStep: View {
-    let onDone: () -> Void
-    @State private var copiedCmd = false
-    @State private var copiedPkg = false
-    @State private var hostFound = ""
-    @State private var polling = true
-    @State private var waitedLong = false
-
-    private var pairCommand: String {
-        "sessionbell pair \(SBBackend.pairingCode ?? "")"
-    }
-
-    var body: some View {
-        List {
-            Section {
-                stepRow(no: "1", title: "Download and install SessionBell.pkg") {
-                    Button {
-                        UIPasteboard.general.string = "\(SBBackend.hostedBase)/SessionBell.pkg"
-                        flash($copiedPkg)
-                    } label: {
-                        Label(copiedPkg ? "Copied ✓" : "sessionbell.westie.ai/SessionBell.pkg",
-                              systemImage: copiedPkg ? "checkmark" : "doc.on.doc")
-                            .font(.system(.caption, design: .monospaced))
-                    }
-                }
-                stepRow(no: "2", title: "Copy the pair command, paste it in Terminal on the Mac and press Return") {
-                    Button {
-                        UIPasteboard.general.string = pairCommand
-                        flash($copiedCmd)
-                    } label: {
-                        Label(copiedCmd ? "Copied ✓ Press ⌘V on a Mac with the same Apple Account"
-                                        : "sessionbell pair ••••••",
-                              systemImage: copiedCmd ? "checkmark" : "doc.on.doc")
-                            .font(.system(.caption, design: .monospaced))
-                    }
-                }
-            } header: {
-                Text("On the Mac (two steps)")
-            } footer: {
-                Text("Universal Clipboard carries it to the Mac after copying. AirDrop works too.")
-            }
-
-            Section {
-                if !hostFound.isEmpty {
-                    Label("Connected to \(hostFound) 🎉", systemImage: "checkmark.circle.fill")
-                        .font(.headline)
-                        .foregroundStyle(.green)
-                    Button {
-                        onDone()
-                    } label: {
-                        Text("Open SessionBell")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Waiting for the Mac's first heartbeat…")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    if waitedLong {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Not connected yet? Check in order:")
-                                .font(.footnote.weight(.semibold))
-                            Text("① Is the pkg installed? (The sessionbell command only exists after that.)\n② Was the whole command pasted? (It's long, don't truncate it.)\n③ Did you allow every permission prompt on the Mac?")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            } header: {
-                Text("Connection")
-            }
-        }
-        .navigationTitle("Connect Mac")
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await poll() }
-        .onDisappear { polling = false }
-    }
-
-    private func stepRow(no: String, title: LocalizedStringKey,
-                         @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text(no)
-                    .font(.caption.bold())
-                    .frame(width: 20, height: 20)
-                    .background(Color.sbAccent.opacity(0.22), in: Circle())
-                    .foregroundStyle(Color.sbAccentDeep)
-                Text(title).font(.subheadline.weight(.medium))
-            }
-            content().padding(.leading, 28)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func flash(_ flag: Binding<Bool>) {
-        flag.wrappedValue = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { flag.wrappedValue = false }
-    }
-
-    private func poll() async {
-        let started = Date()
-        while polling && hostFound.isEmpty {
-            if let obj = await SBBackend.getJSON("/api/state") as? [String: Any],
-               let host = obj.keys.first {
-                hostFound = host
-                await EventStore.shared.refresh()
-                return
-            }
-            if Date().timeIntervalSince(started) > 120 { waitedLong = true }
-            try? await Task.sleep(for: .seconds(5))
-        }
-    }
-}
-
 extension OnboardingView {
+    static let reminderId = "sb.connect-reminder"
+
     /// 接入成功后把手机的推送坐标交给后端。
     static func registerTokens() async {
         guard let backend = SBBackend.saved else { return }
@@ -338,5 +448,16 @@ extension OnboardingView {
                                  to: backend.url, secret: backend.secret)
         }
         if #available(iOS 17.2, *) { LiveActivityManager.shared.syncNow() }
+    }
+
+    /// 「现在不在 Mac 前」:24 小时后本地提醒一次,配对成功时撤销。
+    static func scheduleConnectReminder() {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Your Mac isn't connected yet")
+        content.body = String(localized: "One line in Terminal and your Claude Code sessions land on this Lock Screen.")
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 24 * 3600, repeats: false)
+        let req = UNNotificationRequest(identifier: reminderId, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(req)
     }
 }

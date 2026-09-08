@@ -1995,6 +1995,376 @@
           }
         }
       }
+    },
+    "SessionBell pairs with your Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SessionBell 需要和你的 Mac 配对"
+          }
+        }
+      }
+    },
+    "It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它把 Mac 上正在跑的 Claude Code 搬到这台手机的锁屏。下一步要在 Mac 的终端里粘一行命令，大约 30 秒。"
+          }
+        }
+      }
+    },
+    "I'm at my Mac now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我现在就在 Mac 前"
+          }
+        }
+      }
+    },
+    "Not right now — show me the demo": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在不在，先看看演示"
+          }
+        }
+      }
+    },
+    "My Mac is showing a 6-digit code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 屏幕上有一个 6 位数字"
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后"
+          }
+        }
+      }
+    },
+    "Paste this one line into Terminal on your Mac and press Return": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把这一行粘到 Mac 的终端里，按回车"
+          }
+        }
+      }
+    },
+    "Copied — now ⌘V on the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制，去 Mac 上 ⌘V"
+          }
+        }
+      }
+    },
+    "Copy the line": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制这一行"
+          }
+        }
+      }
+    },
+    "Can't copy across? Just type it — the number is %@. Valid for 15 minutes; it renews by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制不过去？照着敲也行，数字是 %@。15 分钟内有效，过期会自动换新的。"
+          }
+        }
+      }
+    },
+    "On the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上"
+          }
+        }
+      }
+    },
+    "Terminal is in Applications › Utilities, or press ⌘Space and type Terminal.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终端在「应用程序 › 实用工具」里，或者按 ⌘空格 输入 Terminal。"
+          }
+        }
+      }
+    },
+    "From now on, when Claude Code stops and waits for you, a card shows up on this Lock Screen.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从现在起，Claude Code 停下来等你时，这台手机的锁屏上会出现一张卡片。"
+          }
+        }
+      }
+    },
+    "Waiting for the Mac… this page moves on by itself once it's done.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等 Mac 那边跑完……好了这页会自己跳走。"
+          }
+        }
+      }
+    },
+    "Nothing yet? Make sure the whole line was pasted and you pressed Return. If the Mac asked for permission, allow it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没反应？确认整行都粘进去了、按了回车。Mac 如果弹出权限询问，点允许。"
+          }
+        }
+      }
+    },
+    "Then": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "然后"
+          }
+        }
+      }
+    },
+    "Connect your Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 Mac"
+          }
+        }
+      }
+    },
+    "483 920": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "483 920"
+          }
+        }
+      }
+    },
+    "Connecting…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接中……"
+          }
+        }
+      }
+    },
+    "The 6 digits on the Mac screen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 屏幕上的 6 位数字"
+          }
+        }
+      }
+    },
+    "They appear in Terminal and in the browser page that opened after the command finished. Scanning that page's QR code with the Camera app fills this in for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令跑完后终端里和自动打开的网页上都有。用相机扫那个网页上的二维码，这里会自动填好。"
+          }
+        }
+      }
+    },
+    "I have a long pairing code or a self-hosted server": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我有一长串配对码 / 自己部署的服务器"
+          }
+        }
+      }
+    },
+    "Enter the code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入数字"
+          }
+        }
+      }
+    },
+    "your Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 Mac"
+          }
+        }
+      }
+    },
+    "Your Mac isn't connected yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 Mac 还没接上"
+          }
+        }
+      }
+    },
+    "One line in Terminal and your Claude Code sessions land on this Lock Screen.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终端里粘一行命令，Claude Code 的会话就会出现在这块锁屏上。"
+          }
+        }
+      }
+    },
+    "Enter the 6 digits shown on the Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入 Mac 上显示的 6 位数字。"
+          }
+        }
+      }
+    },
+    "The Mac sent something unexpected. Run the command on the Mac again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 返回的内容不对。在 Mac 上重新跑一遍那行命令。"
+          }
+        }
+      }
+    },
+    "This code was already used. Run the command on the Mac again for a new one.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个数字已经用过了。在 Mac 上重新跑一遍命令，会给一个新的。"
+          }
+        }
+      }
+    },
+    "This code expired or isn't right. Check the Mac screen and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个数字过期了或者不对。看一眼 Mac 屏幕再试。"
+          }
+        }
+      }
+    },
+    "Too many tries. Wait a minute and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试得太多了，等一分钟再来。"
+          }
+        }
+      }
+    },
+    "Not connected to a Mac yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没连上 Mac"
+          }
+        }
+      }
+    },
+    "These tasks are a demo. When you're back at your Mac, tap below — it's one line in Terminal, about 30 seconds.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些任务是演示数据。回到 Mac 前时点下面这个按钮，终端里粘一行命令，大约 30 秒。"
+          }
+        }
+      }
+    },
+    "Copied — paste it in Terminal on the other Mac (valid 15 min)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制，粘到另一台 Mac 的终端里（15 分钟内有效）"
+          }
+        }
+      }
+    },
+    "Add another Mac (copy the one-line command)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再加一台 Mac（复制那行命令）"
+          }
+        }
+      }
+    },
+    "Demo mode · Connect my Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演示模式 · 连接我的 Mac"
+          }
+        }
+      }
+    },
+    "Connected. This card fills in when Claude Code next stops for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接。Claude Code 下次停下来等你时，这张卡会显示具体任务。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

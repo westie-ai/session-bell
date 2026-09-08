@@ -46,6 +46,13 @@ struct ContentView: View {
         .onReceive(store.$pendingApproval) { approval in
             if approval != nil { selectedTab = 0 }
         }
+        .onReceive(store.$pendingPairCode) { code in
+            guard let code else { return }
+            store.pendingPairCode = nil
+            // 已经配好真实空间的手机再扫码 = 想加第二台 Mac 或换空间;也走同一页,由用户决定。
+            onboardingStart = .code(prefill: code)
+            showOnboarding = true
+        }
         .onAppear {
             if !onboarded && SBBackend.saved == nil { showOnboarding = true }
         }
@@ -72,7 +79,7 @@ struct ContentView: View {
             store.clearAll()
             await OnboardingView.registerTokens()
             creatingSpace = false
-            onboardingStart = .connectMac
+            onboardingStart = .atMac
             showOnboarding = true
         }
     }
@@ -82,9 +89,9 @@ struct ContentView: View {
         if isDemo {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Demo data", systemImage: "sparkles")
+                    Label("Not connected to a Mac yet", systemImage: "laptopcomputer.slash")
                         .font(.headline)
-                    Text("These tasks are simulated. Create your own space and connect your Mac to see the real thing.")
+                    Text("These tasks are a demo. When you're back at your Mac, tap below — it's one line in Terminal, about 30 seconds.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if !createError.isEmpty {
@@ -95,7 +102,7 @@ struct ContentView: View {
                     } label: {
                         Group {
                             if creatingSpace { ProgressView() }
-                            else { Label("Create My Space", systemImage: "plus.circle.fill") }
+                            else { Label("I'm at my Mac now", systemImage: "laptopcomputer") }
                         }
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
@@ -202,20 +209,24 @@ struct ContentView: View {
                             createOwnSpace()
                         } label: {
                             Label(creatingSpace ? String(localized: "Creating your space…")
-                                                : String(localized: "Demo mode · Create My Space"),
-                                  systemImage: "sparkles")
+                                                : String(localized: "Demo mode · Connect my Mac"),
+                                  systemImage: "laptopcomputer")
                         }
                         .disabled(creatingSpace)
                     }
                     backendConfigRow
                     // 加第二台电脑时最常来找的东西——别让它只活在引导第三屏里。
-                    if let code = SBBackend.pairingCode {
+                    if SBBackend.pairingCode != nil && !isDemo {
                         Button {
-                            UIPasteboard.general.string = "sessionbell pair \(code)"
-                            copiedPair = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedPair = false }
+                            Task {
+                                guard let short = await SBBackend.mintShortCode() else { return }
+                                UIPasteboard.general.string = SBBackend.oneLiner(code: short.code)
+                                copiedPair = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { copiedPair = false }
+                            }
                         } label: {
-                            Label(copiedPair ? "Copied ✓" : "Copy Pair Command (add another Mac)",
+                            Label(copiedPair ? "Copied — paste it in Terminal on the other Mac (valid 15 min)"
+                                             : "Add another Mac (copy the one-line command)",
                                   systemImage: copiedPair ? "checkmark" : "doc.on.doc")
                         }
                     }

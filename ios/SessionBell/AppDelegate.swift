@@ -42,13 +42,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             LiveActivityManager.shared.bootstrap()
         }
         Task {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-            await MainActor.run {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
+            // 老用户启动即请求;新用户等到引导里真正要连 Mac 的那一步再问,
+            // 别让系统弹窗盖在第一屏上。
+            if SBBackend.saved != nil { await AppDelegate.requestNotifications() }
             await EventStore.shared.refresh()
         }
         return true
+    }
+
+    /// 请求通知权限并注册 APNs。可重复调用,系统只会弹一次。
+    static func requestNotifications() async {
+        _ = try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound, .badge])
+        await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
     }
 
     func application(
