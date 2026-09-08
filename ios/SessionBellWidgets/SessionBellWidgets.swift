@@ -133,6 +133,13 @@ private struct TaskRow: View {
         return d.isEmpty ? task.project : d
     }
     private var showsProjectTag: Bool { primary != task.project }
+    /// 行尾标签:项目名(仅当主文本是 prompt 时)+ 主机缩写(仅当多台 Mac 时),用 · 连起来。
+    private var tagText: String? {
+        var parts: [String] = []
+        if showsProjectTag { parts.append(task.project) }
+        if showHost { parts.append(shortHost(task.host)) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -145,33 +152,32 @@ private struct TaskRow: View {
                 Image(systemName: statusSymbol(task.status))
                     .font(compact ? .caption2 : .subheadline)
                     .foregroundStyle(statusColor(task.status))
+                // prompt 摘录优先,截断的是它;右边只留一个不可压缩的小标签,不再互相挤成碎片。
                 Text(primary)
                     .font(compact ? .caption2 : .subheadline.weight(.medium))
                     .lineLimit(1)
-                    .layoutPriority(1)
-                if showsProjectTag {
-                    Text(task.project)
+                    .truncationMode(.tail)
+                Spacer(minLength: 6)
+                if let tag = tagText, !tag.isEmpty {
+                    Text(tag)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                }
-                if showHost {
-                    Text(shortHost(task.host))
-                        .font(.caption2)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(.quaternary, in: Capsule())
-                        .foregroundStyle(.secondary)
+                        .fixedSize()
                 }
                 if let agents = task.agents, agents > 0 {
                     Text("⚙︎\(agents)")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.blue)
+                        .fixedSize()
                 }
-                Spacer(minLength: 4)
-                ElapsedText(task: task)
-                    .font((compact ? Font.caption2 : .caption).monospacedDigit())
-                    .foregroundStyle(task.status == "waiting" ? coral : .secondary)
-                    .frame(maxWidth: 64, alignment: .trailing)
+                // 只有"等你"的任务才显示等了多久;运行中 / 已完成的时间没有决策价值。
+                if task.status == "waiting" {
+                    ElapsedText(task: task)
+                        .font((compact ? Font.caption2 : .caption).monospacedDigit())
+                        .foregroundStyle(coral)
+                        .fixedSize()
+                }
             }
         }
     }

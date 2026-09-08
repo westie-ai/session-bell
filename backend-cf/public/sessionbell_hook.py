@@ -2214,7 +2214,13 @@ def main():
         last_prompt = (state.get("prompts", {}).get(session_id) or {}).get("text", "")
         if kind == "prompt":
             own_pid, parent_pid = claude_pids()
-            ptext = excerpt(hook.get("prompt"))
+            raw_prompt = (hook.get("prompt") or "").lstrip()
+            # 后台任务完成、系统提醒、斜杠命令回显等是 Claude Code 注入的,不是用户敲的:
+            # 不能当任务名,否则锁屏上全是 <task-notification> <task-id>…;沿用上一条真实 prompt。
+            injected = raw_prompt.startswith(("<task-notification", "<system-reminder",
+                                              "<command-name", "<local-command",
+                                              "<user-prompt-submit-hook", "[Request interrupted"))
+            ptext = "" if injected else excerpt(hook.get("prompt"))
             if ptext:
                 state.setdefault("prompts", {})[session_id] = {
                     "text": ptext, "ts": int(now)}
