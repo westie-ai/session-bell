@@ -2555,6 +2555,16 @@
           }
         }
       }
+    },
+    "Awake · tap to stop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常亮中 · 点一下取消"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

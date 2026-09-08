@@ -320,18 +320,23 @@ struct ContentView: View {
         if !store.liveGroups.isEmpty {
             Section("Connected Macs") {
                 ForEach(store.liveGroups) { group in
-                    HStack {
+                    HStack(spacing: 8) {
                         Label(group.host, systemImage: "desktopcomputer")
-                        Spacer()
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 8)
                         if group.awake {
                             Text("Awake")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
+                                .fixedSize()
                         }
                         if !group.sessionText.isEmpty {
                             Text(group.sessionText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                     }
                 }
@@ -553,21 +558,25 @@ struct MachineControls: View {
                     caffePending = false
                 }
             } label: {
-                Label(caffePending ? "Applying…" : (group.awake ? "Awake" : "Keep Awake"),
+                Label(caffePending ? "Applying…" : (group.awake ? "Awake · tap to stop" : "Keep Awake"),
                       systemImage: group.awake ? "cup.and.saucer.fill" : "cup.and.saucer")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(group.awake ? .orange : .secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.bordered)
             .disabled(caffePending)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button {
                 showSpawn = true
             } label: {
                 Label("New Session", systemImage: "plus.circle.fill")
                     .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.bordered)
             .tint(Color.sbAccentDeep)
