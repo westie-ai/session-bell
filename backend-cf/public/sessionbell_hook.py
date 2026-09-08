@@ -1682,14 +1682,19 @@ def try_inject_command(cfg, env, session_id, project, host,
     """Poll the command mailbox; on a fresh command, block the stop and feed
     it to Claude. Returns True if a command was injected."""
     deadline = time.time() + wait_seconds
+    # The cursor only ever moves forward. It is re-read every round because
+    # the pane watcher may claim the command, but the session record can also
+    # vanish mid-wait (prune_sessions drops "done" entries after
+    # DONE_LINGER_SECONDS, well inside the 960 s stop window) — reading 0 from
+    # a pruned entry must not resurrect a command that was already delivered.
+    cursor = (load_sessions()["local"].get(session_id) or {}).get("cmd_ts", 0)
     while time.time() < deadline:
         if watch_return and not os.environ.get("SESSIONBELL_FORCE"):
             idle = mac_idle_seconds()
             if idle is not None and idle < 5:
                 log("stop wait: user is back at the Mac, releasing")
                 return False
-        # Re-read every round: the pane watcher may have claimed the command.
-        cursor = (load_sessions()["local"].get(session_id) or {}).get("cmd_ts", 0)
+        cursor = max(cursor, (load_sessions()["local"].get(session_id) or {}).get("cmd_ts", 0))
         resp = backend_call(cfg, "GET", f"/api/command?id={session_id}")
         cmd = (resp or {}).get("command")
         fresh = cmd and cmd.get("ts", 0) > max(cursor, (time.time() - 4 * 3600) * 1000)
