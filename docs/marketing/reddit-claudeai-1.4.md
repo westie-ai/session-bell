@@ -1,35 +1,36 @@
 # r/ClaudeAI post — SessionBell 1.4
 
-Flair: **Built with Claude**. Text post; App Store / GitHub links at the bottom of the body (not a link post).
+Flair: **Built with Claude**. Text post; App Store link once after "What I built", GitHub at the bottom (not a link post).
 Rule 7 checklist: built by me with Claude Code ✓ · what it is + how Claude helped in detail + what it does ✓ · free to try, stated ✓.
 
 ## Title candidates (pick one)
 
-1. I run 4–5 Claude Code sessions across two Macs. I built an iPhone app so my Lock Screen tells me which one is waiting for me.
-2. I kept walking away from Claude Code and coming back to find it had been waiting on me for 20 minutes. So I built a Lock Screen for it.
-3. SessionBell: your Claude Code sessions on your iPhone Lock Screen — waiting / running / done, with approve-from-phone. Free, open source.
+1. The best part of running ten Claude Code sessions is leaving the computer. I built an iPhone app so my Lock Screen tells me as each one finishes.
+2. I run ~10 Claude Code sessions across two Macs, all in auto mode. I built an iPhone app so my Lock Screen tells me which one just finished and what it wants next.
+3. SessionBell: your Claude Code sessions on your iPhone Lock Screen — running / done / waiting for your next instruction, send the next step from your phone. Free, open source.
 
 (1 or 2 read as a story and fit the sub better; 3 is the "product name first" version the rules discourage.)
 
 ## Body (English — post this)
 
-**The problem.** I usually have several Claude Code sessions going at once — two or three projects on my MacBook, a couple more on a Mac Studio in the studio. Claude does its thing for anywhere from 30 seconds to 20 minutes, and the moment it stops to ask me something, nothing tells me. I'd get coffee, come back, and find one session had been sitting on a permission prompt the whole time while another had finished ten minutes ago. Multiply that by five sessions and two machines and half my day was "go check the terminals".
+**The problem.** I usually have ten or so Claude Code sessions going at once — a handful of projects on my MacBook, the rest on a Mac Studio in the studio. Everything runs in auto mode, so Claude almost never stops to ask for permission. It stops when the task is done and waits for the next instruction — and nothing tells me. I'd go get coffee, come back, and find three sessions had finished twenty minutes ago and were just sitting there. Ten sessions, two machines, and a good part of my day was "go check the terminals".
 
-**What I built.** SessionBell is a small iPhone app plus a hook for Claude Code. On the Lock Screen (and in the Dynamic Island) you get one Live Activity card that lists every session on every Mac you own: the prompt you gave it, whether it's running / waiting for you / done, and how long it's been waiting. When a session stops and needs you, your phone rings — but only if you're actually away from the Mac (the hook checks idle time, so it stays quiet while you're at the keyboard). Permission requests show up as a card with Allow / Deny buttons, so `git push` doesn't sit there for an hour because you went to lunch. You can also type a quick reply from the phone and it lands in the session.
+**What I built.** SessionBell is a small iPhone app plus a hook for Claude Code. On the Lock Screen (and in the Dynamic Island) you get one Live Activity card that lists every session on every Mac you own: the prompt you gave it, whether it's running / done / waiting for your next instruction, and how long it's been sitting. The moment a session finishes, your phone rings — but only if you're actually away from the Mac (the hook checks idle time, so it stays quiet while you're at the keyboard). Then you type the next instruction on the phone and it lands in that session. If you're not on auto mode, permission requests show up as a card with Allow / Deny buttons too.
 
-It's not a terminal on your phone. It's the "which of my sessions needs me right now" layer.
+Honestly the best part is the feeling. I go for a walk, and the phone lights up one by one — reply done, garden-log done, backend done — and I send each one its next step without sitting down. It's not a terminal on your phone. It's the "which of my ten sessions just finished, and what does it need" layer.
 
-**How it's different from Claude's Remote Control.** People will ask, so: Remote Control (the official feature) lets you *continue one session* from the Claude app or browser — you open the session and keep chatting with it. It's great for that. SessionBell is the layer before you open anything: it watches *all* your sessions on *all* your machines and tells you which one stopped, why, and lets you approve or answer in one tap from the Lock Screen without opening a session at all. I use both: SessionBell to know when, Remote Control (or just walking back) to actually continue. SessionBell also doesn't depend on your plan tier — it's a hook plus push notifications.
+Free on the App Store: apps.apple.com/app/id6801045681 (needs a Mac running Claude Code; pairing is one line in Terminal).
 
-**How Claude helped build it.** Almost all of it was built in Claude Code, and the app was its own test subject — every time Claude stopped to ask me something during development, that was a notification I could check on my phone. Concretely:
+**How it's different from Claude's Remote Control.** People will ask, so: Remote Control (the official feature) lets you continue one session from the Claude app or browser — you open the session and keep chatting with it. It's great for that. SessionBell is the layer before you open anything: it watches all your sessions on all your machines, tells you which one finished, and lets you fire off the next instruction (or an approval) in one tap from the Lock Screen without opening a session at all. I use both: SessionBell to know when, Remote Control (or just walking back) when the next step needs a real conversation. SessionBell also doesn't depend on your plan tier — it's a hook plus push notifications.
+
+**How Claude helped build it.** Almost all of it was built in Claude Code, and the app was its own test subject — every time a build finished while I was away from the desk, that was a notification on my phone. Concretely:
 - The Mac side is a single Python hook script wired into Claude Code's hook events (UserPromptSubmit, Stop, Notification, PermissionRequest, SubagentStop). Claude wrote the first version of the state machine that turns those events into "waiting / running / done" per session, and the idle-time check that suppresses pushes while you're at the keyboard.
-- The iOS side is SwiftUI + ActivityKit. I hadn't shipped a Live Activity before; Claude walked me through push-to-start tokens, the 4 KB APNs payload cap (which forced the "one card for all sessions" design), and the interactive Allow / Deny buttons via App Intents.
+- The iOS side is SwiftUI + ActivityKit. I hadn't shipped a Live Activity before; Claude walked me through push-to-start tokens, the 4 KB APNs payload cap (which forced the "one card for all sessions" design), and the interactive buttons via App Intents.
 - The backend is a Cloudflare Worker with D1. Claude wrote it, and later found and fixed a query pattern that was burning through D1's free tier (a `LIKE` that couldn't use the index).
 - Yesterday I had Claude redesign the whole onboarding after watching real users drop off: it's now "paste one line into Terminal on your Mac" instead of "download a pkg, copy a 150-character code through Universal Clipboard".
 
 **What it costs.** Free. The app is on the App Store, the Mac hook and the backend are MIT on GitHub, and you can self-host the backend if you don't want your session titles going through mine. There's a demo mode in the app if you want to see the Lock Screen card before pairing a Mac.
 
-- App Store: https://apps.apple.com/app/id6801045681
 - GitHub: https://github.com/westie-ai/session-bell
 - Needs a Mac running Claude Code (Windows is in beta). Pairing is one line in Terminal.
 
@@ -37,13 +38,15 @@ Happy to answer anything about the hook events or Live Activities — that part 
 
 ## 中文对照（自己看，不发）
 
-**问题。** 我通常同时开四五个 Claude Code 会话，两三个在 MacBook 上，另外几个在工作室的 Mac Studio 上。Claude 一跑就是 30 秒到 20 分钟，它停下来问我的时候没有任何东西通知我。去倒杯咖啡回来，发现一个会话卡在权限询问上等了半天，另一个十分钟前就跑完了。乘以五个会话两台机器，半天时间花在"去看一眼终端"上。
+**问题。** 我通常同时开十来个 Claude Code 会话，几个在 MacBook 上，其余在工作室的 Mac Studio 上。全部 auto mode，Claude 几乎不会停下来要权限，它停下来是因为任务做完了、等下一步指令，而没有任何东西通知我。去倒杯咖啡回来，三个会话二十分钟前就跑完了在那干等。十个会话两台机器，大半天花在"去看一眼终端"上。
 
-**做了什么。** SessionBell 是一个 iPhone App 加一个 Claude Code hook。锁屏和灵动岛上一张 Live Activity 卡片列出你所有 Mac 上的所有会话：你给它的那句话、运行中 / 等你 / 已完成、等了多久。会话停下来需要你时手机会响，但只在你不在 Mac 前时响（hook 看空闲时间，在键盘前就不打扰）。权限请求变成带"允许 / 拒绝"按钮的卡片，`git push` 不会因为你去吃饭卡一小时。也能从手机敲一句话回去。
+**做了什么。** SessionBell 是一个 iPhone App 加一个 Claude Code hook。锁屏和灵动岛上一张卡片列出你所有 Mac 上的所有会话：你给它的那句话、运行中 / 已完成 / 等你下一步、放了多久。会话一跑完手机就响，但只在你不在 Mac 前时响。然后在手机上敲下一步指令，直接进那个会话。非 auto mode 的话权限请求也会变成带允许 / 拒绝按钮的卡片。
 
-它不是手机上的终端，它是"我哪个会话现在需要我"这一层。
+最爽的是那个感觉：出去散步，手机一个接一个亮起来，reply 完成、garden-log 完成、backend 完成，每个都不用坐下就把下一步派出去。它不是手机上的终端，它是"我十个会话里哪个刚跑完、要什么"这一层。
 
-**和 Remote Control 的区别。** Remote Control 是官方功能，让你从 Claude App 或浏览器**接着聊某一个会话**，打开会话继续对话，这件事它做得很好。SessionBell 是你打开任何东西之前的那一层：盯着**所有机器上的所有会话**，告诉你哪个停了、为什么，让你在锁屏上一键批准或回复，不用打开会话。我两个都用：SessionBell 负责"什么时候"，Remote Control 或者走回去负责"接着干"。SessionBell 也不依赖订阅档位，就是 hook 加推送。
+App Store 免费：apps.apple.com/app/id6801045681（需要一台跑 Claude Code 的 Mac，配对是终端里一行命令）。
+
+**和 Remote Control 的区别。** Remote Control 让你从 Claude App 或浏览器**接着聊某一个会话**，这件事它做得很好。SessionBell 是你打开任何东西之前的那一层：盯着**所有机器上的所有会话**，告诉你哪个跑完了，锁屏一键把下一步指令（或者批准）发过去，不用打开会话。两个都用：SessionBell 负责"什么时候"，下一步需要真正对话时再用 Remote Control 或者走回去。SessionBell 也不依赖订阅档位。
 
 **Claude 怎么帮的。** 几乎全部在 Claude Code 里做的，而且这个 App 是它自己的测试对象。具体：hook 状态机和空闲判断是 Claude 写的第一版；Live Activity 的 push-to-start、4KB 载荷上限（逼出了"一张卡放所有会话"的设计）、App Intents 的按钮是 Claude 带着做的；Cloudflare Worker + D1 后端是 Claude 写的，后来还找到并修了一个烧免费额度的 LIKE 查询；昨天看到真实用户流失后让 Claude 重做了整个引导。
 
@@ -51,7 +54,7 @@ Happy to answer anything about the hook events or Live Activities — that part 
 
 ## Posting notes
 
-- Post as a **text** post with the Built with Claude flair; put links at the bottom of the body, none in the title.
+- Post as a **text** post with the Built with Claude flair; App Store link once in the body, GitHub at the bottom, none in the title.
 - Best window: US morning (北京时间 21:00–24:00), weekday.
 - Reply to every comment in the first two hours; that's what keeps it on the front page.
 - If AutoMod holds it (29 karma is on the low side), don't repost — message the mods once with "Built with Claude post held, rule 7 checklist met" and wait.
