@@ -69,6 +69,8 @@ async function gc(env) {
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('capture/', 'capture/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('md/', 'md/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('command/', 'command/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('decision/', 'decision/\uffff', now - 7 * day),
@@ -172,18 +174,23 @@ async function handleCommand(req, env, n, url) {
   return json({ commands: out });
 }
 
+// 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
+// markdown 进度(24 KB),手机「进展」视图用。同一接口,kind 区分。
 async function handleCapture(req, env, n, url) {
   if (req.method === 'POST') {
     const b = await readBody(req);
     if (!SID.test(b.session_id || '') || typeof b.text !== 'string') {
       return json({ error: 'bad request' }, 400);
     }
-    await kvPut(env, n, `capture/${b.session_id}`, b.text.slice(0, 16000));
+    const md = b.kind === 'md';
+    await kvPut(env, n, `${md ? 'md' : 'capture'}/${b.session_id}`,
+                b.text.slice(0, md ? 24000 : 16000));
     return json({ ok: true });
   }
   const sid = url.searchParams.get('id');
   if (!SID.test(sid || '')) return json({ error: 'bad id' }, 400);
-  const row = await kvGet(env, n, `capture/${sid}`);
+  const prefix = url.searchParams.get('kind') === 'md' ? 'md' : 'capture';
+  const row = await kvGet(env, n, `${prefix}/${sid}`);
   return json({ capture: row ? { ts: row.ts, text: row.v } : null });
 }
 
@@ -295,6 +302,15 @@ const DEMO_TEXT = {
       '  has 2.1M rows, expected lock time ~40 s.',
       '  Run now or wait for off-peak?', '',
       '❯ waiting for input…'],
+    md: ['### ❯ migrate the orders table to the new schema', '',
+      'Read through the schema and every call site first.', '',
+      '- 🔧 Read schema.sql', '- 🔧 Grep orders_', '- 🔧 Read OrderRepository.ts', '',
+      'Analyzed **14 references**. The new schema splits `orders` into `orders` + `order_items`; ' +
+      'every writer goes through `OrderRepository`, so the change is contained.', '',
+      '- 🔧 Write migrations/2026_08_orders_v2.sql', '- 🔧 Bash Dry-run the migration against a copy', '',
+      'Migration script generated: `migrations/2026_08_orders_v2.sql`. The dry run passed.', '',
+      '**Needs your confirmation before running.** The live table has 2.1M rows and the ' +
+      'expected lock time is about 40 s. Run now, or wait for off-peak?'],
   },
   zh: {
     checkoutWait: '等待你确认数据库迁移方案',
@@ -307,6 +323,14 @@ const DEMO_TEXT = {
       '  执行前需要你确认:线上表有 210 万行,',
       '  预计锁表 40 秒。现在执行还是等低峰?', '',
       '❯ 待输入…'],
+    md: ['### ❯ 迁移 orders 表到新 schema', '',
+      '先把 schema 和所有调用点看一遍。', '',
+      '- 🔧 Read schema.sql', '- 🔧 Grep orders_', '- 🔧 Read OrderRepository.ts', '',
+      '分析了 **14 个引用点**。新 schema 把 `orders` 拆成 `orders` + `order_items`,' +
+      '所有写入都经过 `OrderRepository`,改动范围可控。', '',
+      '- 🔧 Write migrations/2026_08_orders_v2.sql', '- 🔧 Bash 在副本上试跑迁移', '',
+      '迁移脚本已生成:`migrations/2026_08_orders_v2.sql`,试跑通过。', '',
+      '**执行前需要你确认。** 线上表有 210 万行,预计锁表 40 秒。现在执行,还是等低峰?'],
   },
 };
 
@@ -357,6 +381,7 @@ async function seedDemo(env, lang = 'en') {
   await kvPut(env, n, 'state/' + encodeURIComponent(mbp.host), JSON.stringify(mbp));
   await kvPut(env, n, 'state/' + encodeURIComponent(studio.host), JSON.stringify(studio));
   await kvPut(env, n, 'capture/demo-checkout', T.capture.join('\n'));
+  await kvPut(env, n, 'md/demo-checkout', T.md.join('\n'));
 }
 
 // ---------- feedback ----------

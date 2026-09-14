@@ -2706,16 +2706,6 @@
         }
       }
     },
-    "· %@ ago": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· %@前"
-          }
-        }
-      }
-    },
     "⏳ Connecting to terminal… (first frame in about 5 s)": {
       "localizations": {
         "zh-Hans": {
@@ -2732,6 +2722,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "获取中…"
+          }
+        }
+      }
+    },
+    "Fetching the full conversation from the Mac…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在从 Mac 获取完整对话…"
           }
         }
       }

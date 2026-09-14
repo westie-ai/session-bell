@@ -1153,6 +1153,11 @@ struct SessionPage: View {
     @State private var termDate: Date?
     @State private var termLastTs: Double = 0
     @State private var termRefreshing = false
+    // 进展帧:Mac 从本地会话记录整理出的 markdown(提示 / 回复 / 工具调用)。
+    @State private var mdText = ""
+    @State private var mdDate: Date?
+    @State private var mdLastTs: Double = 0
+    @State private var mdRefreshing = false
 
     private var hasTerminal: Bool { !isCodex && peekTask != nil }
 
@@ -1171,16 +1176,7 @@ struct SessionPage: View {
             if tab == .terminal, hasTerminal {
                 terminalPane
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        headerCard
-                        if hasTerminal, isLive { terminalStrip }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onTapGesture { inputFocused = false }
+                progressPane
             }
             inputBar
         }
@@ -1204,46 +1200,81 @@ struct SessionPage: View {
                 NavigationStack { EventHistoryView(group: g) }
             }
         }
-        .task(id: peekTask?.sessionId) { await terminalLoop() }
+        .task(id: "\(peekTask?.sessionId ?? "")/\(tab == .terminal)") {
+            if tab == .terminal { await terminalLoop() } else { await progressLoop() }
+        }
         .onChange(of: tab) { _, t in UIApplication.shared.isIdleTimerDisabled = (t == .terminal) }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
     // MARK: 终端
 
-    /// 进展页底部的一小条:任务还在跑时,最新进展其实在终端里 — 露最后几行,点了切过去。
-    private var terminalStrip: some View {
-        Button { tab = .terminal } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "terminal.fill")
-                    Text("Terminal")
-                    if termRefreshing && termOutput.isEmpty {
-                        ProgressView().controlSize(.mini)
-                    } else if let termDate {
-                        Text("· \(Text(termDate, style: .relative)) ago")
+    /// 进展视图:状态卡 + 整段会话的整理版(你的提示、Claude 的回复、工具调用),
+    /// 内容和终端画面一一对应,只是排好了版。Mac 不在线时退回最近一条推送的回复。
+    private var progressPane: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    headerCard
+                    if !mdText.isEmpty {
+                        MarkdownText(text: mdText)
+                            .padding(.horizontal, 2)
+                        HStack(spacing: 4) {
+                            if mdRefreshing { ProgressView().controlSize(.mini) }
+                            if let mdDate { Text("\(Text(mdDate, style: .relative)) ago") }
+                            Spacer()
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    } else if hasTerminal, mdRefreshing {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text("Fetching the full conversation from the Mac…")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
+                    Color.clear.frame(height: 1).id("pbottom")
                 }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                if !termOutput.isEmpty {
-                    Text(terminalPrettify(termOutput)
-                            .components(separatedBy: "\n")
-                            .filter { !$0.isEmpty }
-                            .suffix(3)
-                            .joined(separator: "\n"))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(termFG)
-                        .lineLimit(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(termBG, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture { inputFocused = false }
+            .onChange(of: mdText) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo("pbottom", anchor: .bottom)
                 }
             }
         }
-        .buttonStyle(.plain)
+    }
+
+    /// 进展帧循环:先亮后端缓存的整理版,再让 Mac 重新整理;4 秒一轮。
+    private func progressLoop() async {
+        guard hasTerminal, let task = peekTask else { return }
+        if mdText.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId, kind: "md") {
+            mdLastTs = cap.date.timeIntervalSince1970
+            mdDate = cap.date
+            mdText = cap.text
+        }
+        while !Task.isCancelled {
+            mdRefreshing = true
+            await store.sendMachineCommand(
+                "_md-\(EventStore.canonicalHost(task.host))", text: task.sessionId)
+            for _ in 0..<5 {
+                try? await Task.sleep(for: .seconds(2))
+                if Task.isCancelled { return }
+                if let cap = await fetchCapture(sessionId: task.sessionId, kind: "md"),
+                   cap.date.timeIntervalSince1970 > mdLastTs {
+                    mdLastTs = cap.date.timeIntervalSince1970
+                    mdDate = cap.date
+                    mdText = cap.text
+                    break
+                }
+            }
+            mdRefreshing = false
+            try? await Task.sleep(for: .seconds(4))
+        }
     }
 
     /// 终端视图:原始画面,底部还是同一个输入栏。
@@ -1299,8 +1330,8 @@ struct SessionPage: View {
         .background(termBG)
     }
 
-    /// 先亮后端缓存的最后一帧,再让 watcher 持续抓新帧。
-    /// 终端视图 2 秒一轮;进展视图开着时放慢到 8 秒,别让 Mac 白抓屏。
+    /// 只在终端视图打开时跑:先亮后端缓存的最后一帧,再让 watcher 持续抓新帧。
+    /// 切回进展视图就停,别让 Mac 白抓屏;再切回来接着上次的帧继续。
     private func terminalLoop() async {
         guard let task = peekTask else { return }
         if termOutput.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId) {
@@ -1324,7 +1355,7 @@ struct SessionPage: View {
                 }
             }
             termRefreshing = false
-            try? await Task.sleep(for: .seconds(tab == .terminal ? 2 : 8))
+            try? await Task.sleep(for: .seconds(2))
         }
     }
 
@@ -1357,7 +1388,7 @@ struct SessionPage: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            if let event = group?.latest {
+            if mdText.isEmpty, let event = group?.latest {
                 let content = event.md ?? event.body
                 if !content.isEmpty {
                     Divider()
@@ -1493,8 +1524,8 @@ func terminalPrettify(_ raw: String) -> String {
 }
 
 /// 后端缓存的最后一帧抓屏(worker /api/capture,ts 为毫秒)
-func fetchCapture(sessionId: String) async -> (date: Date, text: String)? {
-    guard let obj = await SBBackend.getJSON("/api/capture?id=\(sessionId)") as? [String: Any],
+func fetchCapture(sessionId: String, kind: String = "capture") async -> (date: Date, text: String)? {
+    guard let obj = await SBBackend.getJSON("/api/capture?id=\(sessionId)&kind=\(kind)") as? [String: Any],
           let cap = obj["capture"] as? [String: Any],
           let ts = cap["ts"] as? Double,
           let text = cap["text"] as? String else { return nil }
