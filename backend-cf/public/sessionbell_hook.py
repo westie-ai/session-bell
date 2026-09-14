@@ -1416,6 +1416,9 @@ def run_watcher(cfg: dict) -> None:
         # Adaptive: poll fast while a session likely awaits a phone reply
         # (waiting / freshly done) or the phone is actively driving us
         # (terminal view, recent machine commands); lazily when quiet.
+        # Quiet cadence bounds how long the phone waits for its FIRST
+        # terminal frame / typed command (after that we're hot). 5 s ≈ 17k
+        # requests a day per Mac — fine on Workers Paid, which we're on.
         try:
             now0 = time.time()
             hot = (now0 - last_cmd < 180) or any(
@@ -1424,7 +1427,7 @@ def run_watcher(cfg: dict) -> None:
                 for e in load_sessions()["local"].values())
         except Exception:
             hot = False
-        poll = cfg.get("watcher_poll_seconds") or (3 if hot else 15)
+        poll = cfg.get("watcher_poll_seconds") or (3 if hot else 5)
         before = time.time()
         # First pass runs straight away: a freshly (re)started relay should
         # publish state now, not after an idle 15 s.
