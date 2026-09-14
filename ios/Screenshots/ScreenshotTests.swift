@@ -57,7 +57,18 @@ final class ScreenshotTests: XCTestCase {
             "-sb.backendSecret", env["SB_SECRET"] ?? "demo-secret-for-screens-0001",
         ]
         app.launch()
+        dismissNotificationPrompt()
         return app
+    }
+
+    /// 干净安装第一次启动会弹系统通知权限框;中断监视器只在下一次交互时才触发,
+    /// 截图前没有交互,所以直接去 SpringBoard 里点掉它。
+    private func dismissNotificationPrompt() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for t in ["Allow", "允许"] {
+            let b = springboard.buttons[t]
+            if b.waitForExistence(timeout: 2) { b.tap(); sleep(1); return }
+        }
     }
 
     func testTabs() {
