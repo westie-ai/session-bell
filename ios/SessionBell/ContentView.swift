@@ -507,6 +507,17 @@ struct ContentView: View {
                     ForEach(group.cards) { card in
                         SessionCard(card: card) { navPath.append($0) }
                     }
+                    if group.cards.isEmpty {
+                        HStack(spacing: 10) {
+                            Image(systemName: "moon.zzz")
+                                .foregroundStyle(Color.sbInk3)
+                                .frame(width: 20)
+                            Text("Idle — nothing running right now")
+                                .font(.footnote)
+                                .foregroundStyle(Color.sbInk3)
+                        }
+                        .frame(minHeight: 28)
+                    }
                 } header: {
                     MachineHeader(group: group)
                 }

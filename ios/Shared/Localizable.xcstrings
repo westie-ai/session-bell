@@ -2835,6 +2835,16 @@
           }
         }
       }
+    },
+    "Idle — nothing running right now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空闲，现在没有任务在跑"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
