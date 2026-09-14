@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
+		2CDC8B1D229E7B1CDFD540F3 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */; };
 		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
 		31C59B7328A6BA9BC6EE4EC0 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */; };
 		3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
@@ -72,6 +73,7 @@
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
 		2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SessionBellScreenshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SessionBell.entitlements; sourceTree = "<group>"; };
+		34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		39DF9CF186A28179A81D6783 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		4311A1BB8C2640EC4F314F5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 		BA5050CD55079163E1A582BD /* SessionBell */ = {
 			isa = PBXGroup;
 			children = (
+				34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */,
 				87226E0B3CA9084D522406BA /* AppDelegate.swift */,
 				BBA96AA6001059FA2279F3E1 /* Assets.xcassets */,
 				4311A1BB8C2640EC4F314F5C /* ContentView.swift */,
@@ -318,6 +321,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2CDC8B1D229E7B1CDFD540F3 /* AddDeviceView.swift in Sources */,
 				DF267A466DB309DC4DF7E41D /* AppDelegate.swift in Sources */,
 				608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */,
 				C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */,

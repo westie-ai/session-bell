@@ -174,4 +174,15 @@ final class ScreenshotTests: XCTestCase {
         sleep(6)
         save("5-terminal")
     }
+
+    /// 设置 › 再加一台手机/iPad:6 位加入码 + 二维码。
+    func testAddDevice() {
+        let app = launchConnected(tab: 2)
+        let btn = first(app.buttons, ["Add another phone or iPad", "再加一台手机或 iPad"], timeout: 20)
+        XCTAssertTrue(btn.exists)
+        btn.tap()
+        XCTAssertTrue(first(app.staticTexts, ["On the other device", "在另一台设备上"], timeout: 20).exists)
+        sleep(4)
+        save("6-add-device")
+    }
 }

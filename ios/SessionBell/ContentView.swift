@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var showFeedback = false
     @State private var confirmReset = false
     @State private var showAddMac = false
+    @State private var showAddDevice = false
     /// 这台手机是否见过任何一台 Mac 的心跳:没见过 → 任务页空态引导去连 Mac,而不是"给 agent 派活"。
     @AppStorage("sb.macSeen") private var macSeen = false
 
@@ -299,6 +300,13 @@ struct ContentView: View {
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.sbAccentText)
                         }
+                        Button {
+                            showAddDevice = true
+                        } label: {
+                            Label("Add another phone or iPad", systemImage: "iphone.badge.plus")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.sbAccentText)
+                        }
                     }
                 } header: {
                     SectionLabel("Mac")
@@ -404,6 +412,7 @@ struct ContentView: View {
             .background(Color.sbBackground)
             .navigationTitle("Settings")
             .sheet(isPresented: $showFeedback) { FeedbackView() }
+            .sheet(isPresented: $showAddDevice) { NavigationStack { AddDeviceView() } }
             .sheet(isPresented: $showAddMac) {
                 NavigationStack {
                     ConnectMacStep(onDone: { showAddMac = false }, onEnterCode: {}, firstTime: false)

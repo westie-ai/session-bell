@@ -18,10 +18,15 @@ case "$1" in
   status)
     tail -5 "$HOME/.sessionbell/sessionbell.log" 2>/dev/null || echo "尚未接入(先跑 sessionbell pair <配对码>)"
     ;;
+  code)
+    # 再加一台手机/iPad:打印 6 位数字并打开二维码页
+    python3 "$HOME/.sessionbell/sessionbell_hook.py" pair-code
+    ;;
   *)
     echo "SessionBell — 本地 AI 编程助手的移动指挥台"
     echo "用法:"
     echo "  sessionbell pair [配对码]   接入(不带参数时自动读剪贴板)"
     echo "  sessionbell status          查看守护日志"
+    echo "  sessionbell code            给另一台手机/iPad 出 6 位加入码"
     ;;
 esac

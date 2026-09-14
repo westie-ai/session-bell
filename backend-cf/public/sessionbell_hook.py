@@ -2304,6 +2304,24 @@ def main():
              "s": cfg["backend_secret"]}).encode()).decode()
         print(code)
         return
+    if kind == "pair-code":
+        # 给同一空间再加一台手机/iPad:向后端要一个 15 分钟有效的 6 位数字,
+        # 另一台设备在引导页「加入那个空间」里输入,或用相机扫打开的那一页。
+        cfg = load_config("usage")
+        pc = base64.b64encode(json.dumps(
+            {"u": cfg["backend_url"].rstrip("/"),
+             "s": cfg["backend_secret"]}).encode()).decode()
+        r = backend_call(cfg, "POST", "/api/pair-code", {"pairing_code": pc}) or {}
+        code = r.get("short_code")
+        if not code:
+            sys.stderr.write(f"SessionBell: 没拿到配对数字 {r}\n")
+            sys.exit(1)
+        page = cfg["backend_url"].rstrip("/") + "/p/" + code
+        print(f"📱 在另一台设备的 SessionBell 里选「加入那个空间」,输入 {code[:3]} {code[3:]}(15 分钟内有效)")
+        print(f"   或者用相机扫这一页上的二维码:{page}")
+        if not IS_WIN:
+            subprocess.run(["open", page], capture_output=True)
+        return
     cfg = load_config(kind)
     _GATEWAY_CFG.update(cfg)
 

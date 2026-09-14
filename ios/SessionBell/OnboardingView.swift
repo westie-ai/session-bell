@@ -114,14 +114,21 @@ struct OnboardingView: View {
                     .buttonStyle(SBSecondaryButtonStyle())
                     .disabled(busy)
 
+                    // 多设备:第二台手机 / iPad 加入已有空间,而不是再开一个。
+                    Button("Already set up on another device? Join that space") { step = .code(prefill: nil) }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Color.sbAccentText)
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity)
                     Button("Self-hosted server / advanced") { step = .manual }
                         .font(.footnote)
                         .foregroundStyle(Color.sbInk3)
-                        .padding(.top, 6)
                         .frame(maxWidth: .infinity)
                 }
                 .padding(.top, 24)
             }
+            .frame(maxWidth: 560)   // iPad:居中限宽,别拉成一整行
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
@@ -382,16 +389,16 @@ private struct CodeEntryStep: View {
                     .buttonStyle(SBPrimaryButtonStyle())
                 }
             } header: {
-                Text("The 6 digits on the Mac screen")
+                Text("The 6 digits from your other device")
             } footer: {
-                Text("After the command finishes on the Mac, the digits are printed in Terminal and shown on the web page that opens. Scanning that page's QR code with the Camera app fills them in for you.")
+                Text("Where they come from: on a phone that's already set up, Settings › Add another phone or iPad. On a paired Mac, run `sessionbell code`. Right after the install command, they're also printed in Terminal and on the page that opens. Scanning that QR code with the Camera app fills them in for you.")
             }
             Section {
                 Button("I have a long pairing code or a self-hosted server") { onManual() }
                     .font(.subheadline)
             }
         }
-        .navigationTitle("Digits from the Mac")
+        .navigationTitle("Join a space")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let prefill, code.isEmpty {

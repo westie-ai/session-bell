@@ -48,6 +48,15 @@ Code on `main` as of 2026-09-14. What changed:
   under both; one frame loop shared by both views (2 s cadence on Terminal,
   8 s on Progress). The old 14-line preview card and the separate full-screen
   terminal page are gone; notification history moved to the toolbar.
+- **Multi-device.** Welcome screen gains "Already set up on another device?
+  Join that space" (6-digit code entry, no new space). Settings gains "Add
+  another phone or iPad": mints a 15-minute code, shows it as digits + QR
+  (`/p/<code>` universal link), and flips to "joined" when redeemed. A paired
+  Mac can do the same with `sessionbell code` (hook `pair-code`). Same Apple
+  ID still joins silently via iCloud Keychain. Welcome is capped at 560 pt
+  wide on iPad.
+- Onboarding restyled to the app palette (warm background, white cards,
+  bell-yellow primary button, amber tint) — no more system blue.
 - Screenshot test `testDetail` now also captures the Terminal view
   (`5-terminal`). The 1.2-era store screenshots still show the old detail page
   and welcome copy — re-capture before submitting.
