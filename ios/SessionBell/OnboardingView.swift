@@ -100,7 +100,7 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(SBPrimaryButtonStyle())
                     .disabled(busy)
-                    Text("One line in Terminal on the Mac — about 30 seconds.")
+                    Text("One line in Terminal on the Mac — about 30 seconds. Got more Macs? Add them any time from Settings.")
                         .font(.caption)
                         .foregroundStyle(Color.sbInk3)
                         .frame(maxWidth: .infinity)
@@ -256,7 +256,7 @@ struct ConnectMacStep: View {
                     Label("Look up: the panel is already in the Dynamic Island. Lock the phone and it's on the Lock Screen too.", systemImage: "platter.filled.top.iphone")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text("From now on it fills in whenever Claude Code stops and waits for you.")
+                    Text("From now on it fills in whenever Claude Code stops and waits for you. More Macs go in the same space: Settings › Add another Mac.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button {
