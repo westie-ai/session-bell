@@ -761,7 +761,7 @@ read -n 1 -s -r -p "按任意键关闭…"
 const ASC_TTL_MIN = 30;
 
 /// 运营看板:/board?k=<BOARD_KEY>。每次打开从 D1 现算;App Store Connect 的
-/// 数据(7 次销售报告 + 3 个接口)在 sys 命名空间缓存 30 分钟。没配 BOARD_KEY
+/// 数据(自上架起每天一份销售报告 + 3 个接口)在 sys 命名空间缓存 30 分钟。没配 BOARD_KEY
 /// 时整个路由不存在,避免把账号列表和反馈内容暴露出去。
 async function handleBoard(req, env, url) {
   if (!env.BOARD_KEY || url.searchParams.get('k') !== env.BOARD_KEY) {

@@ -226,33 +226,42 @@ function ascSection() {
     </li>`).join('');
   let units = '';
   if (asc.dailyUnits) {
-    const rows = asc.dailyUnits;
+    // 自上架起的每一天;开头 Apple 没出报告的日子(上架前)不画。
+    const all = asc.dailyUnits;
+    const firstIdx = all.findIndex((r) => (r.downloads || 0) + (r.updates || 0) > 0);   // 从第一天有量起画
+    const rows = firstIdx >= 0 ? all.slice(firstIdx) : all;
+    const n = Math.max(1, rows.length);
     const max = Math.max(1, ...rows.map((r) => (r.downloads ?? 0) + (r.updates ?? 0)));
-    const W = 280, H = 96, padL = 4, padB = 22, padT = 18, bw = (W - padL * 2) / rows.length;
+    const W = 760, H = 150, padL = 4, padB = 22, padT = 18, bw = (W - padL * 2) / n;
+    const gap = Math.min(10, Math.max(2, bw * 0.3)), showVal = bw >= 16, every = Math.max(1, Math.ceil(n / 12));
     const bars = rows.map((r, i) => {
-      const x = padL + i * bw + 5, w = bw - 10;
-      const tick = `<text class="tick" x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${r.day.slice(5).replace('-', '/')}</text>`;
-      if (r.downloads == null) return `<g><text class="tick" x="${(x + w / 2).toFixed(1)}" y="${H - padB - 4}" text-anchor="middle">–</text>${tick}</g>`;
+      const x = padL + i * bw + gap / 2, w = bw - gap;
+      const tick = ((n - 1 - i) % every === 0)
+        ? `<text class="tick" x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${r.day.slice(5).replace('-', '/')}</text>` : '';
+      if (r.downloads == null) return `<g>${showVal ? `<text class="tick" x="${(x + w / 2).toFixed(1)}" y="${H - padB - 4}" text-anchor="middle">–</text>` : ''}${tick}</g>`;
       const hD = (r.downloads / max) * (H - padT - padB), hU = (r.updates / max) * (H - padT - padB);
       const yD = H - padB - hD, yU = yD - hU - (hU ? 2 : 0);
       return `<g class="bar" tabindex="0" aria-label="${r.day}:下载 ${r.downloads},更新 ${r.updates}">
-        <rect class="hit" x="${padL + i * bw}" y="0" width="${bw}" height="${H}" fill="transparent"/>
+        <rect class="hit" x="${(padL + i * bw).toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${H}" fill="transparent"><title>${r.day}:下载 ${r.downloads},更新 ${r.updates}</title></rect>
         <rect class="mark${i === rows.length - 1 ? ' last' : ''}" x="${x.toFixed(1)}" y="${yD.toFixed(1)}" width="${w.toFixed(1)}" height="${hD.toFixed(1)}" rx="3"/>
         <rect class="mark upd" x="${x.toFixed(1)}" y="${yU.toFixed(1)}" width="${w.toFixed(1)}" height="${hU.toFixed(1)}" rx="3"/>
-        <text class="val" x="${(x + w / 2).toFixed(1)}" y="${(yU - 4).toFixed(1)}" text-anchor="middle">${r.downloads}</text>
+        ${showVal && r.downloads ? `<text class="val" x="${(x + w / 2).toFixed(1)}" y="${(yU - 4).toFixed(1)}" text-anchor="middle">${r.downloads}</text>` : ''}
         ${tick}
       </g>`;
     }).join('');
     const tot = rows.reduce((s, r) => s + (r.downloads || 0), 0);
-    units = `<figure class="mini">
-      <figcaption><span class="mini-title">首次下载</span><span class="mini-total">${tot}<small>/7d</small></span></figcaption>
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="每日首次下载与更新"><line class="base" x1="${padL}" x2="${W - padL}" y1="${H - padB + 0.5}" y2="${H - padB + 0.5}"/>${bars}</svg>
-      <p class="mini-note">实心 = 首次下载,浅色叠加 = 更新。"–" = Apple 没出那天的报告:当天零下载,或昨天的还没生成(次日太平洋时间上午才出)。</p>
+    const totU = rows.reduce((s, r) => s + (r.updates || 0), 0);
+    const last7 = rows.slice(-7).reduce((s, r) => s + (r.downloads || 0), 0);
+    const since = rows[0]?.day ? rows[0].day.slice(5).replace('-', '/') : '';
+    units = `<figure class="mini units-wide">
+      <figcaption><span class="mini-title">首次下载 · 自上架${since ? `(${since} 起,${rows.length} 天)` : ''}</span><span class="mini-total">${tot}<small>累计 · 近 7 天 ${last7} · 更新 ${totU}</small></span></figcaption>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="自上架以来每日首次下载与更新"><line class="base" x1="${padL}" x2="${W - padL}" y1="${H - padB + 0.5}" y2="${H - padB + 0.5}"/>${bars}</svg>
+      <p class="mini-note">实心 = 首次下载,浅色叠加 = 更新;悬停看当天数字。"–" = Apple 没出那天的报告:当天零下载,或昨天的还没生成(次日太平洋时间上午才出)。只算 SessionBell 自己的行,同账号的 Sprig 已剔除。</p>
     </figure>`;
   } else if (!asc.hasVendor) {
     units = `<p class="mini-note">asc.json 里没有 vendor_number,跳过下载量。</p>`;
   }
-  // 按地区:近 7 天首次下载,营销投放看这个。
+  // 按地区:自上架起的首次下载,营销投放看这个。
   let regions = '';
   if (asc.dailyUnits) {
     const tot = countryTotals(asc.dailyUnits);
@@ -268,10 +277,10 @@ function ascSection() {
       <span class="rg-n">${r.downloads}<small>${(r.downloads / sum * 100).toFixed(0)}%</small></span>
       <span class="rg-upd dim">${r.updates ? `更新 ${r.updates}` : ''}</span>
     </li>`).join('');
-    const daysWithData = asc.dailyUnits.filter((d) => d.downloads != null).map((d) => d.day.slice(5).replace('-', '/'));
+    const withData = asc.dailyUnits.filter((d) => d.downloads != null);
     regions = `<div class="panel regions">
-      <div class="panel-h">首次下载 · 按地区 <span class="dim">近 7 天有报告的日子:${daysWithData.join('、') || '无'}</span></div>
-      ${tot.length ? `<ol class="rg">${rows}</ol>` : '<p class="mini-note">这几天没有下载记录。</p>'}
+      <div class="panel-h">首次下载 · 按地区 <span class="dim">自上架累计 ${sum === 1 && !tot.length ? 0 : sum} · ${withData.length} 个有报告的日子</span></div>
+      ${tot.length ? `<ol class="rg">${rows}</ol>` : '<p class="mini-note">还没有下载记录。</p>'}
       <p class="mini-note">地区 = 用户 Apple ID 所属商店,不是 IP 所在地。</p>
     </div>`;
   }
@@ -284,8 +293,8 @@ function ascSection() {
       <div class="panel-h">评分与评论 <span class="dim">${avg ? `平均 ${avg} · ${rv.length} 条` : '还没有评论'}</span></div>
       <ul class="reviews">${reviewList}</ul>
     </div>
-    ${units}
   </div>
+  ${units}
   ${regions}
   ${asc.errors?.length ? `<p class="mini-note">部分请求失败:${asc.errors.map(esc).join(' · ')}</p>` : ''}`;
 }
@@ -411,7 +420,8 @@ tbody tr:hover td{background:var(--surface-2)}
 .chip.crit{background:var(--crit-soft);color:var(--crit)}.chip.mute{background:var(--mute-soft);color:var(--ink-2)}
 .panel-h{font-weight:500;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
 .panel-h .dim{font-weight:400;font-size:12px}
-.asc-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,5fr) minmax(0,4fr);gap:20px;align-items:start}
+.asc-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,5fr);gap:20px;align-items:start}
+.units-wide{margin-top:20px}.units-wide .mini-total small{margin-left:6px}
 .kv{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .kv li{display:flex;align-items:center}
 .kv .dim{margin-left:auto;font-size:12px;font-family:var(--mono)}
