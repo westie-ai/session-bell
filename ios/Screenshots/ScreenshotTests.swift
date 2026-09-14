@@ -101,7 +101,7 @@ final class ScreenshotTests: XCTestCase {
     }
     private var atMacBtn: [String] { ["Connect my Mac", "连接我的 Mac"] }
     private var demoBtn: [String] { ["See it in action first", "先看看效果"] }
-    private var codeBtn: [String] { ["Enter the 6 digits from the Mac", "输入 Mac 上的那 6 位数字"] }
+    private var codeBtn: [String] { ["Enter them here", "在这里输入"] }
     private var copyBtn: [String] { ["Copy the line", "复制这一行"] }
 
     /// 先看看演示 → 直接进 App,任务页顶部是"还没连上 Mac"的卡,demo 任务可见。

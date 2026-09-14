@@ -29,6 +29,8 @@ struct OnboardingView: View {
                 case .manual: ManualStep(onSuccess: { step = .atMac })
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.sbBackground)
             .toolbar {
                 if step != .welcome {
                     ToolbarItem(placement: .cancellationAction) {
@@ -44,6 +46,7 @@ struct OnboardingView: View {
                 }
             }
         }
+        .tint(Color.sbAccentText)
         .interactiveDismissDisabled()
     }
 
@@ -51,75 +54,78 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                Image(systemName: "bell.badge.waveform.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(Color.sbAccent.gradient)
-                    .padding(.top, 36)
-                    .padding(.bottom, 18)
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack {
+                    Circle().fill(Color.sbAccent).frame(width: 76, height: 76)
+                    Image(systemName: "bell.badge.waveform.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(Color.sbInkOnAccent)
+                }
+                .padding(.top, 28)
+                .padding(.bottom, 22)
                 Text("Leave your computer freely")
-                    .font(.title.bold())
-                    .multilineTextAlignment(.center)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(Color.sbInk)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Claude Code keeps working on the Mac. Your phone rings the moment a task finishes, gets stuck, or needs your OK — and you answer from wherever you are.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.sbInk2)
                     .padding(.top, 8)
-                    .padding(.horizontal, 12)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    featureRow("bell.badge", "Rings when a task finishes or needs you",
+                VStack(spacing: 0) {
+                    featureRow("bell.badge.fill", "Rings when a task finishes or needs you",
                                "Silent while you're sitting at the Mac")
-                    featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
+                    Divider().overlay(Color.sbLine).padding(.leading, 66)
+                    featureRow("checkmark.shield.fill", "Approve permission requests from the Lock Screen",
                                "One tap, without walking back to the desk")
-                    featureRow("text.bubble", "Send the next instruction from your phone",
+                    Divider().overlay(Color.sbLine).padding(.leading, 66)
+                    featureRow("text.bubble.fill", "Send the next instruction from your phone",
                                "Reply to a finished task, or type straight into the terminal")
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 28)
-                .padding(.bottom, 28)
+                .padding(.vertical, 4)
+                .background(Color.sbCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, 24)
 
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     if !error.isEmpty {
-                        Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
+                        Text(error).font(.footnote).foregroundStyle(Color.sbWaiting)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Button {
                         start(demo: false)
                     } label: {
-                        Group {
-                            if busy { ProgressView().tint(.white) }
-                            else { Label("Connect my Mac", systemImage: "laptopcomputer").font(.headline) }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        if busy { ProgressView().tint(Color.sbInkOnAccent) }
+                        else { Label("Connect my Mac", systemImage: "laptopcomputer") }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                     .disabled(busy)
                     Text("One line in Terminal on the Mac — about 30 seconds.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.sbInk3)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, -4)
 
                     Button {
                         start(demo: true)
                     } label: {
                         Text("See it in action first")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SBSecondaryButtonStyle())
                     .disabled(busy)
 
                     Button("Self-hosted server / advanced") { step = .manual }
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 8)
+                        .foregroundStyle(Color.sbInk3)
+                        .padding(.top, 6)
+                        .frame(maxWidth: .infinity)
                 }
+                .padding(.top, 24)
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
+        .background(Color.sbBackground)
     }
 
     /// 真实空间 → 去连 Mac;演示 → 直接进 App 看模拟任务,并约一个 24h 后的提醒。
@@ -155,16 +161,20 @@ struct OnboardingView: View {
     }
 
     private func featureRow(_ icon: String, _ title: LocalizedStringKey, _ sub: LocalizedStringKey) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.sbAccentDeep)
-                .frame(width: 30)
+                .frame(width: 38, height: 38)
+                .background(Color.sbApprovalSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.medium))
-                Text(sub).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.sbInk)
+                Text(sub).font(.caption).foregroundStyle(Color.sbInk3)
             }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 }
 
@@ -210,7 +220,7 @@ struct ConnectMacStep: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                     .disabled(short == nil)
                     if let short, let page = SBBackend.macPageURL(code: short.code) {
                         ShareLink(item: page) {
@@ -218,7 +228,7 @@ struct ConnectMacStep: View {
                                 .font(.subheadline.weight(.medium))
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(SBSecondaryButtonStyle())
                         Text("Paste didn't arrive on the Mac? AirDrop opens a page there with a copy button. Or just type it — the number is \(short.pretty). Valid for 15 minutes; it renews by itself.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -249,7 +259,7 @@ struct ConnectMacStep: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                 } else {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -369,7 +379,7 @@ private struct CodeEntryStep: View {
                     } label: {
                         Text("Open SessionBell").font(.headline).frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                 }
             } header: {
                 Text("The 6 digits on the Mac screen")
