@@ -1411,6 +1411,7 @@ def run_watcher(cfg: dict) -> None:
     last_usage = 0.0
     last_cmd = 0.0
     last_reap = 0.0
+    first = True
     while True:
         # Adaptive: poll fast while a session likely awaits a phone reply
         # (waiting / freshly done) or the phone is actively driving us
@@ -1425,7 +1426,12 @@ def run_watcher(cfg: dict) -> None:
             hot = False
         poll = cfg.get("watcher_poll_seconds") or (3 if hot else 15)
         before = time.time()
-        time.sleep(poll)
+        # First pass runs straight away: a freshly (re)started relay should
+        # publish state now, not after an idle 15 s.
+        if first:
+            first = False
+        else:
+            time.sleep(poll)
         # Sleep/wake: a sleep that took far longer than asked means the Mac
         # was suspended. Re-sync right away instead of waiting for the next
         # 10-min tick, so the phone stops showing pre-sleep state. The network
@@ -2427,6 +2433,12 @@ def main():
 
     jwt = make_jwt(cfg)
     other_env = "production" if env == "sandbox" else "sandbox"
+
+    # The installer ends with `hook test`: publish our first heartbeat right
+    # here so the phone's "waiting for the Mac" page flips within one poll,
+    # instead of waiting for the relay's first watcher tick.
+    if kind == "test" and use_backend(cfg):
+        sync_peers(cfg, load_sessions(), host)
 
     ok = True
     for device_token in resolve_device_tokens(cfg):
