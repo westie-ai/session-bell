@@ -55,14 +55,17 @@ struct OnboardingView: View {
     private var welcome: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack {
-                    Circle().fill(Color.sbAccent).frame(width: 76, height: 76)
-                    Image(systemName: "bell.badge.waveform.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(Color.sbInkOnAccent)
-                }
-                .padding(.top, 28)
-                .padding(.bottom, 22)
+                // App 图标本身,歪一点,像个探头打招呼的小铃铛。
+                Image("WelcomeBell")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 96)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .rotationEffect(.degrees(-8))
+                    .shadow(color: .black.opacity(0.10), radius: 12, y: 5)
+                    .padding(.top, 32)
+                    .padding(.bottom, 26)
+                    .padding(.leading, 4)
                 Text("Leave your computer freely")
                     .font(.largeTitle.bold())
                     .foregroundStyle(Color.sbInk)
