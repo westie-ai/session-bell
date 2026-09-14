@@ -249,16 +249,6 @@
         }
       }
     },
-    "Allow or deny without going back to the Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许 / 拒绝,不用回电脑"
-          }
-        }
-      }
-    },
     "Allowed": {
       "localizations": {
         "zh-Hans": {
@@ -385,16 +375,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
-          }
-        }
-      }
-    },
-    "Captured %@ ago": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "画面时间:%@前"
           }
         }
       }
@@ -923,16 +903,6 @@
         }
       }
     },
-    "Notification History (%lld)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通知历史(%lld 条)"
-          }
-        }
-      }
-    },
     "Notifications": {
       "localizations": {
         "zh-Hans": {
@@ -949,16 +919,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Mac 上(两步)"
-          }
-        }
-      }
-    },
-    "One Lock Screen panel for every Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锁屏面板聚合所有 Mac 的任务"
           }
         }
       }
@@ -1069,16 +1029,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "项目目录"
-          }
-        }
-      }
-    },
-    "Refreshing…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刷新中…"
           }
         }
       }
@@ -1263,16 +1213,6 @@
         }
       }
     },
-    "Stays quiet while you're at the Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在电脑前时不会吵你"
-          }
-        }
-      }
-    },
     "Task Finished": {
       "localizations": {
         "zh-Hans": {
@@ -1299,16 +1239,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "租户密钥"
-          }
-        }
-      }
-    },
-    "Terminal Mode (live output + input)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "终端模式(实时输出 + 输入)"
           }
         }
       }
@@ -1463,16 +1393,6 @@
         }
       }
     },
-    "Waiting / running / done, with live timers": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待 / 运行 / 完成,实时走秒"
-          }
-        }
-      }
-    },
     "Waiting for APNs registration… (requires a real device with notifications allowed)": {
       "localizations": {
         "zh-Hans": {
@@ -1499,16 +1419,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待你"
-          }
-        }
-      }
-    },
-    "Waiting, finished, or needs approval — pushed straight to you": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任务等你、跑完、要授权 — 推送直达"
           }
         }
       }
@@ -1606,26 +1516,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "⏳ %@ 个任务运行中"
-          }
-        }
-      }
-    },
-    "⏳ Connecting to terminal… (first frame in about 10 s)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⏳ 正在连接终端…(首帧约 10 秒)"
-          }
-        }
-      }
-    },
-    "⏳ Fetching latest frame… (about 10 s)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⏳ 正在取最后画面…(约 10 秒)"
           }
         }
       }
@@ -1982,46 +1872,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
-          }
-        }
-      }
-    },
-    "SessionBell pairs with your Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SessionBell 需要和你的 Mac 配对"
-          }
-        }
-      }
-    },
-    "It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "它把 Mac 上正在跑的 Claude Code 搬到这台手机的锁屏。下一步要在 Mac 的终端里粘一行命令，大约 30 秒。"
-          }
-        }
-      }
-    },
-    "I'm at my Mac now": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我现在就在 Mac 前"
-          }
-        }
-      }
-    },
-    "Not right now — show me the demo": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "现在不在，先看看演示"
           }
         }
       }
@@ -2722,6 +2572,166 @@
           "stringUnit": {
             "state": "translated",
             "value": "手里有 Mac 给的 6 位数字？在这里输入"
+          }
+        }
+      }
+    },
+    "%@ ago": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@前"
+          }
+        }
+      }
+    },
+    "Claude Code keeps working on the Mac. Your phone rings the moment a task finishes, gets stuck, or needs your OK — and you answer from wherever you are.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code 在 Mac 上继续干活。任务跑完、卡住、要授权的那一刻手机就会响，你在哪都能直接回复。"
+          }
+        }
+      }
+    },
+    "Leave your computer freely": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放心离开电脑"
+          }
+        }
+      }
+    },
+    "One line in Terminal on the Mac — about 30 seconds.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 的终端里粘贴一行命令，大约 30 秒。"
+          }
+        }
+      }
+    },
+    "One tap, without walking back to the desk": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不用再走回电脑前"
+          }
+        }
+      }
+    },
+    "Progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进展"
+          }
+        }
+      }
+    },
+    "Reply to a finished task, or type straight into the terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复跑完的任务，或直接往终端里敲字"
+          }
+        }
+      }
+    },
+    "Rings when a task finishes or needs you": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务跑完或需要你时响铃"
+          }
+        }
+      }
+    },
+    "See it in action first": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先看看效果"
+          }
+        }
+      }
+    },
+    "Send the next instruction from your phone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在手机上发下一条指令"
+          }
+        }
+      }
+    },
+    "Silent while you're sitting at the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你坐在 Mac 前时保持安静"
+          }
+        }
+      }
+    },
+    "Terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终端"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视图"
+          }
+        }
+      }
+    },
+    "· %@ ago": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %@前"
+          }
+        }
+      }
+    },
+    "⏳ Connecting to terminal… (first frame in about 5 s)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 正在连接终端…（第一帧约 5 秒）"
+          }
+        }
+      }
+    },
+    "Fetching…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取中…"
           }
         }
       }

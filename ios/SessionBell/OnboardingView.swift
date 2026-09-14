@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 
 /// 首跑。第一句话就是前提:SessionBell 需要和一台 Mac 配对。
-///   「我现在在 Mac 前」 → 开空间 → 一行命令 + 6 位码,等 Mac 心跳
+///   「连接我的 Mac」 → 开空间 → 一行命令 + 6 位码,等 Mac 心跳
 ///   「现在不在」        → 演示租户,任务页常驻一张"回到 Mac 前时跑这一行"的卡,24h 后本地提醒
 ///   「Mac 上有 6 位数字」→ Mac 先跑了脚本,手机输码 / 扫码进来认领
 /// SBBackend.saved 已存在的老用户不会看到这里(ContentView 里判断)。
@@ -57,10 +57,10 @@ struct OnboardingView: View {
                     .foregroundStyle(Color.sbAccent.gradient)
                     .padding(.top, 36)
                     .padding(.bottom, 18)
-                Text("SessionBell pairs with your Mac")
+                Text("Leave your computer freely")
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
-                Text("It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.")
+                Text("Claude Code keeps working on the Mac. Your phone rings the moment a task finishes, gets stuck, or needs your OK — and you answer from wherever you are.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -68,12 +68,12 @@ struct OnboardingView: View {
                     .padding(.horizontal, 12)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    featureRow("bell.badge", "Waiting, finished, or needs approval — pushed straight to you",
-                               "Stays quiet while you're at the Mac")
-                    featureRow("platter.filled.bottom.iphone", "One Lock Screen panel for every Mac",
-                               "Waiting / running / done, with live timers")
+                    featureRow("bell.badge", "Rings when a task finishes or needs you",
+                               "Silent while you're sitting at the Mac")
                     featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
-                               "Allow or deny without going back to the Mac")
+                               "One tap, without walking back to the desk")
+                    featureRow("text.bubble", "Send the next instruction from your phone",
+                               "Reply to a finished task, or type straight into the terminal")
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 28)
@@ -88,18 +88,22 @@ struct OnboardingView: View {
                     } label: {
                         Group {
                             if busy { ProgressView().tint(.white) }
-                            else { Label("I'm at my Mac now", systemImage: "laptopcomputer").font(.headline) }
+                            else { Label("Connect my Mac", systemImage: "laptopcomputer").font(.headline) }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
+                    Text("One line in Terminal on the Mac — about 30 seconds.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
 
                     Button {
                         start(demo: true)
                     } label: {
-                        Text("Not right now — show me the demo")
+                        Text("See it in action first")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)

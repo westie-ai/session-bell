@@ -32,6 +32,30 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
+## 1.5 — in progress (build 9, not yet submitted)
+
+Code on `main` as of 2026-09-14. What changed:
+
+- **Welcome screen leads with the outcome.** Title "Leave your computer freely";
+  three scenario rows (rings when a task finishes or needs you / approve from
+  the Lock Screen / send the next instruction from the phone). Primary button
+  "Connect my Mac" with the "one line in Terminal, about 30 seconds" line as a
+  caption underneath; the demo button is "See it in action first" (no negative
+  phrasing). Same labels on the demo banner and the empty state.
+- **Task detail = one page, two views.** Segmented control at the top:
+  *Progress* (status + Claude's latest reply, plus a 3-line terminal teaser
+  while the task is live) and *Terminal* (raw screen). One shared input bar
+  under both; one frame loop shared by both views (2 s cadence on Terminal,
+  8 s on Progress). The old 14-line preview card and the separate full-screen
+  terminal page are gone; notification history moved to the toolbar.
+- Screenshot test `testDetail` now also captures the Terminal view
+  (`5-terminal`). The 1.2-era store screenshots still show the old detail page
+  and welcome copy — re-capture before submitting.
+
+Why: signups after open signup were ~5x, but 23 of 29 phones that registered
+never paired a Mac (welcome screen explained mechanism, not value), and users
+reported the detail page and terminal felt like duplicates.
+
 ## 1.4 — submitted 2026-09-08 20:06 (build 8, Waiting for Review)
 
 ### What changed (for the reviewer and for What's New)
@@ -151,8 +175,8 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.3**, build **7** (approved 2026-09-07). Ready: **1.4**, build **8**.
-- Next build number: **≥ 9**.
+- Last shipped: **1.4**, build **8**. In progress on `main`: **1.5**, build **9**.
+- Next build number: **≥ 10** after build 9 is uploaded.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.

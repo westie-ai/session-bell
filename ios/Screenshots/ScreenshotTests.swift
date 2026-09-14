@@ -99,8 +99,8 @@ final class ScreenshotTests: XCTestCase {
         }
         return q[labels[0]]
     }
-    private var atMacBtn: [String] { ["I'm at my Mac now", "我现在就在 Mac 前"] }
-    private var demoBtn: [String] { ["Not right now — show me the demo", "现在不在，先看看演示"] }
+    private var atMacBtn: [String] { ["Connect my Mac", "连接我的 Mac"] }
+    private var demoBtn: [String] { ["See it in action first", "先看看效果"] }
     private var codeBtn: [String] { ["Enter the 6 digits from the Mac", "输入 Mac 上的那 6 位数字"] }
     private var copyBtn: [String] { ["Copy the line", "复制这一行"] }
 
@@ -167,7 +167,11 @@ final class ScreenshotTests: XCTestCase {
         row.tap()
         sleep(2)
         app.scrollViews.firstMatch.swipeDown()   // 回到顶部,抵消导航时可能带来的偏移
-        sleep(15)   // 终端快照:缓存帧立即出现,12 秒后"画面时间"替换"刷新中"
+        sleep(6)    // 进展视图:Claude 最新回复 + 终端最后几行
         save("4-detail")
+        // 同一页顶部切到终端视图
+        first(app.buttons, ["Terminal", "终端"]).tap()
+        sleep(6)
+        save("5-terminal")
     }
 }
