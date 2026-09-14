@@ -149,7 +149,7 @@ REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
 VERSION = "1.5"
-BUILD = "9"
+BUILD = "10"
 SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
 
