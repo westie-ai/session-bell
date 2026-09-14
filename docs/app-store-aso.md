@@ -32,9 +32,10 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
-## 1.5 — submitted 2026-09-14 (build 9, Waiting for Review)
+## 1.5 — submitted 2026-09-14 (build 10, Waiting for Review)
 
-Version id 46c5ea79-eb32-4da5-a193-8224ad79c639. Store screenshots replaced in both
+Version id 46c5ea79-eb32-4da5-a193-8224ad79c639. Build 9 was pulled before review
+started and replaced by build 10 (idle Macs stay visible on the Tasks tab). Store screenshots replaced in both
 locales (iPhone 6.9" x5 incl. the Terminal view, iPad 13" x2) via
 `ios/scripts/asc_release.py prepare` / `submit`; captured by
 `$CLAUDE_JOB_DIR/tmp`-style scripts against a local worker, timed to the demo's
@@ -188,8 +189,8 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.4**, build **8**. In review: **1.5**, build **9** (submitted 2026-09-14).
-- Next build number: **≥ 10**.
+- Last shipped: **1.4**, build **8**. In review: **1.5**, build **10** (submitted 2026-09-14).
+- Next build number: **≥ 11**.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
