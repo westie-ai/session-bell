@@ -1424,7 +1424,22 @@ def run_watcher(cfg: dict) -> None:
         except Exception:
             hot = False
         poll = cfg.get("watcher_poll_seconds") or (3 if hot else 15)
+        before = time.time()
         time.sleep(poll)
+        # Sleep/wake: a sleep that took far longer than asked means the Mac
+        # was suspended. Re-sync right away instead of waiting for the next
+        # 10-min tick, so the phone stops showing pre-sleep state. The network
+        # (and any VPN) may lag the wake by a while — wait for the backend to
+        # answer before forcing the tick, so the sync itself doesn't time out.
+        asleep = time.time() - before - poll
+        if asleep > 90:
+            log(f"watcher: woke after {int(asleep)}s asleep, resyncing")
+            for _ in range(24):
+                if backend_call(cfg, "GET", "/api/state") is not None:
+                    break
+                time.sleep(5)
+            last_usage = 0.0
+            last_reap = 0.0
         try:
             # Refresh usage stats every 10 min and push them to the backend.
             if time.time() - last_usage > 600:
