@@ -32,7 +32,7 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
-## 1.5 — submitted 2026-09-14 (build 10, Waiting for Review)
+## 1.5 — submitted 2026-09-14 (build 10); rejected for the zh-Hans subtitle, resubmitted 2026-09-15 with a new subtitle
 
 Version id 46c5ea79-eb32-4da5-a193-8224ad79c639. Build 9 was pulled before review
 started and replaced by build 10 (idle Macs stay visible on the Tasks tab). Store screenshots replaced in both
@@ -113,7 +113,11 @@ as task names, the notification prompt no longer covers the first screen.
 
 ### Metadata to change in ASC with this version
 
-- zh-Hans subtitle: `把 Mac 上的 Claude Code 装进锁屏` (was 把 Agent 装进锁屏).
+- zh-Hans subtitle: `AI 编程 agent 锁屏提醒与遥控`. The first attempt, `把 Mac 上的 Claude Code 装进锁屏`,
+  was **rejected on 2026-09-15** (Guideline 5.2.5 "Mac" is an Apple trademark used inappropriately in the subtitle;
+  Guideline 4.1(a) "Claude" is third-party content in the subtitle). Rule going forward: **no Apple or third-party
+  product names in the app name or subtitle** — description, keywords and review notes were not flagged.
+  Fixed via API (appInfoLocalizations PATCH), old submission canceled, build 10 resubmitted as a new review submission.
 - First screenshot in both locales carries the prerequisite as a caption line
   ("需要一台装了 Claude Code 的 Mac" / "Needs a Mac running Claude Code") —
   add it in the ASC caption field or bake it into the image.

@@ -93,7 +93,7 @@ WHATS_NEW = {
  "zh-Hans": "任务详情重做:顶部「进展 | 终端」一键切换。进展视图直接显示整段对话——你的每条提示、Claude 的每段回复、每次工具调用,任务跑着的时候会一直往下长;终端视图是原始画面。两边共用一个输入栏。\n欢迎页重写,讲清楚它能帮你做什么,配色和 App 其他页面统一。\n多设备:设置里新增「再加一台手机或 iPad」,扫码或输 6 位数字即可加入同一个空间;欢迎页也能直接加入已有空间。\n更快:Mac 上跑完安装命令后手机几秒内就连上;打开终端最多等 5 秒;Mac 从休眠唤醒后立刻同步。",
  "en-US": "Task detail, rebuilt: switch between Progress and Terminal at the top. Progress shows the whole conversation — every prompt you gave, every reply from Claude, every tool call — and keeps growing while the task runs; Terminal is the raw screen. One input bar for both.\nNew welcome screen that says what the app does for you, in the app's own look.\nMulti-device: Settings › Add another phone or iPad — scan or type 6 digits to join the same space; the welcome screen can join an existing space too.\nFaster: the phone connects within seconds after the install command finishes on the Mac, the terminal answers within 5 s, and a Mac that wakes from sleep syncs right away.",
 }
-SUBTITLE_ZH = "把 Mac 上的 Claude Code 装进锁屏"
+SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 副标题里不能出现 Mac / Claude(1.5 因 5.2.5 + 4.1(a) 被拒过)
 REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (e.g. Claude Code). "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"See it in action first\" (second button on the first screen) -> "
   "a demo workspace loads with simulated tasks, so every tab, the task detail (Progress | Terminal views) and the Lock Screen Live Activity "
@@ -141,7 +141,7 @@ WHATS_NEW = {
  "zh-Hans": "任务详情重做:顶部「进展 | 终端」一键切换。进展视图直接显示整段对话——你的每条提示、Claude 的每段回复、每次工具调用,任务跑着的时候会一直往下长;终端视图是原始画面。两边共用一个输入栏。\n欢迎页重写,讲清楚它能帮你做什么,配色和 App 其他页面统一。\n多设备:设置里新增「再加一台手机或 iPad」,扫码或输 6 位数字即可加入同一个空间;欢迎页也能直接加入已有空间。\n更快:Mac 上跑完安装命令后手机几秒内就连上;打开终端最多等 5 秒;Mac 从休眠唤醒后立刻同步。",
  "en-US": "Task detail, rebuilt: switch between Progress and Terminal at the top. Progress shows the whole conversation — every prompt you gave, every reply from Claude, every tool call — and keeps growing while the task runs; Terminal is the raw screen. One input bar for both.\nNew welcome screen that says what the app does for you, in the app's own look.\nMulti-device: Settings › Add another phone or iPad — scan or type 6 digits to join the same space; the welcome screen can join an existing space too.\nFaster: the phone connects within seconds after the install command finishes on the Mac, the terminal answers within 5 s, and a Mac that wakes from sleep syncs right away.",
 }
-SUBTITLE_ZH = "把 Mac 上的 Claude Code 装进锁屏"
+SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 副标题里不能出现 Mac / Claude(1.5 因 5.2.5 + 4.1(a) 被拒过)
 REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (e.g. Claude Code). "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"Not right now — show me the demo\" (second button on the first screen) -> "
   "a demo workspace loads with simulated tasks, so every tab and the Lock Screen Live Activity can be reviewed without pairing anything. "
