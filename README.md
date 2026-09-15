@@ -187,6 +187,27 @@ The Codex integration is a local pilot, not a public installer/App Store release
 approval decision on stdout, the second injects remote phone commands. Neither
 slows you down when you're at the keyboard.
 
+### The command mailbox is claim-once
+
+A phone command lands in one row on the backend (`command/<session-id>`, or
+`command/_type-<mac>` for raw terminal typing). **Two** consumers on the Mac
+race for that row: the relay's watcher thread (types it into the session's
+terminal pane) and the blocked `Stop` hook process (feeds it back to Claude as
+the next turn). Whichever can deliver first should win, and the other must not
+deliver it at all.
+
+So delivery is gated on `POST /api/command/claim {key, ts}`, which does an
+atomic `DELETE ... WHERE ns=? AND k=? AND ts=?` and reports whether it removed
+the row. Only the consumer that gets `claimed: true` delivers; if it then fails
+to inject, it re-posts the command rather than dropping it.
+
+Do not go back to deduping on the local `cmd_ts` cursor in
+`~/.sessionbell/sessions.json`. That file is written by the watcher thread and
+by every hook process, it gets pruned when a session ends, and rows live 7 days
+on the backend while "fresh" only means "newer than 4 hours" — so a lost cursor
+replayed a command **hours** later, and a lost race replayed it within seconds.
+Both were seen in the wild before 2026-09-15.
+
 ## Security model
 
 - The Mac hook sends: project name, host name, session status, prompt/detail
