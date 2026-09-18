@@ -220,38 +220,66 @@ def handle_sys_command(cfg: dict, text: str) -> None:
     sync_peers(cfg, load_sessions(), host_label(cfg))  # reflect state to app
 
 
+def _claude_works(p: str) -> bool:
+    """Executable AND actually runs: an npm install that died halfway leaves a
+    non-executable stub at ~/.nvm/.../bin/claude (or an executable one that
+    just prints 'native package missing'), so existence alone proves nothing."""
+    if not p or not os.path.isfile(p) or not os.access(p, os.X_OK):
+        return False
+    try:
+        r = subprocess.run([p, "--version"], capture_output=True, text=True, timeout=20)
+        return r.returncode == 0 and "claude" in r.stdout.lower()
+    except Exception:
+        return False
+
+
 def claude_bin():
+    """Find a working `claude`, whichever way it was installed: the native
+    installer (~/.local/bin), Homebrew, or npm under nvm / a global prefix.
+    The result is cached, but a cached path that stopped working (user switched
+    installers, npm reinstall broke) is re-resolved, not trusted."""
     cache = os.path.join(CONFIG_DIR, "claude-bin")
     try:
         with open(cache) as f:
-            p = f.read().strip()
-        if p and os.path.exists(p):
-            return p
+            cached = f.read().strip()
+        if _claude_works(cached):
+            return cached
     except OSError:
         pass
     import glob as _glob
     import shutil
-    p = shutil.which("claude") or ""
-    if not p:
-        candidates = [os.path.expanduser("~/.local/bin/claude"),
-                      "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
-        candidates += sorted(_glob.glob(os.path.expanduser(
-            "~/.nvm/versions/node/*/bin/claude")), reverse=True)
-        p = next((c for c in candidates if os.path.exists(c)), "")
-    if not p and not IS_WIN:
+    candidates = []
+    w = shutil.which("claude")
+    if w:
+        candidates.append(w)
+    candidates += [os.path.expanduser("~/.local/bin/claude"),
+                   "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+    candidates += sorted(_glob.glob(os.path.expanduser(
+        "~/.nvm/versions/node/*/bin/claude")), reverse=True)
+    if not IS_WIN:
+        # The relay runs under launchd with a bare PATH; the login shell knows
+        # where the user's own install lives (npm prefix, volta, asdf...).
         try:
             r = subprocess.run(["/bin/zsh", "-ilc", "command -v claude"],
                                capture_output=True, text=True, timeout=15)
-            p = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+            if r.stdout.strip():
+                candidates.append(r.stdout.strip().splitlines()[-1])
         except Exception:
-            p = ""
-    if p and os.path.exists(p):
-        try:
-            with open(cache, "w") as f:
-                f.write(p)
-        except OSError:
             pass
-        return p
+    seen = set()
+    for c in candidates:
+        c = os.path.realpath(c) if os.path.islink(c) else c
+        if c in seen:
+            continue
+        seen.add(c)
+        if _claude_works(c):
+            try:
+                with open(cache, "w") as f:
+                    f.write(c)
+            except OSError:
+                pass
+            return c
+    log("claude_bin: no working claude found; tried " + ", ".join(candidates))
     return None
 
 
