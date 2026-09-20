@@ -51,6 +51,10 @@ json.dump(s, open(p, "w"), indent=2, ensure_ascii=False)
 print("✓ 7 个 hooks 已对齐", p)
 EOF
 
+if [ "${SB_CODEX:-0}" = "1" ]; then
+  python3 "$HOOK" codex-enable
+fi
+
 # 3. relay + watcher 常驻(launchd)
 mkdir -p ~/Library/LaunchAgents
 cat > "$PLIST" <<EOF

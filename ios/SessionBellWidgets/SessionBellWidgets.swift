@@ -137,6 +137,7 @@ private struct TaskRow: View {
     /// 行尾标签:项目名(仅当主文本是 prompt 时)+ 主机缩写(仅当多台 Mac 时),用 · 连起来。
     private var tagText: String? {
         var parts: [String] = []
+        if task.engine == "codex" { parts.append("CODEX") }
         if showsProjectTag { parts.append(task.project) }
         if showHost { parts.append(shortHost(task.host)) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

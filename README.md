@@ -39,10 +39,10 @@ backend is a ~350-line Cloudflare Worker with one D1 table.
   with `claude -c`.
 - **Usage dashboard** — your official Claude usage limits (weekly / per-model),
   fetched from the same source as `/usage`, no manual calibration.
-- **Engine-agnostic by design** — events carry an `engine` tag end to end.
-  An experimental Codex adapter ships in the hook script (`codex-setup`,
-  CC-compatible `~/.codex/hooks.json`) but is not field-calibrated yet —
-  contributions welcome.
+- **Codex on macOS** — CLI and desktop can share a local server, with task
+  state, notifications, approvals, questions, follow-ups, new tasks, and official
+  account quotas. Requires the updated backend and iOS app; see the
+  [integration and validation notes](docs/codex-integration.md).
 
 ## Two ways to run it
 
@@ -133,6 +133,28 @@ TestFlight build for long-term use. Extra Macs: repeat step 3 only.
 | `backend/` | **Deprecated** legacy Vercel backend, kept for reference |
 
 ## Hooks reference
+
+### Codex (macOS)
+
+After pairing SessionBell, run:
+
+```bash
+python3 ~/.sessionbell/sessionbell_hook.py codex-enable
+# Quit/reopen the desktop app once. Connect CLI sessions to the same service:
+codex --remote unix://
+```
+
+The installer also accepts `SB_CODEX=1` as an explicit opt-in. Setup backs up
+existing configuration, installs a launchd service, and configures the desktop
+connection over a user-owned Unix socket. It does not expose a TCP port.
+
+Select Codex on the phone's new-task screen. Follow-ups wait until the current
+turn is idle. Approvals are available on the lock screen and in the task;
+structured questions are answered individually in the task view. Existing
+independent sessions must finish their active turn before being opened on the
+shared service; SessionBell never silently resumes them on a second server.
+
+### Claude Code
 
 `mac/setup.sh` installs these into `~/.claude/settings.json`; for manual setup:
 

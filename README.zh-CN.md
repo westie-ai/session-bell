@@ -32,8 +32,9 @@ Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Cl
 - **远程控制** — 从手机往 session 的真实终端(iTerm / Terminal.app)注入文字、
   回读输出,已结束的 session 用 `claude -c` 复活
 - **用量面板** — 官方口径的周限额/分模型用量,与 `/usage` 同源,无需手动校准
-- **多引擎架构** — 事件全链路带 engine 标签;Codex 适配以实验性骨架的形式
-  存在(`sessionbell codex-setup`),尚未实机校准,按需求推进,欢迎 PR
+- **Codex 接入** — macOS CLI 和桌面 App 可连接同一个本地共享服务，支持
+  状态、锁屏卡片、审批、问答、续聊、新建任务和官方账号额度。
+  此功能需要新版后端与 iOS App，接入与验证边界见 [Codex 接入说明](docs/codex-integration.md)。
 
 ## 两种用法
 
@@ -107,6 +108,26 @@ irm https://sessionbell.westie.ai/install.ps1 | iex
 | `backend/` | **已废弃**的 Vercel 旧后端,仅存档 |
 
 ## 钩子配置
+
+### Codex（macOS）
+
+先完成 SessionBell 配对，然后运行：
+
+```bash
+python3 ~/.sessionbell/sessionbell_hook.py codex-enable
+# 桌面 App 退出并重开一次；CLI 明确连接同一个本机服务：
+codex --remote unix://
+```
+
+也可在初次安装时使用 `SB_CODEX=1` 环境变量启用。`codex-enable` 会备份配置、
+安装 launchd 服务，并设置桌面 App 的本地连接地址，不开放 TCP 网络端口。
+手机新建页选择 Codex；回复会排队到当前轮次结束。权限请求可以从锁屏或
+会话页处理，多问题询问在会话页逐项回答。
+
+旧的独立 CLI/桌面会话需先在原客户端结束活动轮次，再通过共享服务打开。
+SessionBell 不会把仍在另一进程执行的会话强行恢复到第二个服务。
+
+### Claude Code
 
 `mac/setup.sh` 会自动写入 `~/.claude/settings.json`;手动配置见英文版
 README 的 Hooks reference 一节。要点:**PermissionRequest 和 Stop 不能

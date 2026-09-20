@@ -214,7 +214,7 @@ struct ContentView: View {
 
     private var hasUsage: Bool {
         store.liveGroups.contains {
-            !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+            !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil || $0.codexUsage != nil
         }
     }
 
@@ -222,10 +222,13 @@ struct ContentView: View {
         NavigationStack {
             List {
                 ForEach(store.liveGroups.filter {
-                    !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+                    !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil || $0.codexUsage != nil
                 }) { group in
                     Section {
                         UsageDashboard(group: group)
+                        if let usage = group.codexUsage {
+                            CodexUsageDashboard(usage: usage)
+                        }
                     } header: {
                         HStack(spacing: 8) {
                             Circle().fill(Color.sbDone).frame(width: 7, height: 7)
@@ -248,7 +251,7 @@ struct ContentView: View {
                     ContentUnavailableView {
                         Label("No Usage Data", systemImage: "gauge.with.needle")
                     } description: {
-                        Text("After a task runs on your Mac, this shows the official weekly quota and premium-model usage, same source as /usage.")
+                        Text("After your Mac connects, this shows official Claude Code and Codex quota windows.")
                     }
                 }
             }
@@ -432,7 +435,7 @@ struct ContentView: View {
                     HStack(spacing: 12) {
                         StatusTile(symbol: "checkmark.shield", color: .sbAccentText, soft: .sbApprovalSoft)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Claude is asking for permission")
+                            Text(approval.engine == "codex" ? "Codex requests permission" : "Claude is asking for permission")
                                 .font(.callout.weight(.medium))
                                 .foregroundStyle(Color.sbInk)
                             Text(approval.date, style: .relative)
@@ -736,11 +739,24 @@ struct SpawnSheet: View {
     @State private var cwd = ""
     @State private var prompt = ""
     @State private var permMode = "auto"
+    @State private var engine = "claude"
+    @State private var sendResult = ""
     @State private var sent = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Agent") {
+                    Picker("Agent", selection: $engine) {
+                        Text("Claude Code").tag("claude")
+                        Text("Codex").tag("codex")
+                    }
+                    .pickerStyle(.segmented)
+                    if engine == "codex" && !group.codexConnected {
+                        Text("Codex is offline. This task will wait for your Mac to reconnect.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Section("Project Folder") {
                     ForEach(group.spawnDirs, id: \.self) { path in
                         Button {
@@ -765,7 +781,7 @@ struct SpawnSheet: View {
                     TextField("What should it do…", text: $prompt, axis: .vertical)
                         .lineLimit(3...6)
                 }
-                Section("Permission Mode") {
+                if engine == "claude" { Section("Permission Mode") {
                     Picker("Permission Mode", selection: $permMode) {
                         Text("Default").tag("default")
                         Text("⏵⏵ Auto").tag("auto")
@@ -778,6 +794,11 @@ struct SpawnSheet: View {
                          ? "Auto mode: safe actions pass automatically, doubtful ones go to your phone (recommended)"
                          : "Asks nothing and runs straight through. The first time on a machine you must accept a warning on the Mac.")
                         .font(.caption2).foregroundStyle(.secondary)
+                } } else {
+                    Section {
+                        Text("Codex works in this project folder. Requests for additional permissions go to your phone or Mac.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
                 Section {
                     Button {
@@ -786,20 +807,29 @@ struct SpawnSheet: View {
                               let json = String(data: data, encoding: .utf8) else { return }
                         sent = true
                         Task {
+                            if engine == "codex" {
+                                let result = await store.sendCodexCommand(host: group.host, action: "spawn", text: prompt, cwd: cwd)
+                                sendResult = result.message
+                                if result.ok { dismiss() } else { sent = false }
+                                return
+                            }
                             await store.sendMachineCommand("_spawn-\(group.canonicalKey)",
                                                            text: json)
                             try? await Task.sleep(for: .seconds(1))
                             dismiss()
                         }
                     } label: {
-                        Label(sent ? "Sent. Starting in about 10 seconds" : "🚀 Start on \(group.host)",
+                        Label(sent ? (engine == "codex" ? "Sending to Codex…" : "Sent. Starting in about 10 seconds") : "🚀 Start on \(group.host)",
                               systemImage: "paperplane.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
                 } footer: {
-                    Text("Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
+                    Text(engine == "codex"
+                         ? "Starts a Codex task on your Mac. The same conversation is available in Codex on the desktop and CLI, and its result is pushed to your phone."
+                         : "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
                 }
+                if !sendResult.isEmpty { Text(sendResult).foregroundStyle(Color.sbWaiting) }
             }
             .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)
@@ -828,6 +858,9 @@ struct UsageDashboard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !group.usage.isEmpty || group.sessionFraction != nil {
+                Text("Claude Code").font(.headline)
+            }
             // 5 小时窗口最先耗尽,放最上面。
             if let sessionFraction = group.sessionFraction {
                 Meter(icon: "clock", label: "5-Hour Window",
@@ -851,6 +884,53 @@ struct UsageDashboard: View {
                     Text(group.fableText).font(.caption2)
                 }
                 .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+struct CodexUsageDashboard: View {
+    let usage: CodexUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Codex").font(.headline)
+            if usage.available {
+                ForEach(usage.limits) { limit in
+                    if usage.limits.count > 1 {
+                        Text(limit.name).font(.subheadline.weight(.medium))
+                    }
+                    ForEach(limit.windows) { window in
+                        Meter(icon: "gauge.with.needle", label: LocalizedStringKey(window.label),
+                              fraction: window.used_pct / 100,
+                              color: window.used_pct >= 85 ? .sbWaiting : .sbAccentText,
+                              detail: String(localized: "official figures"))
+                        if let reset = window.resets_at {
+                            HStack {
+                                Text("Resets")
+                                Text(Date(timeIntervalSince1970: reset), style: .relative)
+                            }
+                            .font(.caption).foregroundStyle(Color.sbInk3)
+                        }
+                    }
+                }
+            } else {
+                Text(usage.reason == "subscription_required"
+                     ? "Subscription quota is only available when Codex is signed in with ChatGPT."
+                     : "Codex usage is currently unavailable.")
+                    .font(.footnote).foregroundStyle(Color.sbInk3)
+            }
+            if usage.ordinary_usage_allowed == false {
+                Text("Included usage is currently unavailable for this account.")
+                    .font(.caption).foregroundStyle(Color.sbWaiting)
+            }
+            if let updated = usage.updated_at {
+                HStack {
+                    Text(usage.stale == true ? "Last known usage" : "Updated")
+                    Text(Date(timeIntervalSince1970: updated), style: .relative)
+                }
+                .font(.caption2).foregroundStyle(Color.sbInk3)
             }
         }
         .padding(.vertical, 6)
@@ -1126,7 +1206,7 @@ struct SessionPage: View {
         liveTask?.host ?? host ?? group?.events.compactMap(\.host).first
     }
     private var isLive: Bool { liveTask != nil }
-    private var isCodex: Bool { liveTask?.engine == "codex" }
+    private var isCodex: Bool { (liveTask?.engine ?? group?.latest.engine) == "codex" }
 
     private var peekTask: EventStore.LiveTask? {
         guard let h = resolvedHost else { return nil }
@@ -1150,6 +1230,11 @@ struct SessionPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     headerCard
+                    if isCodex, let host = resolvedHost {
+                        ForEach(liveTask?.requests ?? []) { request in
+                            CodexRequestCard(request: request, sessionId: sessionId, host: host)
+                        }
+                    }
                     if !isCodex, let task = peekTask {
                         terminalCard(task)
                     }
@@ -1204,12 +1289,19 @@ struct SessionPage: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            if let event = group?.latest {
+            if let reply = liveTask?.latestReply, isCodex, !reply.isEmpty {
+                Divider()
+                MarkdownText(text: reply)
+            } else if let event = group?.latest {
                 let content = event.md ?? event.body
                 if !content.isEmpty {
                     Divider()
                     MarkdownText(text: content)
                 }
+            }
+            if let error = liveTask?.deliveryError, !error.isEmpty {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(Color.sbWaiting)
             }
         }
         .padding(12)
@@ -1299,7 +1391,11 @@ struct SessionPage: View {
         input = ""
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         Task {
-            if isLive {
+            if isCodex, let host = resolvedHost {
+                showNote(String(localized: "Sending to Codex…"))
+                let result = await store.sendCodexCommand(host: host, action: "send", sessionId: sessionId, text: text)
+                showNote(result.message, ok: result.ok)
+            } else if isLive {
                 guard let backend = SBBackend.saved else {
                     showNote(String(localized: "Backend not configured"), ok: false)
                     return
@@ -1328,6 +1424,79 @@ struct SessionPage: View {
         noteTask = Task {
             try? await Task.sleep(for: .seconds(3))
             if !Task.isCancelled { sendNote = "" }
+        }
+    }
+}
+
+struct CodexRequestCard: View {
+    let request: CodexPendingRequest
+    let sessionId: String
+    let host: String
+    @EnvironmentObject var store: EventStore
+    @State private var answers: [String: String] = [:]
+    @State private var sending = false
+    @State private var result = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(request.kind == "question" ? "Codex needs your input" : "Codex requests permission",
+                  systemImage: request.kind == "question" ? "questionmark.bubble" : "lock.shield")
+                .font(.headline)
+            if request.kind == "question" {
+                ForEach(request.questions) { question in
+                    Text(question.question).font(.subheadline)
+                    if let options = question.options, !options.isEmpty {
+                        ForEach(options, id: \.label) { option in
+                            Button {
+                                answers[question.id] = option.label
+                            } label: {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Label(option.label, systemImage: answers[question.id] == option.label ? "checkmark.circle.fill" : "circle")
+                                    Text(option.description).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    let value = Binding(get: { answers[question.id] ?? "" }, set: { answers[question.id] = $0 })
+                    if question.isSecret == true {
+                        SecureField("Your answer", text: value).textFieldStyle(.roundedBorder)
+                    } else {
+                        TextField("Your answer", text: value, axis: .vertical).textFieldStyle(.roundedBorder)
+                    }
+                }
+                Button("Send answers") {
+                    sending = true
+                    Task {
+                        let response = await store.sendCodexCommand(host: host, action: "answer", sessionId: sessionId,
+                                                                   requestId: request.id, answers: answers)
+                        result = response.message
+                        sending = response.ok
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(sending || request.questions.contains { (answers[$0.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            } else {
+                Text(request.summary).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
+                HStack {
+                    Button("Allow") { decide("allow") }.buttonStyle(.borderedProminent)
+                    Button("Deny", role: .destructive) { decide("deny") }.buttonStyle(.bordered)
+                }
+                .disabled(sending)
+            }
+            if !result.isEmpty { Text(result).font(.caption).foregroundStyle(.secondary) }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.sbCard, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func decide(_ decision: String) {
+        sending = true
+        Task {
+            let ok = await SBBackend.postChecked("/api/decision", body: ["request_id": request.id, "decision": decision])
+            result = ok ? String(localized: "Decision sent to Codex") : String(localized: "Couldn't send the decision. Try again.")
+            sending = ok
         }
     }
 }
