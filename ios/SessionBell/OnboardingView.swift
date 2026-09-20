@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 
 /// 首跑。第一句话就是前提:SessionBell 需要和一台 Mac 配对。
-///   「我现在在 Mac 前」 → 开空间 → 一行命令 + 6 位码,等 Mac 心跳
+///   「连接我的 Mac」 → 开空间 → 一行命令 + 6 位码,等 Mac 心跳
 ///   「现在不在」        → 演示租户,任务页常驻一张"回到 Mac 前时跑这一行"的卡,24h 后本地提醒
 ///   「Mac 上有 6 位数字」→ Mac 先跑了脚本,手机输码 / 扫码进来认领
 /// SBBackend.saved 已存在的老用户不会看到这里(ContentView 里判断)。
@@ -29,6 +29,8 @@ struct OnboardingView: View {
                 case .manual: ManualStep(onSuccess: { step = .atMac })
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.sbBackground)
             .toolbar {
                 if step != .welcome {
                     ToolbarItem(placement: .cancellationAction) {
@@ -44,6 +46,7 @@ struct OnboardingView: View {
                 }
             }
         }
+        .tint(Color.sbAccentText)
         .interactiveDismissDisabled()
     }
 
@@ -51,71 +54,88 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                Image(systemName: "bell.badge.waveform.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(Color.sbAccent.gradient)
-                    .padding(.top, 36)
-                    .padding(.bottom, 18)
-                Text("SessionBell pairs with your Mac")
-                    .font(.title.bold())
-                    .multilineTextAlignment(.center)
-                Text("It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.")
+            VStack(alignment: .leading, spacing: 0) {
+                // App 图标本身,歪一点,像个探头打招呼的小铃铛。
+                Image("WelcomeBell")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 112, height: 112)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .rotationEffect(.degrees(-12))
+                    .shadow(color: .black.opacity(0.10), radius: 12, y: 5)
+                    .padding(.top, 32)
+                    .padding(.bottom, 26)
+                    .padding(.leading, 4)
+                Text("Leave your computer freely")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(Color.sbInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Claude Code keeps working on the Mac. Your phone rings the moment a task finishes, gets stuck, or needs your OK — and you answer from wherever you are.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.sbInk2)
                     .padding(.top, 8)
-                    .padding(.horizontal, 12)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    featureRow("bell.badge", "Waiting, finished, or needs approval — pushed straight to you",
-                               "Stays quiet while you're at the Mac")
-                    featureRow("platter.filled.bottom.iphone", "One Lock Screen panel for every Mac",
-                               "Waiting / running / done, with live timers")
-                    featureRow("checkmark.shield", "Approve permission requests from the Lock Screen",
-                               "Allow or deny without going back to the Mac")
+                VStack(spacing: 0) {
+                    featureRow("bell.badge.fill", "Rings when a task finishes or needs you",
+                               "Silent while you're sitting at the Mac")
+                    Divider().overlay(Color.sbLine).padding(.leading, 66)
+                    featureRow("checkmark.shield.fill", "Approve permission requests from the Lock Screen",
+                               "One tap, without walking back to the desk")
+                    Divider().overlay(Color.sbLine).padding(.leading, 66)
+                    featureRow("text.bubble.fill", "Send the next instruction from your phone",
+                               "Reply to a finished task, or type straight into the terminal")
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 28)
-                .padding(.bottom, 28)
+                .padding(.vertical, 4)
+                .background(Color.sbCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, 24)
 
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     if !error.isEmpty {
-                        Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
+                        Text(error).font(.footnote).foregroundStyle(Color.sbWaiting)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Button {
                         start(demo: false)
                     } label: {
-                        Group {
-                            if busy { ProgressView().tint(.white) }
-                            else { Label("I'm at my Mac now", systemImage: "laptopcomputer").font(.headline) }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        if busy { ProgressView().tint(Color.sbInkOnAccent) }
+                        else { Label("Connect my Mac", systemImage: "laptopcomputer") }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                     .disabled(busy)
+                    Text("One line in Terminal on the Mac — about 30 seconds. Got more Macs? Add them any time from Settings.")
+                        .font(.caption)
+                        .foregroundStyle(Color.sbInk3)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, -4)
 
                     Button {
                         start(demo: true)
                     } label: {
-                        Text("Not right now — show me the demo")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                        Text("See it in action first")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SBSecondaryButtonStyle())
                     .disabled(busy)
 
+                    // 多设备:第二台手机 / iPad 加入已有空间,而不是再开一个。
+                    Button("Already set up on another device? Join that space") { step = .code(prefill: nil) }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Color.sbAccentText)
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity)
                     Button("Self-hosted server / advanced") { step = .manual }
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 8)
+                        .foregroundStyle(Color.sbInk3)
+                        .frame(maxWidth: .infinity)
                 }
+                .padding(.top, 24)
             }
-            .padding(.horizontal, 28)
+            .frame(maxWidth: 560)   // iPad:居中限宽,别拉成一整行
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
+        .background(Color.sbBackground)
     }
 
     /// 真实空间 → 去连 Mac;演示 → 直接进 App 看模拟任务,并约一个 24h 后的提醒。
@@ -151,16 +171,20 @@ struct OnboardingView: View {
     }
 
     private func featureRow(_ icon: String, _ title: LocalizedStringKey, _ sub: LocalizedStringKey) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.sbAccentDeep)
-                .frame(width: 30)
+                .frame(width: 38, height: 38)
+                .background(Color.sbApprovalSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.medium))
-                Text(sub).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.sbInk)
+                Text(sub).font(.caption).foregroundStyle(Color.sbInk3)
             }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 }
 
@@ -206,7 +230,7 @@ struct ConnectMacStep: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                     .disabled(short == nil)
                     if let short, let page = SBBackend.macPageURL(code: short.code) {
                         ShareLink(item: page) {
@@ -214,7 +238,7 @@ struct ConnectMacStep: View {
                                 .font(.subheadline.weight(.medium))
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(SBSecondaryButtonStyle())
                         Text("Paste didn't arrive on the Mac? AirDrop opens a page there with a copy button. Or just type it — the number is \(short.pretty). Valid for 15 minutes; it renews by itself.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -235,7 +259,7 @@ struct ConnectMacStep: View {
                     Label("Look up: the panel is already in the Dynamic Island. Lock the phone and it's on the Lock Screen too.", systemImage: "platter.filled.top.iphone")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text("From now on it fills in whenever Claude Code stops and waits for you.")
+                    Text("From now on it fills in whenever Claude Code stops and waits for you. More Macs go in the same space: Settings › Add another Mac.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button {
@@ -245,7 +269,7 @@ struct ConnectMacStep: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                 } else {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -365,19 +389,19 @@ private struct CodeEntryStep: View {
                     } label: {
                         Text("Open SessionBell").font(.headline).frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SBPrimaryButtonStyle())
                 }
             } header: {
-                Text("The 6 digits on the Mac screen")
+                Text("The 6 digits from your other device")
             } footer: {
-                Text("After the command finishes on the Mac, the digits are printed in Terminal and shown on the web page that opens. Scanning that page's QR code with the Camera app fills them in for you.")
+                Text("Where they come from: on a phone that's already set up, Settings › Add another phone or iPad. On a paired Mac, run `sessionbell code`. Right after the install command, they're also printed in Terminal and on the page that opens. Scanning that QR code with the Camera app fills them in for you.")
             }
             Section {
                 Button("I have a long pairing code or a self-hosted server") { onManual() }
                     .font(.subheadline)
             }
         }
-        .navigationTitle("Digits from the Mac")
+        .navigationTitle("Join a space")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let prefill, code.isEmpty {

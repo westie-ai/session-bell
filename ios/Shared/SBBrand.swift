@@ -65,3 +65,43 @@ extension String {
     /// 过滤后的任务名:注入文本 → 空串。
     var sbCleanPrompt: String { sbIsInjectedPrompt ? "" : self }
 }
+
+// MARK: 引导页按钮(品牌同源:铃铛黄底 + 炭黑字;次按钮白卡 + 描线)
+
+extension Color {
+    /// 黄底上的字,不随深色模式变浅
+    static let sbInkOnAccent = Color(red: 0.11, green: 0.106, blue: 0.094)
+}
+
+struct SBPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SBButtonBody(configuration: configuration, primary: true)
+    }
+}
+
+struct SBSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SBButtonBody(configuration: configuration, primary: false)
+    }
+}
+
+private struct SBButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let primary: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(primary ? Color.sbInkOnAccent : Color.sbInk)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(primary ? Color.sbAccent : Color.sbCard,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(primary ? Color.clear : Color.sbLine, lineWidth: 1))
+            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.75 : 1)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}

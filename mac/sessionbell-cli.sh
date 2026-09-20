@@ -25,6 +25,10 @@ case "$1" in
   status)
     tail -5 "$HOME/.sessionbell/sessionbell.log" 2>/dev/null || echo "尚未接入(先跑 sessionbell pair <配对码>)"
     ;;
+  code)
+    # 再加一台手机/iPad:打印 6 位数字并打开二维码页
+    python3 "$HOME/.sessionbell/sessionbell_hook.py" pair-code
+    ;;
   *)
     echo "SessionBell — 本地 AI 编程助手的移动指挥台"
     echo "用法:"
@@ -34,5 +38,6 @@ case "$1" in
     echo "  sessionbell codex-usage     查看 Codex 官方账号额度"
     echo "  sessionbell codex-enable    开启本机共享服务和桌面连接"
     echo "  sessionbell codex [参数]    在共享服务里使用 Codex CLI"
+    echo "  sessionbell code            给另一台手机/iPad 出 6 位加入码"
     ;;
 esac

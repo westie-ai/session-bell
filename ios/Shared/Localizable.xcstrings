@@ -521,16 +521,6 @@
         }
       }
     },
-    "Allow or deny without going back to the Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许 / 拒绝,不用回电脑"
-          }
-        }
-      }
-    },
     "Allowed": {
       "localizations": {
         "zh-Hans": {
@@ -657,16 +647,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
-          }
-        }
-      }
-    },
-    "Captured %@ ago": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "画面时间:%@前"
           }
         }
       }
@@ -1195,16 +1175,6 @@
         }
       }
     },
-    "Notification History (%lld)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通知历史(%lld 条)"
-          }
-        }
-      }
-    },
     "Notifications": {
       "localizations": {
         "zh-Hans": {
@@ -1221,16 +1191,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Mac 上(两步)"
-          }
-        }
-      }
-    },
-    "One Lock Screen panel for every Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锁屏面板聚合所有 Mac 的任务"
           }
         }
       }
@@ -1341,16 +1301,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "项目目录"
-          }
-        }
-      }
-    },
-    "Refreshing…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刷新中…"
           }
         }
       }
@@ -1535,16 +1485,6 @@
         }
       }
     },
-    "Stays quiet while you're at the Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在电脑前时不会吵你"
-          }
-        }
-      }
-    },
     "Task Finished": {
       "localizations": {
         "zh-Hans": {
@@ -1571,16 +1511,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "租户密钥"
-          }
-        }
-      }
-    },
-    "Terminal Mode (live output + input)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "终端模式(实时输出 + 输入)"
           }
         }
       }
@@ -1735,16 +1665,6 @@
         }
       }
     },
-    "Waiting / running / done, with live timers": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待 / 运行 / 完成,实时走秒"
-          }
-        }
-      }
-    },
     "Waiting for APNs registration… (requires a real device with notifications allowed)": {
       "localizations": {
         "zh-Hans": {
@@ -1771,16 +1691,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待你"
-          }
-        }
-      }
-    },
-    "Waiting, finished, or needs approval — pushed straight to you": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任务等你、跑完、要授权 — 推送直达"
           }
         }
       }
@@ -1878,26 +1788,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "⏳ %@ 个任务运行中"
-          }
-        }
-      }
-    },
-    "⏳ Connecting to terminal… (first frame in about 10 s)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⏳ 正在连接终端…(首帧约 10 秒)"
-          }
-        }
-      }
-    },
-    "⏳ Fetching latest frame… (about 10 s)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⏳ 正在取最后画面…(约 10 秒)"
           }
         }
       }
@@ -2258,46 +2148,6 @@
         }
       }
     },
-    "SessionBell pairs with your Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SessionBell 需要和你的 Mac 配对"
-          }
-        }
-      }
-    },
-    "It puts the Claude Code sessions running on your Mac onto this phone's Lock Screen. The next step is one line in the Mac's Terminal — about 30 seconds.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "它把 Mac 上正在跑的 Claude Code 搬到这台手机的锁屏。下一步要在 Mac 的终端里粘一行命令，大约 30 秒。"
-          }
-        }
-      }
-    },
-    "I'm at my Mac now": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我现在就在 Mac 前"
-          }
-        }
-      }
-    },
-    "Not right now — show me the demo": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "现在不在，先看看演示"
-          }
-        }
-      }
-    },
     "My Mac is showing a 6-digit code": {
       "localizations": {
         "zh-Hans": {
@@ -2444,16 +2294,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接中……"
-          }
-        }
-      }
-    },
-    "The 6 digits on the Mac screen": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac 屏幕上的 6 位数字"
           }
         }
       }
@@ -2698,26 +2538,6 @@
         }
       }
     },
-    "Digits from the Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac 上的数字"
-          }
-        }
-      }
-    },
-    "After the command finishes on the Mac, the digits are printed in Terminal and shown on the web page that opens. Scanning that page's QR code with the Camera app fills them in for you.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac 上命令跑完后，数字会打印在终端里，也显示在自动打开的网页上。用相机扫那个网页上的二维码，这里会自动填好。"
-          }
-        }
-      }
-    },
     "Email or any handle — X, Discord… (optional)": {
       "localizations": {
         "zh-Hans": {
@@ -2764,16 +2584,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "抬头看，面板已经在灵动岛里了。锁上屏幕，锁屏上也有。"
-          }
-        }
-      }
-    },
-    "From now on it fills in whenever Claude Code stops and waits for you.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "从现在起，Claude Code 停下来等你时，它就会显示具体任务。"
           }
         }
       }
@@ -2994,6 +2804,316 @@
           "stringUnit": {
             "state": "translated",
             "value": "手里有 Mac 给的 6 位数字？在这里输入"
+          }
+        }
+      }
+    },
+    "%@ ago": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@前"
+          }
+        }
+      }
+    },
+    "Claude Code keeps working on the Mac. Your phone rings the moment a task finishes, gets stuck, or needs your OK — and you answer from wherever you are.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code 在 Mac 上继续干活。任务跑完、卡住、要授权的那一刻手机就会响，你在哪都能直接回复。"
+          }
+        }
+      }
+    },
+    "Leave your computer freely": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放心离开电脑"
+          }
+        }
+      }
+    },
+    "One tap, without walking back to the desk": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不用再走回电脑前"
+          }
+        }
+      }
+    },
+    "Progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进展"
+          }
+        }
+      }
+    },
+    "Reply to a finished task, or type straight into the terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复跑完的任务，或直接往终端里敲字"
+          }
+        }
+      }
+    },
+    "Rings when a task finishes or needs you": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务跑完或需要你时响铃"
+          }
+        }
+      }
+    },
+    "See it in action first": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先看看效果"
+          }
+        }
+      }
+    },
+    "Send the next instruction from your phone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在手机上发下一条指令"
+          }
+        }
+      }
+    },
+    "Silent while you're sitting at the Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你坐在 Mac 前时保持安静"
+          }
+        }
+      }
+    },
+    "Terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终端"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视图"
+          }
+        }
+      }
+    },
+    "⏳ Connecting to terminal… (first frame in about 5 s)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏳ 正在连接终端…（第一帧约 5 秒）"
+          }
+        }
+      }
+    },
+    "Fetching…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取中…"
+          }
+        }
+      }
+    },
+    "Fetching the full conversation from the Mac…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在从 Mac 获取完整对话…"
+          }
+        }
+      }
+    },
+    "Already set up on another device? Join that space": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别的设备上已经在用了？加入那个空间"
+          }
+        }
+      }
+    },
+    "The 6 digits from your other device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一台设备给的 6 位数字"
+          }
+        }
+      }
+    },
+    "Where they come from: on a phone that's already set up, Settings › Add another phone or iPad. On a paired Mac, run `sessionbell code`. Right after the install command, they're also printed in Terminal and on the page that opens. Scanning that QR code with the Camera app fills them in for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字从哪来：已经配好的手机上，设置 › 再加一台手机或 iPad；已接入的 Mac 上跑 `sessionbell code`；刚跑完安装命令时，终端和打开的网页上也会显示。用相机扫那个二维码会自动填好。"
+          }
+        }
+      }
+    },
+    "Join a space": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入空间"
+          }
+        }
+      }
+    },
+    "Add another phone or iPad": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再加一台手机或 iPad"
+          }
+        }
+      }
+    },
+    "Valid for 15 minutes; it renews by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 分钟内有效，过期自动换新。"
+          }
+        }
+      }
+    },
+    "Couldn't get a code. Check the connection and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没拿到加入码，检查网络后再试。"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再试一次"
+          }
+        }
+      }
+    },
+    "On the other device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在另一台设备上"
+          }
+        }
+      }
+    },
+    "Scan this with the Camera app, or open SessionBell there, tap \"Join that space\" on the welcome screen and type the digits. Same Apple ID on both? iCloud Keychain usually does this by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用相机扫这个码；或者在那台设备上打开 SessionBell，在欢迎页点「加入那个空间」输入数字。两台是同一个 Apple ID？iCloud 钥匙串通常会自动同步，不用扫。"
+          }
+        }
+      }
+    },
+    "The other device joined 🎉": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一台设备已加入 🎉"
+          }
+        }
+      }
+    },
+    "Waiting for the other device…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待另一台设备…"
+          }
+        }
+      }
+    },
+    "Add a device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加设备"
+          }
+        }
+      }
+    },
+    "One line in Terminal on the Mac — about 30 seconds. Got more Macs? Add them any time from Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 的终端里粘贴一行命令，大约 30 秒。有多台 Mac？之后在设置里随时再加。"
+          }
+        }
+      }
+    },
+    "From now on it fills in whenever Claude Code stops and waits for you. More Macs go in the same space: Settings › Add another Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从现在起，Claude Code 一停下来等你，这里就会亮。还有别的 Mac？在「设置 › 再加一台 Mac」里加进同一个空间。"
+          }
+        }
+      }
+    },
+    "Idle — nothing running right now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空闲，现在没有任务在跑"
           }
         }
       }

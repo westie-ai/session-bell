@@ -57,7 +57,18 @@ final class ScreenshotTests: XCTestCase {
             "-sb.backendSecret", env["SB_SECRET"] ?? "demo-secret-for-screens-0001",
         ]
         app.launch()
+        dismissNotificationPrompt()
         return app
+    }
+
+    /// 干净安装第一次启动会弹系统通知权限框;中断监视器只在下一次交互时才触发,
+    /// 截图前没有交互,所以直接去 SpringBoard 里点掉它。
+    private func dismissNotificationPrompt() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for t in ["Allow", "允许"] {
+            let b = springboard.buttons[t]
+            if b.waitForExistence(timeout: 2) { b.tap(); sleep(1); return }
+        }
     }
 
     func testTabs() {
@@ -99,9 +110,9 @@ final class ScreenshotTests: XCTestCase {
         }
         return q[labels[0]]
     }
-    private var atMacBtn: [String] { ["I'm at my Mac now", "我现在就在 Mac 前"] }
-    private var demoBtn: [String] { ["Not right now — show me the demo", "现在不在，先看看演示"] }
-    private var codeBtn: [String] { ["Enter the 6 digits from the Mac", "输入 Mac 上的那 6 位数字"] }
+    private var atMacBtn: [String] { ["Connect my Mac", "连接我的 Mac"] }
+    private var demoBtn: [String] { ["See it in action first", "先看看效果"] }
+    private var codeBtn: [String] { ["Enter them here", "在这里输入"] }
     private var copyBtn: [String] { ["Copy the line", "复制这一行"] }
 
     /// 先看看演示 → 直接进 App,任务页顶部是"还没连上 Mac"的卡,demo 任务可见。
@@ -167,7 +178,22 @@ final class ScreenshotTests: XCTestCase {
         row.tap()
         sleep(2)
         app.scrollViews.firstMatch.swipeDown()   // 回到顶部,抵消导航时可能带来的偏移
-        sleep(15)   // 终端快照:缓存帧立即出现,12 秒后"画面时间"替换"刷新中"
+        sleep(6)    // 进展视图:Claude 最新回复 + 终端最后几行
         save("4-detail")
+        // 同一页顶部切到终端视图
+        first(app.buttons, ["Terminal", "终端"]).tap()
+        sleep(6)
+        save("5-terminal")
+    }
+
+    /// 设置 › 再加一台手机/iPad:6 位加入码 + 二维码。
+    func testAddDevice() {
+        let app = launchConnected(tab: 2)
+        let btn = first(app.buttons, ["Add another phone or iPad", "再加一台手机或 iPad"], timeout: 20)
+        XCTAssertTrue(btn.exists)
+        btn.tap()
+        XCTAssertTrue(first(app.staticTexts, ["On the other device", "在另一台设备上"], timeout: 20).exists)
+        sleep(4)
+        save("6-add-device")
     }
 }

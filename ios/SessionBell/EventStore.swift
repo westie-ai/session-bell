@@ -281,6 +281,8 @@ final class EventStore: ObservableObject {
         let order = ["waiting": 0, "running": 1, "done": 2]
         var groups: [HostGroup] = []
         let byHost = Dictionary(grouping: bySession.values) { canonical($0.host) }
+        // 一小时内有心跳的每台 Mac 都有一组,哪怕它此刻一个任务都没有 —
+        // 电脑空闲不等于电脑不见了,唤醒开关和「新任务」还得在。
         for hostKey in Set(byHost.keys).union(labelFor.keys) {
             let tasks = byHost[hostKey] ?? []
             let displayHost = labelFor[hostKey]?.label ?? tasks.first?.host ?? hostKey

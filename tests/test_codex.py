@@ -35,6 +35,48 @@ class CodexTests(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
 
+    def check_watcher_sync(self, suspend_during_poll):
+        class StopWatcher(BaseException):
+            pass
+
+        clock = [1000.0]
+        events = []
+        polls = []
+
+        def sleep(seconds):
+            events.append("sleep")
+            clock[0] += seconds
+
+        def poll(*args):
+            polls.append(args)
+            if len(polls) == 2:
+                raise StopWatcher()
+            if suspend_during_poll:
+                clock[0] += 300
+            return {"commands": {}}
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(sb.time, "time", side_effect=lambda: clock[0]))
+            stack.enter_context(patch.object(sb.time, "sleep", side_effect=sleep))
+            stack.enter_context(patch.object(sb, "backend_poll", side_effect=poll))
+            backend = stack.enter_context(patch.object(sb, "backend_call", return_value={}))
+            sync = stack.enter_context(patch.object(sb, "sync_peers", side_effect=lambda *args: events.append("sync")))
+            stack.enter_context(patch.object(sb, "host_label", return_value="test-mac"))
+            for name in ("self_update", "usage_summary", "refresh_codex_usage", "prune_sessions"):
+                stack.enter_context(patch.object(sb, name))
+            with self.assertRaises(StopWatcher):
+                sb.run_watcher({})
+            self.assertEqual(events[0], "sync", "Initial heartbeat must precede any sleep")
+            self.assertEqual(sync.call_count, 2 if suspend_during_poll else 1)
+            self.assertEqual(backend.call_count, 1 if suspend_during_poll else 0)
+            self.assertEqual(polls[0][2:], (sb.LP_WAIT, 0))
+
+    def test_merged_watcher_publishes_immediate_heartbeat(self):
+        self.check_watcher_sync(suspend_during_poll=False)
+
+    def test_merged_watcher_resyncs_after_sleep_during_long_poll(self):
+        self.check_watcher_sync(suspend_during_poll=True)
+
     def test_official_windows_are_not_assumed_to_be_five_hours(self):
         usage = sb.normalize_codex_usage({"rateLimits": {
             "primary": {"usedPercent": 31, "windowDurationMins": 15, "resetsAt": 123},

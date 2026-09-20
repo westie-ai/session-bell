@@ -71,17 +71,35 @@ export async function reviews(cfg, limit = 20) {
   }));
 }
 
+/** First day to ask Apple for a sales report. The app went on sale 2026-09-05; days before
+ *  the first report come back null and the board trims them. */
+export const LAUNCH = '2026-09-01';
+const MAX_DAYS = 400;   // hard cap on daily reports per snapshot (Workers subrequest budget)
+
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const k = i++; out[k] = await fn(items[k]); }
+  }));
+  return out;
+}
+
 /**
- * Daily first-time downloads and updates for the last `days` days, with a
- * per-storefront-country split, from the Sales Reports (SALES/SUMMARY/DAILY).
+ * Daily first-time downloads and updates since launch (or the last `days` days when given),
+ * with a per-storefront-country split, from the Sales Reports (SALES/SUMMARY/DAILY).
  * Apple publishes a day's report the next morning Pacific time and publishes
  * nothing at all for days with zero units, so missing days come back as null.
+ * Monthly/yearly report frequencies 404 for this vendor, so everything is daily.
  */
-export async function dailyUnits(cfg, days = 7) {
+export async function dailyUnits(cfg, days = null) {
   if (!cfg.vendor) return null;
+  const yesterday = new Date(Date.now() - 86400e3).toISOString().slice(0, 10);
+  const first = days ? new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10) : LAUNCH;
   const dates = [];
-  for (let i = days; i >= 1; i--) dates.push(new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10));
-  return Promise.all(dates.map(async (d) => {
+  for (let t = Date.parse(first); t <= Date.parse(yesterday) && dates.length < MAX_DAYS; t += 86400e3) {
+    dates.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return mapPool(dates, 8, async (d) => {
     let downloads = null, updates = null, byCountry = null;
     try {
       const tsv = await get(cfg, '/v1/salesReports?filter[frequency]=DAILY&filter[reportType]=SALES' +
@@ -92,7 +110,7 @@ export async function dailyUnits(cfg, days = 7) {
       const iCountry = col('Country Code');
       downloads = 0; updates = 0; byCountry = {};
       for (const r of rows) {
-        if (iApp >= 0 && r[iApp] !== APP_ID) continue;
+        if (iApp >= 0 && r[iApp] !== APP_ID) continue;   // the vendor report also carries the other apps (Sprig)
         const t = r[iType] || '', u = Number(r[iUnits]) || 0;
         const cc = (iCountry >= 0 && r[iCountry]) || '??';
         const kind = /^(1|1F|1T|1E|1EP|1EU|F1)$/.test(t) ? 'downloads'
@@ -106,7 +124,7 @@ export async function dailyUnits(cfg, days = 7) {
       if (e.status !== 404) throw e;
     }
     return { day: d, downloads, updates, byCountry };
-  }));
+  });
 }
 
 /** Sum a dailyUnits result per country, sorted by first-time downloads. */

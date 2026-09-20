@@ -23,6 +23,16 @@ function call(env, path, body, token = secret) {
 }
 const command = { command_id: '00000000-0000-4000-8000-000000000001', host: 'mac', action: 'spawn', text: 'Do work', cwd: '/tmp/project' };
 
+test('merged main retains separate Markdown progress and terminal captures', async () => {
+  const env = { DB: database() };
+  await call(env, '/api/capture', { session_id: 'claude-1', text: 'terminal frame' });
+  await call(env, '/api/capture', { session_id: 'claude-1', kind: 'md', text: 'm'.repeat(25000) });
+  const terminal = await (await call(env, '/api/capture?id=claude-1')).json();
+  const progress = await (await call(env, '/api/capture?id=claude-1&kind=md')).json();
+  assert.equal(terminal.capture.text, 'terminal frame');
+  assert.equal(progress.capture.text.length, 24000);
+});
+
 test('duplicate upload cannot create a second task or change the first prompt', async () => {
   const env = { DB: database() };
   assert.equal((await call(env, '/api/codex', command)).status, 200);

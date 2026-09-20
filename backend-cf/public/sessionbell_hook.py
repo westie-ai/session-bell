@@ -1165,6 +1165,98 @@ def handle_tail(cfg: dict, target_sid: str) -> None:
     log(f"tail: captured {target_sid[:8]} ({len(lines)} lines)")
 
 
+def tool_line(c: dict) -> str:
+    """一行概括一次工具调用:名字 + 描述(Bash)或目标文件/命令。"""
+    name = c.get("name") or "tool"
+    inp = c.get("input") or {}
+    if not isinstance(inp, dict):
+        inp = {}
+    what = inp.get("description") or ""
+    if not what:
+        for k in ("file_path", "path", "notebook_path", "pattern", "command", "query", "prompt", "url"):
+            v = inp.get(k)
+            if isinstance(v, str) and v.strip():
+                what = os.path.basename(v.rstrip("/")) if k in ("file_path", "path", "notebook_path") else v
+                break
+    return clip_bytes(" ".join(f"{name} {what}".split()), 120)
+
+
+def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
+    """整理版进度:把 Claude Code 的本地会话记录压成 markdown —— 你的每条提示、
+    Claude 的每段回复、工具调用一行一个。给手机的「进展」视图用,内容和终端
+    画面对应,只是排好了版。只保留末尾 max_bytes,按块截断。"""
+    import glob
+    paths = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{session_id}.jsonl"))
+    if not paths:
+        return ""
+    blocks: list = []
+    tools: list = []
+
+    def flush_tools():
+        if tools:
+            blocks.append("\n".join(f"- 🔧 {t}" for t in tools))
+            del tools[:]
+
+    try:
+        with open(paths[0]) as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                if obj.get("isSidechain"):
+                    continue
+                kind = obj.get("type")
+                content = (obj.get("message") or {}).get("content")
+                if kind == "user":
+                    if isinstance(content, str):
+                        texts = [content]
+                    elif isinstance(content, list):
+                        texts = [c.get("text", "") for c in content
+                                 if isinstance(c, dict) and c.get("type") == "text"]
+                    else:
+                        texts = []
+                    prompt = "\n".join(t for t in texts if t).strip()
+                    # hook / 系统注入的内容都是 <xml> 开头,不是人打的
+                    if not prompt or prompt.startswith("<"):
+                        continue
+                    flush_tools()
+                    blocks.append("### ❯ " + clip_bytes(" ".join(prompt.split()), 300))
+                elif kind == "assistant" and isinstance(content, list):
+                    for c in content:
+                        if not isinstance(c, dict):
+                            continue
+                        if c.get("type") == "text" and (c.get("text") or "").strip():
+                            flush_tools()
+                            blocks.append(c["text"].strip())
+                        elif c.get("type") == "tool_use":
+                            tools.append(tool_line(c))
+    except OSError:
+        return ""
+    flush_tools()
+    out: list = []
+    size = 0
+    for b in reversed(blocks):
+        n = len(b.encode()) + 2
+        if size + n > max_bytes:
+            if out:
+                out.append("…")
+            break
+        out.append(b)
+        size += n
+    return "\n\n".join(reversed(out))
+
+
+def handle_md(cfg: dict, target_sid: str) -> None:
+    """手机「进展」视图:回传整理版会话记录(见 session_markdown)。"""
+    text = session_markdown(target_sid)
+    if not text:
+        text = "(没有这个 session 的本地会话记录 — 可能在另一台电脑上,或已被清理)"
+    backend_call(cfg, "POST", "/api/capture",
+                 {"session_id": target_sid, "kind": "md", "text": clip_bytes(text, 24000)})
+    log(f"md: sent {target_sid[:8]} ({len(text)} chars)")
+
+
 def handle_type(cfg: dict, state: dict, payload: str) -> None:
     """Raw terminal typing from the phone's terminal view. Unlike sid-keyed
     commands this targets the PANE, not the claude process — it works after
@@ -2220,10 +2312,34 @@ def run_watcher(cfg: dict) -> None:
     backend_down = False
     # `watcher_poll_seconds` keeps the legacy fixed-interval mode (no hold).
     legacy_poll = cfg.get("watcher_poll_seconds")
+    first = True
+    last_pass = time.time()
     while True:
-        # Between long-polls just breathe; the hold itself is the wait. If the
-        # backend is unreachable, back off so a dead network isn't hammered.
-        time.sleep(legacy_poll or (10 if backend_down else 1))
+        # The server holds the request when quiet; only back off locally if
+        # the backend is unreachable or a legacy fixed interval is configured.
+        poll = legacy_poll or (10 if backend_down else 1)
+        # First pass runs straight away: a freshly (re)started relay should
+        # publish state now, not after an idle 15 s.
+        if first:
+            first = False
+        else:
+            time.sleep(poll)
+        # Include the held network request in sleep/wake detection: the Mac
+        # may suspend during the long-poll, not just during time.sleep().
+        # Re-sync right away instead of waiting for the next
+        # 10-min tick, so the phone stops showing pre-sleep state. The network
+        # (and any VPN) may lag the wake by a while — wait for the backend to
+        # answer before forcing the tick, so the sync itself doesn't time out.
+        asleep = time.time() - last_pass - poll - (0 if legacy_poll else LP_WAIT)
+        last_pass = time.time()
+        if asleep > 90:
+            log(f"watcher: woke after {int(asleep)}s asleep, resyncing")
+            for _ in range(24):
+                if backend_call(cfg, "GET", "/api/state") is not None:
+                    break
+                time.sleep(5)
+            last_usage = 0.0
+            last_reap = 0.0
         try:
             # Refresh usage stats every 10 min and push them to the backend.
             if time.time() - last_usage > 600:
@@ -2267,6 +2383,7 @@ def run_watcher(cfg: dict) -> None:
                           else "codex" if key == f"_codex-{my_canon}"
                           else "spawn" if key == f"_spawn-{my_canon}"
                           else "tail" if key == f"_tail-{my_canon}"
+                          else "md" if key == f"_md-{my_canon}"
                           else "type" if key == f"_type-{my_canon}" else None)
                 if not action or not cmd.get("text"):
                     continue
@@ -2285,6 +2402,8 @@ def run_watcher(cfg: dict) -> None:
                     handle_spawn(cfg, cmd["text"])
                 elif action == "type":
                     handle_type(cfg, state, cmd["text"])
+                elif action == "md":
+                    handle_md(cfg, cmd["text"].strip())
                 else:
                     handle_tail(cfg, cmd["text"].strip())
             for sid, cmd in commands.items():
@@ -3148,6 +3267,24 @@ def main():
              "s": cfg["backend_secret"]}).encode()).decode()
         print(code)
         return
+    if kind == "pair-code":
+        # 给同一空间再加一台手机/iPad:向后端要一个 15 分钟有效的 6 位数字,
+        # 另一台设备在引导页「加入那个空间」里输入,或用相机扫打开的那一页。
+        cfg = load_config("usage")
+        pc = base64.b64encode(json.dumps(
+            {"u": cfg["backend_url"].rstrip("/"),
+             "s": cfg["backend_secret"]}).encode()).decode()
+        r = backend_call(cfg, "POST", "/api/pair-code", {"pairing_code": pc}) or {}
+        code = r.get("short_code")
+        if not code:
+            sys.stderr.write(f"SessionBell: 没拿到配对数字 {r}\n")
+            sys.exit(1)
+        page = cfg["backend_url"].rstrip("/") + "/p/" + code
+        print(f"📱 在另一台设备的 SessionBell 里选「加入那个空间」,输入 {code[:3]} {code[3:]}(15 分钟内有效)")
+        print(f"   或者用相机扫这一页上的二维码:{page}")
+        if not IS_WIN:
+            subprocess.run(["open", page], capture_output=True)
+        return
     cfg = load_config(kind)
     _GATEWAY_CFG.update(cfg)
 
@@ -3397,6 +3534,12 @@ def main():
 
     jwt = make_jwt(cfg)
     other_env = "production" if env == "sandbox" else "sandbox"
+
+    # The installer ends with `hook test`: publish our first heartbeat right
+    # here so the phone's "waiting for the Mac" page flips within one poll,
+    # instead of waiting for the relay's first watcher tick.
+    if kind == "test" and use_backend(cfg):
+        sync_peers(cfg, load_sessions(), host)
 
     ok = True
     for device_token in resolve_device_tokens(cfg):
