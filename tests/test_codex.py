@@ -77,6 +77,40 @@ class CodexTests(unittest.TestCase):
     def test_merged_watcher_resyncs_after_sleep_during_long_poll(self):
         self.check_watcher_sync(suspend_during_poll=True)
 
+    def test_legacy_claim_requires_backend_confirmation(self):
+        for response, expected in ((None, False), ({}, False), ({"claimed": False}, False), ({"claimed": True}, True)):
+            with self.subTest(response=response), patch.object(sb, "backend_call", return_value=response) as backend:
+                self.assertEqual(sb.claim_command({}, "claude-1", 123), expected)
+                self.assertEqual(backend.call_args.args[3], {"key": "claude-1", "ts": 123})
+
+    def test_raw_terminal_input_cancels_legacy_mailbox(self):
+        state = {"local": {"claude-1": {"cmd_ts": 0}}}
+        with patch.object(sb, "type_into_terminal", return_value=(True, "")), patch.object(sb, "claim_command") as claim:
+            sb.handle_type({}, state, json.dumps({"sid": "claude-1", "text": "continue"}))
+            claim.assert_called_once_with({}, "claude-1")
+            self.assertGreater(state["local"]["claude-1"]["cmd_ts"], 0)
+
+    def test_watcher_cannot_spawn_without_winning_claim(self):
+        class StopWatcher(BaseException):
+            pass
+        for won in (False, True):
+            with self.subTest(won=won), contextlib.ExitStack() as stack:
+                stack.enter_context(patch.object(sb.time, "time", return_value=1000))
+                stack.enter_context(patch.object(sb.time, "sleep"))
+                stack.enter_context(patch.object(sb, "host_label", return_value="test-mac"))
+                stack.enter_context(patch.object(sb, "load_sessions", side_effect=lambda: {"local": {}, "_cursors": {}}))
+                stack.enter_context(patch.object(sb, "save_sessions"))
+                for name in ("self_update", "usage_summary", "refresh_codex_usage", "sync_peers", "prune_sessions"):
+                    stack.enter_context(patch.object(sb, name))
+                stack.enter_context(patch.object(sb, "backend_poll", side_effect=[
+                    {"commands": {"_spawn-testmac": {"ts": 1000000, "text": "test"}}}, StopWatcher()]))
+                claim = stack.enter_context(patch.object(sb, "claim_command", return_value=won))
+                spawn = stack.enter_context(patch.object(sb, "handle_spawn"))
+                with self.assertRaises(StopWatcher):
+                    sb.run_watcher({})
+                claim.assert_called_once_with({}, "_spawn-testmac", 1000000)
+                self.assertEqual(spawn.call_count, 1 if won else 0)
+
     def test_official_windows_are_not_assumed_to_be_five_hours(self):
         usage = sb.normalize_codex_usage({"rateLimits": {
             "primary": {"usedPercent": 31, "windowDurationMins": 15, "resetsAt": 123},
@@ -271,6 +305,23 @@ class CodexTests(unittest.TestCase):
             bridge = sb.CodexBridge({"backend_url": "https://example.invalid", "backend_secret": "test"})
         bridge.rpc = Mock()
         return bridge
+
+    def test_idle_bridge_refreshes_phone_status_without_push(self):
+        bridge = self.bridge()
+        bridge.rpc.poll.return_value = []
+        bridge.wake.clear()
+        bridge.last_discover = bridge.last_decisions = 100
+        bridge.last_publish = 74
+        with patch.object(sb.time, "monotonic", return_value=100), \
+             patch.object(sb, "sync_peers") as sync, \
+             patch.object(sb, "host_label", return_value="test-mac"), \
+             patch.object(sb, "push_dashboard") as push:
+            bridge.tick()
+            self.assertEqual(bridge.last_publish, 100)
+            sync.assert_called_once()
+            push.assert_not_called()
+            bridge.tick()
+            sync.assert_called_once()
 
     def test_busy_session_keeps_command_queued(self):
         bridge = self.bridge()

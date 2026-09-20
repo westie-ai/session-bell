@@ -210,6 +210,19 @@ async function handleCommand(req, env, n, url) {
   return json({ commands: out });
 }
 
+// Preserve the existing production claim API, including timestamp-guarded deletion.
+async function handleCommandClaim(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (typeof b.key !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(b.key)) {
+    return json({ error: 'bad key' }, 400);
+  }
+  const r = b.ts == null
+    ? await env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, `command/${b.key}`).run()
+    : await env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=? AND ts=?').bind(n, `command/${b.key}`, Number(b.ts) || 0).run();
+  return json({ claimed: (r.meta?.changes || 0) > 0 });
+}
+
 // 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
 // markdown 进度(24 KB),手机「进展」视图用。同一接口,kind 区分。
 async function handleCapture(req, env, n, url) {
@@ -919,6 +932,7 @@ export default {
       if (path === '/api/token') return handleToken(req, env, n);
       if (path === '/api/state') return handleState(req, env, n);
       if (path === '/api/command') return handleCommand(req, env, n, url);
+      if (path === '/api/command/claim') return handleCommandClaim(req, env, n);
       if (path === '/api/codex') return handleCodex(req, env, n, url);
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);

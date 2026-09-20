@@ -1,6 +1,17 @@
 # Codex integration
 
-Scope: macOS CLI and desktop task state, notifications, Live Activity, approvals, structured questions, follow-ups, new tasks, and official account quota. The working tree implements these features. Production deployment, installation of the updated iOS app, and physical-phone verification remain release steps.
+Scope: macOS CLI and desktop task state, notifications, Live Activity, approvals, structured questions, follow-ups, new tasks, and official account quota. The integration is installed for a single-device pilot. See the deployment record below for verified behavior and remaining manual checks.
+
+## Single-device pilot, 2026-09-20
+
+- Branch `feat/codex-integration` includes main at `83f84be` via merge `67e8a7d`.
+- Development iOS App and Widget 1.5 (10) installed and launched on the paired iPhone. No App Store / TestFlight upload.
+- Cloudflare Worker version `4888c1bb-b112-483f-9d0d-0312244f42df` deployed; prior rollback version `276a6563-60d6-4344-8c1a-7607b9514997` retained. D1 schema, bindings, secrets and public assets were not changed. Public HTML differs per response only by Cloudflare's injected hidden link; normalized content matched the unchanged source.
+- The production command-claim endpoint and board wake lock were absent even from the fetched main. They were restored into this branch before deployment, preserving the actual production behavior.
+- Only this Mac's installed relay was updated. Its existing atomic legacy-command claim behavior is retained, and idle Codex connection state is refreshed without extra APNs updates. `auto_update: false` prevents the unchanged public script from replacing this pilot relay.
+- Pre-update local rollback copy: `~/.sessionbell/relay-backup-20260920-032402/` (script, configuration and launch agent). Later timestamped backups also exist.
+- Validation: 16 legacy API scenarios matched the downloaded production Worker; 22 live HTTP checks passed in an isolated tenant and their records were deleted. The actual installed relay completed both a new Codex task and a follow-up through production APIs, including duplicate-upload checks, completion state and reply synchronization. Official quota was present in backend state. Only the test conversation was archived.
+- Notification display, lock-screen presentation, phone approval/question interactions, and the original desktop application's post-restart UI remain manual verification items. Do not infer APNs display success merely from a task completing.
 
 ## Connection model
 
@@ -12,7 +23,7 @@ The simpler `CODEX_APP_SERVER_USE_LOCAL_DAEMON=1` switch was tested and fell bac
 
 ## Install and release order
 
-1. Deploy the updated `backend-cf` Worker and public hook asset. `/api/codex` must exist before phone controls can work.
+1. Deploy the updated `backend-cf` Worker. `/api/codex` must exist before phone controls can work. For a pilot, reuse existing assets with Cloudflare's `keep_assets` upload metadata; do not publish the newer public hook or installer. A normal unrestricted `wrangler deploy` also updates public assets and is not the pilot workflow.
 2. Build and install the updated iOS app and Widget. Legacy Claude endpoints remain compatible.
 3. After pairing, run `python3 ~/.sessionbell/sessionbell_hook.py codex-enable`, or use `python3 mac/sessionbell_hook.py codex-enable` from the source checkout.
 4. Install the updated hook at the relay's configured path and restart the relay. A development relay can point directly to the repository script. Set `auto_update: false` during a hosted-install development test so the published asset cannot replace newer local code.
@@ -43,7 +54,7 @@ Shared sessions use app-server events and native approval requests; SessionBell 
 - `wrangler deploy --dry-run` successfully builds the Worker and its assets without deploying them.
 - An isolated desktop window successfully initialized against the shared server. Desktop UI interaction was not automated because computer use prohibits controlling its own app.
 
-Physical iPhone and APNs verification, and the production queue endpoint, are still pending. Do not claim phone end-to-end availability before those checks pass.
+The production queue and real relay round trips are verified as described above. Physical notification display, approvals and lock-screen verification remain pending; the iPhone installation and launch check alone do not establish those behaviors.
 
 ## Roll back local settings
 

@@ -870,12 +870,16 @@ class CodexBridge:
                     except ValueError as exc:
                         self.update(request["params"]["threadId"], delivery_error=str(exc))
             self.last_decisions = now
-        if self.dirty and now - self.last_publish > 3:
+        # iOS considers a bridge heartbeat older than 45 seconds offline.
+        # Keep idle connections fresh without sending extra APNs updates.
+        if (self.dirty and now - self.last_publish > 3) or now - self.last_publish > 25:
+            changed = self.dirty
             self.dirty = False
             state = load_sessions()
             label = host_label(self.cfg)
             sync_peers(self.cfg, state, label)
-            push_dashboard(self.cfg, make_jwt(self.cfg), HOSTS[self.cfg.get("environment", "sandbox")], state, label)
+            if changed:
+                push_dashboard(self.cfg, make_jwt(self.cfg), HOSTS[self.cfg.get("environment", "sandbox")], state, label)
             self.last_publish = now
 
     def run(self):
@@ -1271,9 +1275,11 @@ def handle_type(cfg: dict, state: dict, payload: str) -> None:
         log(f"type: no terminal record for {sid[:8]}")
         return
     ok, err = type_into_terminal(entry, text)
-    if ok and sid in state["local"]:
-        # Raw typing supersedes any queued sid-keyed command, like local typing.
-        state["local"][sid]["cmd_ts"] = int(time.time() * 1000)
+    if ok:
+        # Preserve the installed relay's server-side queue cancellation.
+        claim_command(cfg, sid)
+        if sid in state["local"]:
+            state["local"][sid]["cmd_ts"] = int(time.time() * 1000)
     log(f"type: {sid[:8]} {'ok: ' + text[:40] if ok else 'failed: ' + err}")
 
 
@@ -1657,6 +1663,23 @@ def backend_poll(cfg: dict, path: str, wait: int, since: int = 0):
     sep = "&" if "?" in path else "?"
     return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}",
                         timeout=(wait + 10) if wait else 8)
+
+
+def claim_command(cfg: dict, key: str, ts=None) -> bool:
+    """Only the winner of a server-side claim may deliver a legacy command.
+
+    The watcher and Stop hook can see the same row concurrently. Timestamp-
+    guarded deletion retains newer messages; missing confirmation fails closed.
+    ts=None cancels a queued message after explicit raw terminal input.
+    """
+    body = {"key": key}
+    if ts is not None:
+        body["ts"] = ts
+    resp = backend_call(cfg, "POST", "/api/command/claim", body)
+    if not isinstance(resp, dict) or "claimed" not in resp:
+        log(f"claim {key[:12]}: backend didn't answer, leaving it queued")
+        return False
+    return bool(resp["claimed"])
 
 
 _GATEWAY_CFG = {}  # set once in main(); lets send_* route without signature churn
@@ -2390,6 +2413,8 @@ def run_watcher(cfg: dict) -> None:
                 if cmd.get("ts", 0) <= max(cursors.get(key, 0),
                                            (time.time() - 4 * 3600) * 1000):
                     continue
+                if not claim_command(cfg, key, cmd.get("ts")):
+                    continue
                 cursors[key] = cmd["ts"]
                 changed = True
                 last_cmd = time.time()
@@ -2420,6 +2445,7 @@ def run_watcher(cfg: dict) -> None:
                         "host": my_canon, "command_id": command_id, "action": "send",
                         "session_id": sid, "text": cmd["text"]})
                     if result and result.get("ok"):
+                        claim_command(cfg, sid, cmd.get("ts"))
                         entry["cmd_ts"] = cmd["ts"]
                         changed = True
                         if _CODEX_BRIDGE:
@@ -2428,6 +2454,8 @@ def run_watcher(cfg: dict) -> None:
                 if not (entry.get("term_type") or entry.get("pane")):
                     continue  # no injection route; stop-window fallback covers it
                 if not entry.get("pid") or not pid_alive(entry["pid"]):
+                    continue
+                if not claim_command(cfg, sid, cmd.get("ts")):
                     continue
                 text = " ".join(cmd["text"].split())
                 ok_inject, err = type_into_terminal(entry, text)
@@ -2438,7 +2466,9 @@ def run_watcher(cfg: dict) -> None:
                     log(f"watcher: typed into {sid[:8]} "
                         f"({entry.get('term_type') or 'otty'}): {text[:40]}")
                 else:
-                    log(f"watcher: inject failed for {sid[:8]}: {err}")
+                    backend_call(cfg, "POST", "/api/command",
+                                 {"session_id": sid, "text": cmd["text"]})
+                    log(f"watcher: inject failed for {sid[:8]}, requeued: {err}")
             if changed:
                 save_sessions(state)
         except Exception as exc:
@@ -2753,6 +2783,10 @@ def try_inject_command(cfg, env, session_id, project, host,
         resp = backend_poll(cfg, f"/api/command?id={session_id}", hold, cursor)
         cmd = (resp or {}).get("command")
         fresh = cmd and cmd.get("ts", 0) > max(cursor, (time.time() - 4 * 3600) * 1000)
+        if fresh and cmd.get("text") and not claim_command(cfg, session_id, cmd.get("ts")):
+            cursor = max(cursor, cmd.get("ts", 0))
+            log("stop: command already claimed by the watcher")
+            fresh = False
         if fresh and cmd.get("text"):
             text = cmd["text"]
             state = load_sessions()

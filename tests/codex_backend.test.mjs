@@ -8,6 +8,12 @@ function database() {
     async first() { return rows.get(args.slice(0, 2).join('|')) || null; },
     async run() {
       const [ns, k, v, ts] = args, key = `${ns}|${k}`;
+      if (sql.startsWith('DELETE FROM kv WHERE ns=? AND k=?')) {
+        const row = rows.get(key);
+        const matches = !!row && (args.length === 2 || row.ts === args[2]);
+        if (matches) rows.delete(key);
+        return { success: true, meta: { changes: matches ? 1 : 0 } };
+      }
       if (!sql.startsWith('INSERT OR IGNORE') || !rows.has(key)) rows.set(key, { ns, k, v, ts });
       return { success: true };
     },
@@ -22,6 +28,22 @@ function call(env, path, body, token = secret) {
   }), env);
 }
 const command = { command_id: '00000000-0000-4000-8000-000000000001', host: 'mac', action: 'spawn', text: 'Do work', cwd: '/tmp/project' };
+
+test('production claim API preserves newer commands and tenant isolation', async () => {
+  const env = { DB: database() };
+  await call(env, '/api/command', { session_id: 'claude-1', text: 'continue' });
+  const first = (await (await call(env, '/api/command?id=claude-1')).json()).command;
+  const claim = async (body, token = secret) => (await call(env, '/api/command/claim', body, token)).json();
+  assert.deepEqual(await claim({ key: 'claude-1', ts: first.ts - 1 }), { claimed: false });
+  assert.deepEqual(await claim({ key: 'claude-1', ts: first.ts }, 'another-test-secret'), { claimed: false });
+  assert.deepEqual(await claim({ key: 'claude-1', ts: first.ts }), { claimed: true });
+  assert.equal((await (await call(env, '/api/command?id=claude-1')).json()).command, null);
+  assert.deepEqual(await claim({ key: 'claude-1' }), { claimed: false });
+  await call(env, '/api/command', { session_id: 'claude-1', text: 'next' });
+  assert.deepEqual(await claim({ key: 'claude-1' }), { claimed: true });
+  assert.equal((await call(env, '/api/command/claim', { key: '../invalid' })).status, 400);
+  assert.equal((await call(env, '/api/command/claim')).status, 404);
+});
 
 test('merged main retains separate Markdown progress and terminal captures', async () => {
   const env = { DB: database() };
