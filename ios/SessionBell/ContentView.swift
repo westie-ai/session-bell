@@ -1050,7 +1050,8 @@ struct LiveTaskRow: View {
         switch task.status {
         case "waiting": return "Waiting for you"
         case "running": return "Running"
-        default: return "Done"
+        case "done": return "Done"
+        default: return "Status unavailable"
         }
     }
 
@@ -1062,8 +1063,8 @@ struct LiveTaskRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            StatusTile(symbol: Color.sbStatusSymbol(task.status), color: color,
-                       soft: Color.sbStatusSoft(task.status), size: task.isSub ? 24 : 30)
+            SBAgentIcon(engine: task.engine, size: task.isSub ? 26 : 36)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -1071,28 +1072,31 @@ struct LiveTaskRow: View {
                     .foregroundStyle(task.status == "done" ? Color.sbInk2 : Color.sbInk)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    if title != task.project {
-                        Text(task.project).lineLimit(1)
-                        Dot()
-                    }
-                    if task.isSub {
-                        Text("sub-agent")
-                        Dot()
-                    }
-                    if task.engine == "codex" {
-                        Tag("CODEX")
-                        Dot()
-                    }
-                    if let badge = EventStore.modeBadge(task.mode) {
-                        Tag(badge.text)
-                        Dot()
-                    }
+                    Text(SBAgent(engine: task.engine).name)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.sbInk2)
+                        .fixedSize()
+                    Circle().fill(color).frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
                     Text(statusLabel)
                         .fontWeight(.medium)
                         .foregroundStyle(color)
+                        .fixedSize()
                     Dot()
                     Text(task.since, style: .relative)
                         .monospacedDigit()
+                    if title != task.project {
+                        Dot()
+                        Text(task.project).lineLimit(1)
+                    }
+                    if task.isSub {
+                        Dot()
+                        Text("sub-agent")
+                    }
+                    if let badge = EventStore.modeBadge(task.mode) {
+                        Dot()
+                        Tag(badge.text)
+                    }
                     if task.agents > 0 {
                         Dot()
                         Text("\(task.agents) sub-agents")
@@ -1143,11 +1147,8 @@ struct SessionRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: group.latest.kind.symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(group.latest.kind.color)
-                .frame(width: 20)
-                .padding(.top, 2)
+            SBAgentIcon(engine: group.latest.engine, size: 36)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
@@ -1160,6 +1161,13 @@ struct SessionRow: View {
                         .lineLimit(2)
                 }
                 HStack(spacing: 6) {
+                    Text(SBAgent(engine: group.latest.engine).name)
+                        .fontWeight(.semibold).foregroundStyle(Color.sbInk2).fixedSize()
+                    Circle().fill(group.latest.kind.color).frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
+                    Text(group.latest.kind.label)
+                        .foregroundStyle(group.latest.kind.color)
+                    Text("·")
                     if title != group.project { Text(group.project); Text("·") }
                     if let host = group.latest.host { Text(host); Text("·") }
                     Text(group.latest.date, style: .relative)
@@ -1181,10 +1189,14 @@ struct EventHistoryView: View {
         List {
             ForEach(group.events) { event in
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: event.kind.symbol)
-                        .foregroundStyle(event.kind.color)
+                    SBAgentIcon(engine: event.engine, size: 30)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
+                        Text(SBAgent(engine: event.engine).name)
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         HStack {
+                            Circle().fill(event.kind.color).frame(width: 5, height: 5)
+                                .accessibilityHidden(true)
                             Text(event.kind.label).font(.subheadline.bold())
                             Spacer()
                             Text(event.date, format: .dateTime.month().day().hour().minute())
@@ -1227,6 +1239,7 @@ struct SessionPage: View {
     }
     private var isLive: Bool { liveTask != nil }
     private var isCodex: Bool { (liveTask?.engine ?? group?.latest.engine) == "codex" }
+    private var isDesktopObserver: Bool { (liveTask?.source ?? group?.latest.source) == "desktop" }
 
     private var peekTask: EventStore.LiveTask? {
         guard let h = resolvedHost else { return nil }
@@ -1241,6 +1254,7 @@ struct SessionPage: View {
         case "waiting": return ("Waiting for you", .orange)
         case "running": return ("Running", .blue)
         case "done": return ("Done", .green)
+        case "unknown": return ("Status unavailable", .gray)
         default: return ("Ended", .gray)
         }
     }
@@ -1278,7 +1292,13 @@ struct SessionPage: View {
             } else {
                 progressPane
             }
-            inputBar
+            if isDesktopObserver {
+                Text("Desktop session · monitoring only. Continue this conversation in Codex on your Mac.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .padding().frame(maxWidth: .infinity).background(.bar)
+            } else {
+                inputBar
+            }
         }
         .navigationTitle(project)
         .navigationBarTitleDisplayMode(.inline)
@@ -1468,6 +1488,13 @@ struct SessionPage: View {
     /// 通知事件的类型/时间与实时状态说的是同一件事 — 不再各说一遍。
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                SBAgentIcon(engine: liveTask?.engine ?? group?.latest.engine, size: 30)
+                    .accessibilityHidden(true)
+                Text(SBAgent(engine: liveTask?.engine ?? group?.latest.engine).name)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+            }
             HStack(spacing: 8) {
                 Circle().fill(statusInfo.color).frame(width: 8, height: 8)
                 Text(statusInfo.label)
@@ -1506,6 +1533,22 @@ struct SessionPage: View {
             if let error = liveTask?.deliveryError, !error.isEmpty {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(Color.sbWaiting)
+            }
+            if isDesktopObserver {
+                Label("Codex Desktop", systemImage: "desktopcomputer")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let tokens = liveTask?.tokenUsage, let total = tokens.total_tokens {
+                Text("Session tokens: \(total)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                if let input = tokens.input_tokens, let output = tokens.output_tokens {
+                    Text("Input: \(input) · Output: \(output)")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                if let cached = tokens.cached_input_tokens {
+                    Text("Cached input: \(cached)")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
         }
         .padding(12)
@@ -1577,6 +1620,7 @@ struct SessionPage: View {
     /// 活跃 session 走队列注入(空闲/结束时自动接上);
     /// 已结束的走原始通道直打终端 pane(还开着就能续)。
     private func send() {
+        guard !isDesktopObserver else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         input = ""

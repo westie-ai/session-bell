@@ -1,6 +1,24 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Session tokens: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "会话 token：%lld"}}}
+    },
+    "Input: %lld · Output: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "输入：%lld · 输出：%lld"}}}
+    },
+    "Cached input: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "缓存输入：%lld"}}}
+    },
+    "Codex Desktop": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Codex 桌面端"}}}
+    },
+    "Status unavailable": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "状态未知"}}}
+    },
+    "Desktop session · monitoring only. Continue this conversation in Codex on your Mac.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "桌面会话 · 仅监测。请在 Mac 上的 Codex 中继续对话。"}}}
+    },
     "Agent": {
       "localizations": {
         "zh-Hans": {

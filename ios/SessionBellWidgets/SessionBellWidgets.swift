@@ -86,7 +86,8 @@ private func statusColor(_ status: String) -> Color {
     switch status {
     case "waiting": return Color(red: 0.94, green: 0.63, blue: 0.49)   // #F0A07C
     case "running": return Color(red: 0.50, green: 0.70, blue: 0.94)   // #7FB2F0
-    default: return Color(red: 0.49, green: 0.78, blue: 0.60)          // #7CC79A
+    case "done": return Color(red: 0.49, green: 0.78, blue: 0.60)     // #7CC79A
+    default: return .secondary
     }
 }
 
@@ -94,7 +95,8 @@ private func statusSymbol(_ status: String) -> String {
     switch status {
     case "waiting": return "ellipsis.bubble.fill"
     case "running": return "arrow.triangle.2.circlepath"
-    default: return "checkmark.circle.fill"
+    case "done": return "checkmark.circle.fill"
+    default: return "questionmark.circle"
     }
 }
 
@@ -137,7 +139,6 @@ private struct TaskRow: View {
     /// 行尾标签:项目名(仅当主文本是 prompt 时)+ 主机缩写(仅当多台 Mac 时),用 · 连起来。
     private var tagText: String? {
         var parts: [String] = []
-        if task.engine == "codex" { parts.append("CODEX") }
         if showsProjectTag { parts.append(task.project) }
         if showHost { parts.append(shortHost(task.host)) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -151,9 +152,10 @@ private struct TaskRow: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
-                Image(systemName: statusSymbol(task.status))
-                    .font(compact ? .caption2 : .subheadline)
-                    .foregroundStyle(statusColor(task.status))
+                SBAgentIcon(engine: task.engine, size: compact ? 20 : 26)
+                Circle().fill(statusColor(task.status))
+                    .frame(width: 5, height: 5)
+                    .accessibilityHidden(true)
                 // 布局顺序:右侧标签 / 计时先占位(标签最宽 120pt),prompt 拿剩下的全部宽度再截断。
                 // 不这样做的话 Text 和 Spacer 平分剩余空间,prompt 只显示一半、右边一大块空白。
                 Text(primary)
@@ -186,6 +188,17 @@ private struct TaskRow: View {
                         .layoutPriority(2)
                 }
             }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(Text(statusLabel))
+    }
+
+    private var statusLabel: LocalizedStringKey {
+        switch task.status {
+        case "running": return "Running"
+        case "waiting": return "Waiting for you"
+        case "done": return "Done"
+        default: return "Status unavailable"
         }
     }
 }

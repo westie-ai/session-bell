@@ -243,6 +243,42 @@ class CodexTests(unittest.TestCase):
         self.assertEqual(payload["sb"]["engine"], "codex")
         self.assertNotIn("Claude", json.dumps(payload))
 
+    def test_codex_hook_completion_notifies_while_at_keyboard(self):
+        push = self.event("stop", {"session_id": "codex-1", "cwd": "/tmp/project",
+                                   "last_assistant_message": "Completed"})
+        push.assert_called_once()
+
+    def test_codex_completion_bypasses_idle_but_other_alerts_do_not(self):
+        cfg = {"backend_url": "https://example.invalid", "backend_secret": "test", "bundle_id": "test"}
+        for source in ("desktop", ""):
+            for kind in ("stop", "permission", "notification"):
+                with self.subTest(source=source, kind=kind), contextlib.ExitStack() as stack:
+                    stack.enter_context(patch.object(sb, "load_sessions", return_value={"local": {
+                        "test": {"source": source, "project": "test"}}}))
+                    idle = stack.enter_context(patch.object(sb, "mac_idle_seconds", return_value=0))
+                    stack.enter_context(patch.object(sb, "host_label", return_value="test"))
+                    stack.enter_context(patch.object(sb, "make_jwt", return_value="test"))
+                    stack.enter_context(patch.object(sb, "resolve_device_tokens", return_value=["test-token"]))
+                    push = stack.enter_context(patch.object(sb, "send_push", return_value=(200, "")))
+                    sb.codex_alert(cfg, "test", kind, "test completion")
+                    self.assertEqual(push.call_count, 1 if kind == "stop" else 0)
+                    if kind == "stop":
+                        idle.assert_not_called()
+
+    def test_codex_push_logs_outcome_without_payload_or_credentials(self):
+        cfg = {"backend_url": "https://example.invalid", "backend_secret": "private-secret", "bundle_id": "test"}
+        with patch.object(sb, "load_sessions", return_value={"local": {}}), \
+                patch.object(sb, "mac_idle_seconds", return_value=999), \
+                patch.object(sb, "host_label", return_value="test"), \
+                patch.object(sb, "make_jwt", return_value="private-jwt"), \
+                patch.object(sb, "resolve_device_tokens", return_value=["private-token"]), \
+                patch.object(sb, "send_push", return_value=(400, "private-response")), \
+                patch.object(sb, "log") as log:
+            sb.codex_alert(cfg, "test", "stop", "private-reply")
+        output = " ".join(str(c.args) for c in log.call_args_list)
+        self.assertIn("HTTP 400", output)
+        self.assertNotIn("private-", output)
+
     def test_missing_session_id_cannot_create_unknown_task(self):
         self.event("prompt", {"cwd": "/tmp/project", "prompt": "text"})
         self.assertEqual(sb.load_sessions()["local"], {})

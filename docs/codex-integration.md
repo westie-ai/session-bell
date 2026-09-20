@@ -1,6 +1,6 @@
 # Codex integration
 
-Scope: macOS CLI and desktop task state, notifications, Live Activity, approvals, structured questions, follow-ups, new tasks, and official account quota. The integration is installed for a single-device pilot. See the deployment record below for verified behavior and remaining manual checks.
+Scope: native macOS desktop read-only monitoring (task state, completion, replies and cumulative tokens); shared CLI control (approvals, structured questions, follow-ups and new tasks); official account quota. Desktop arbitrary control is not available. The integration is a single-device pilot, not a public release.
 
 ## Single-device pilot, 2026-09-20
 
@@ -11,15 +11,14 @@ Scope: macOS CLI and desktop task state, notifications, Live Activity, approvals
 - Only this Mac's installed relay was updated. Its existing atomic legacy-command claim behavior is retained, and idle Codex connection state is refreshed without extra APNs updates. `auto_update: false` prevents the unchanged public script from replacing this pilot relay.
 - Pre-update local rollback copy: `~/.sessionbell/relay-backup-20260920-032402/` (script, configuration and launch agent). Later timestamped backups also exist.
 - Validation: 16 legacy API scenarios matched the downloaded production Worker; 22 live HTTP checks passed in an isolated tenant and their records were deleted. The actual installed relay completed both a new Codex task and a follow-up through production APIs, including duplicate-upload checks, completion state and reply synchronization. Official quota was present in backend state. Only the test conversation was archived.
-- Notification display, lock-screen presentation, phone approval/question interactions, and the original desktop application's post-restart UI remain manual verification items. Do not infer APNs display success merely from a task completing.
+- Notification display, lock-screen presentation and phone approval/question interactions remain manual verification items. Do not infer APNs display success merely from a task completing.
+- The original shared-desktop override broke real new-chat creation (`invalid transport in mcp_servers.codex_app`) despite successful initialization. It was removed, backed up under `~/.sessionbell/desktop-rollback-20260920-040148/`, and the user confirmed the native desktop works again. Do not reinstall this override.
 
 ## Connection model
 
-CLI and desktop connect to one local Codex app-server. SessionBell attaches as another client; its relay connects to Worker / D1 and the iPhone. The phone never connects directly to Codex. The Unix socket must belong to the current user and its directory cannot be writable by other users. No TCP listener or Codex cloud remote-control enrollment is added. OAuth credentials stay with Codex.
+CLI sessions connect to a shared local Codex app-server. SessionBell attaches as another client; its relay connects to Worker / D1 and the iPhone. The phone never connects directly to Codex. The Unix socket must belong to the current user and its directory cannot be writable by other users. No TCP listener or Codex cloud remote-control enrollment is added. OAuth credentials stay with Codex.
 
-The desktop uses `CODEX_APP_SERVER_WS_URL=ws+unix://localhost/<absolute socket path>:/rpc`. Its bundled WebSocket implementation supports Unix transport; `localhost` avoids the desktop's non-local-host SOCKS fallback. This is an installed-build implementation detail, not a stable public desktop setting. It was verified with the installed desktop runtime 0.153.4 and shared server 0.155.1.
-
-The simpler `CODEX_APP_SERVER_USE_LOCAL_DAEMON=1` switch was tested and fell back to stdio when desktop-generated configuration overrides were present. Use the explicit Unix WebSocket address instead.
+The desktop keeps its own native server and MCP configuration. The relay opens its local thread index in SQLite read-only mode and incrementally reads complete rollout records. It verifies `session_meta.originator = Codex Desktop`; `source = vscode` alone is not enough. Native observations are never resumed on the shared service or marked managed. JSONL is an implementation detail and may change; missing lifecycle information is unknown, not completed. Cumulative token snapshots are replaced, never summed. Initial history and rewritten files do not generate completion alerts. See [the approved design](codex-desktop-design.md).
 
 ## Install and release order
 
@@ -27,13 +26,15 @@ The simpler `CODEX_APP_SERVER_USE_LOCAL_DAEMON=1` switch was tested and fell bac
 2. Build and install the updated iOS app and Widget. Legacy Claude endpoints remain compatible.
 3. After pairing, run `python3 ~/.sessionbell/sessionbell_hook.py codex-enable`, or use `python3 mac/sessionbell_hook.py codex-enable` from the source checkout.
 4. Install the updated hook at the relay's configured path and restart the relay. A development relay can point directly to the repository script. Set `auto_update: false` during a hosted-install development test so the published asset cannot replace newer local code.
-5. Finish active independent sessions, then quit/reopen the desktop. Use `codex --remote unix://` or the updated `sessionbell codex` wrapper for CLI. Never resume an active independent conversation on a second server.
+5. Leave the desktop running normally; no transport setting or restart is required. Use `codex --remote unix://` or the updated `sessionbell codex` wrapper for CLI. Never resume an active independent conversation on a second server.
 
 `SB_CODEX=1` opts into Codex setup in the Mac installer. Setup backs up configuration and launch settings in `~/.sessionbell/codex-backup-*`. It preserves any already-running shared daemon, without restarting active Codex work.
 
-Shared sessions use app-server events and native approval requests; SessionBell command-hook trust is not required for those sessions. `codex-setup` remains an optional independent-session hook adapter and uses Codex's normal hook trust review. Unrelated hooks are never automatically trusted.
+Shared sessions use app-server events and native approval requests; SessionBell command-hook trust is not required for those sessions. `codex-setup` registers only an optional native desktop PermissionRequest handler, guarded by validated desktop transcript metadata, and uses Codex's normal hook trust review. Other SessionBell lifecycle hooks are removed to avoid duplicate monitoring; unrelated hooks are preserved and never automatically trusted. Real desktop permission round trips remain pending validation.
 
 ## Behavior
+
+The controls below apply to shared CLI/phone-created sessions. Desktop pages explicitly show monitoring-only and hide the follow-up composer. They show cumulative session tokens separately from account quota; those counters are not a billing estimate. Native desktop structured questions and arbitrary message submission are not supported.
 
 - New-task UI has a Claude / Codex selector. Phone-created Codex tasks use workspace-write, on-request approval, and a human reviewer.
 - Follow-ups preserve line breaks and wait until the current turn is idle.
@@ -52,13 +53,14 @@ Shared sessions use app-server events and native approval requests; SessionBell 
 - `python3 -B tests/smoke_codex_live.py`: opt-in authenticated test of model completion, second-client resume, an actual CLI follow-up, and SessionBell spawn/receipt/completion/reply extraction. Only its own test conversations are created and archived.
 - iOS App and Widget compile for iOS Simulator with code signing disabled.
 - `wrangler deploy --dry-run` successfully builds the Worker and its assets without deploying them.
-- An isolated desktop window successfully initialized against the shared server. Desktop UI interaction was not automated because computer use prohibits controlling its own app.
+- `python3 -B tests/smoke_codex_desktop.py`: read actual native desktop records into disposable state; print only counts/status and assert historical notifications stay silent.
+- Desktop shared initialization was insufficient validation: real task creation failed. This path has been removed. Desktop UI interaction is user-assisted because computer use prohibits controlling its own app.
 
 The production queue and real relay round trips are verified as described above. Physical notification display, approvals and lock-screen verification remain pending; the iPhone installation and launch check alone do not establish those behaviors.
 
 ## Roll back local settings
 
-Restore desktop environment values from the **pre-install** backup's `desktop-env.json`; use `launchctl unsetenv CODEX_APP_SERVER_WS_URL` if that value was absent. Restore/remove the dedicated `dev.piper.sessionbell.codex-desktop.plist` launch agent to match that backup, restore the prior `codex_enabled` setting, then reopen the desktop. Other Codex settings, login, and conversation history remain intact.
+The native observer installs no desktop environment override or dedicated desktop launch agent. Restore the previous relay script/configuration from its timestamped backup to disable it. If optional hooks were installed, restore the exact pre-install `hooks.json.sessionbell-backup-*` after checking for later unrelated changes. Other Codex settings, login, and conversation history remain intact.
 
 Only unload `dev.piper.sessionbell.codex` after its active tasks finish: stopping it interrupts clients using the service. Original relay/configuration backups restore the previous SessionBell installation.
 

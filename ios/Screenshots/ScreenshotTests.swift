@@ -83,6 +83,34 @@ final class ScreenshotTests: XCTestCase {
         save("3-tab1")
     }
 
+    /// Run against tests/preview_agent_backend.py: synthetic mixed-agent tasks only.
+    func testAgentIdentity() {
+        let dir = URL(fileURLWithPath: outDir)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for style in ["Light", "Dark"] {
+            let app = XCUIApplication()
+            app.launchArguments = langArgs() + [
+                "-sb.onboarded", "1", "-sb.tab", "0", "-AppleInterfaceStyle", style,
+                "-sb.backendURL", env["SB_BACKEND"] ?? "http://localhost:8879",
+                "-sb.backendSecret", "agent-identity-fixture",
+            ]
+            app.launch()
+            dismissNotificationPrompt()
+            XCTAssertTrue(app.staticTexts["Codex"].firstMatch.waitForExistence(timeout: 15))
+            XCTAssertTrue(app.staticTexts["Claude"].firstMatch.exists)
+            XCTAssertTrue(app.staticTexts["Desktop icon verification"].exists)
+            XCTAssertTrue(app.staticTexts["Legacy Claude task"].exists)
+            try? XCUIScreen.main.screenshot().pngRepresentation.write(
+                to: dir.appendingPathComponent("agents-\(style.lowercased()).png"))
+            app.staticTexts["Desktop icon verification"].tap()
+            XCTAssertTrue(app.staticTexts["Codex"].firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Codex Desktop"].exists)
+            try? XCUIScreen.main.screenshot().pngRepresentation.write(
+                to: dir.appendingPathComponent("agent-detail-\(style.lowercased()).png"))
+            app.terminate()
+        }
+    }
+
     // MARK: 接入流程(不截图,当回归测试用)
     // 前提:模拟器钥匙串里没有 SessionBell 的项(否则不会进引导页),
     // 且本地 worker 带 DEMO_SECRET。参数域覆盖 hostedBase 指向本地 worker。

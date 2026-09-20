@@ -39,9 +39,10 @@ backend is a ~350-line Cloudflare Worker with one D1 table.
   with `claude -c`.
 - **Usage dashboard** — your official Claude usage limits (weekly / per-model),
   fetched from the same source as `/usage`, no manual calibration.
-- **Codex on macOS** — CLI and desktop can share a local server, with task
-  state, notifications, approvals, questions, follow-ups, new tasks, and official
-  account quotas. Requires the updated backend and iOS app; see the
+- **Codex on macOS** — native desktop tasks are monitored read-only, including
+  completion and session token usage. Shared CLI sessions additionally support
+  approvals, questions, follow-ups and new tasks, with official account quotas.
+  Requires the updated relay, backend and iOS app; see the
   [integration and validation notes](docs/codex-integration.md).
 
 ## Two ways to run it
@@ -140,19 +141,23 @@ After pairing SessionBell, run:
 
 ```bash
 python3 ~/.sessionbell/sessionbell_hook.py codex-enable
-# Quit/reopen the desktop app once. Connect CLI sessions to the same service:
+# Connect CLI sessions to the shared service; leave the desktop unchanged:
 codex --remote unix://
 ```
 
 The installer also accepts `SB_CODEX=1` as an explicit opt-in. Setup backs up
-existing configuration, installs a launchd service, and configures the desktop
-connection over a user-owned Unix socket. It does not expose a TCP port.
+existing configuration and installs a CLI launchd service over a user-owned Unix
+socket. It does not expose a TCP port or change the desktop transport. The relay
+reads the native desktop's local session records without taking ownership.
 
-Select Codex on the phone's new-task screen. Follow-ups wait until the current
+For shared CLI sessions, select Codex on the phone's new-task screen. Follow-ups wait until the current
 turn is idle. Approvals are available on the lock screen and in the task;
 structured questions are answered individually in the task view. Existing
 independent sessions must finish their active turn before being opened on the
 shared service; SessionBell never silently resumes them on a second server.
+Desktop task pages are monitoring-only, with source and cumulative token counts.
+Optional `codex-setup` registers a desktop permission hook requiring normal Codex
+hook review/trust; it does not enable arbitrary desktop follow-ups.
 
 ### Claude Code
 

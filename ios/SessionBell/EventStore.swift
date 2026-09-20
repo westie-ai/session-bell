@@ -41,6 +41,8 @@ final class EventStore: ObservableObject {
         var latestReply: String = ""
         var deliveryError: String = ""
         var requests: [CodexPendingRequest] = []
+        var source: String = ""
+        var tokenUsage: CodexTokenUsage? = nil
     }
 
     /// 与 Claude Code 官方模式一一对应
@@ -256,6 +258,8 @@ final class EventStore: ObservableObject {
                    existing.since.timeIntervalSince1970 >= since { continue }
                 let requestData = try? JSONSerialization.data(withJSONObject: e["pending_requests"] as? [[String: Any]] ?? [])
                 let requests = requestData.flatMap { try? JSONDecoder().decode([CodexPendingRequest].self, from: $0) } ?? []
+                let tokenData = try? JSONSerialization.data(withJSONObject: e["token_usage"] as? [String: Any] ?? [:])
+                let tokens = tokenData.flatMap { try? JSONDecoder().decode(CodexTokenUsage.self, from: $0) }
                 bySession[sid] = LiveTask(
                     id: sid, sessionId: sid, project: project, host: host,
                     status: status,
@@ -268,7 +272,9 @@ final class EventStore: ObservableObject {
                     rootDir: e["root"] as? String ?? "",
                     latestReply: e["latest_reply"] as? String ?? "",
                     deliveryError: e["delivery_error"] as? String ?? "",
-                    requests: requests)
+                    requests: requests,
+                    source: e["source"] as? String ?? "",
+                    tokenUsage: tokens)
                 if let parent = e["parent_sid"] as? String { parentOf[sid] = parent }
                 if let ppid = e["parent_pid"] as? Int,
                    let parentSid = pidToSid[ppid], parentSid != sid {
@@ -399,7 +405,8 @@ final class EventStore: ObservableObject {
             body: body,
             md: sb["md"] as? String,
             date: Date(timeIntervalSince1970: ts),
-            engine: sb["engine"] as? String
+            engine: sb["engine"] as? String,
+            source: sb["source"] as? String
         )
         knownIDs.insert(id)
         events.append(event)

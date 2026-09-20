@@ -47,6 +47,14 @@ struct SessionEvent: Identifiable, Codable, Equatable, Hashable {
     let md: String?
     let date: Date
     var engine: String? = nil
+    var source: String? = nil
+}
+
+struct CodexTokenUsage: Decodable, Equatable, Hashable {
+    let input_tokens: Int?
+    let cached_input_tokens: Int?
+    let output_tokens: Int?
+    let total_tokens: Int?
 }
 
 struct CodexUsage: Decodable, Equatable {
