@@ -1,6 +1,6 @@
 # App Store & ASO Notes
 
-_Last updated: 2026-09-08_
+_Last updated: 2026-09-21_
 
 Working notes for SessionBell's App Store listing and App Store Optimization
 (ASO). This is not build config — the source of truth for version/build numbers
@@ -32,7 +32,30 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
-## 1.5 — submitted 2026-09-14 (build 10); rejected for the zh-Hans subtitle, resubmitted 2026-09-15 with a new subtitle
+## 1.6 — submitted 2026-09-21 (build 11)
+
+1.5 was approved (Ready for Distribution) before this went in. Version created,
+What's New, description and review notes set with `asc_release.py prepare`
+(run with `SKIP_SHOTS=1`: the 1.5 screenshots are reused, the UI they show is
+unchanged). Title and subtitle stay free of Mac / Claude / Codex in both
+locales (5.2.5 + 4.1(a) rejection on 1.5). What changed:
+
+- **Codex on macOS.** Codex desktop tasks show on the Tasks tab and the Lock
+  Screen panel next to Claude Code tasks, with per-session token counts;
+  shared CLI sessions can be approved, answered, followed up and started
+  from the phone, with official quota. New-task screen has a Claude / Codex
+  picker; task rows and Lock Screen cards show the agent icon.
+- **Mac hook.** Phone-started sessions find a working `claude` binary (native
+  installer or npm; a stale cached path is re-resolved). Phone commands are
+  claimed on the backend so each is delivered exactly once; a failed
+  terminal injection restores the command. Wake-from-sleep resync.
+- Description: "(Claude Code and more)" → "(Claude Code, Codex and more)" and
+  the stale "Currently invite-only." line removed, both locales.
+- Backend must be redeployed with a normal `npx wrangler deploy` so
+  `/api/codex` and `/api/command/restore` exist and Macs self-update to the
+  Codex-aware hook (the 2026-09-20 pilot deploy kept the old public assets).
+
+## 1.5 — submitted 2026-09-14 (build 10); rejected for the zh-Hans subtitle, resubmitted 2026-09-15; approved
 
 Version id 46c5ea79-eb32-4da5-a193-8224ad79c639. Build 9 was pulled before review
 started and replaced by build 10 (idle Macs stay visible on the Tasks tab). Store screenshots replaced in both
@@ -193,15 +216,15 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.4**, build **8**. In review: **1.5**, build **10** (submitted 2026-09-14).
-- Next build number: **≥ 11**.
+- Last shipped: **1.5**, build **10**. In review: **1.6**, build **11** (submitted 2026-09-21).
+- Next build number: **≥ 12**.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> `ios/project.yml` on `main` is at 1.4 / build 8.
+> `ios/project.yml` on `main` is at 1.6 / build 11.
 
 ## Context (not App Store)
 

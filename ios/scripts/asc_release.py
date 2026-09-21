@@ -90,68 +90,28 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "任务详情重做:顶部「进展 | 终端」一键切换。进展视图直接显示整段对话——你的每条提示、Claude 的每段回复、每次工具调用,任务跑着的时候会一直往下长;终端视图是原始画面。两边共用一个输入栏。\n欢迎页重写,讲清楚它能帮你做什么,配色和 App 其他页面统一。\n多设备:设置里新增「再加一台手机或 iPad」,扫码或输 6 位数字即可加入同一个空间;欢迎页也能直接加入已有空间。\n更快:Mac 上跑完安装命令后手机几秒内就连上;打开终端最多等 5 秒;Mac 从休眠唤醒后立刻同步。",
- "en-US": "Task detail, rebuilt: switch between Progress and Terminal at the top. Progress shows the whole conversation — every prompt you gave, every reply from Claude, every tool call — and keeps growing while the task runs; Terminal is the raw screen. One input bar for both.\nNew welcome screen that says what the app does for you, in the app's own look.\nMulti-device: Settings › Add another phone or iPad — scan or type 6 digits to join the same space; the welcome screen can join an existing space too.\nFaster: the phone connects within seconds after the install command finishes on the Mac, the terminal answers within 5 s, and a Mac that wakes from sleep syncs right away.",
+ "zh-Hans": "新增 Codex 支持(macOS):Codex 桌面端的任务和 Claude Code 一起出现在任务列表和锁屏面板上——运行、完成、需要你的时候都会提醒,并显示本轮 token 用量。共享 CLI 会话还能在手机上批准授权、回答提问、追加指令、新建任务,并查看官方额度。新建任务时可选 Claude 或 Codex。\n任务列表和锁屏卡片按智能体显示图标。\nMac 端:远程新建会话会自动找到能用的 Claude 命令(官方安装器和 npm 安装都支持);手机发出的指令保证只送达一次;Mac 从休眠唤醒后立刻同步。",
+ "en-US": "Codex support (macOS): Codex desktop tasks show up next to Claude Code on the Tasks tab and the Lock Screen panel — running, done, or waiting for you — with per-session token counts. Shared CLI sessions can be driven from the phone: approve commands, answer questions, send follow-ups, start new tasks, and see your official quota. The new-task screen lets you pick Claude or Codex.\nTasks and Lock Screen cards show which agent is running.\nOn the Mac: remotely started sessions find a working Claude command whether it was installed natively or via npm; a command sent from the phone is delivered exactly once; a Mac waking from sleep syncs immediately.",
 }
-SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 副标题里不能出现 Mac / Claude(1.5 因 5.2.5 + 4.1(a) 被拒过)
-REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (e.g. Claude Code). "
+# Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
+# so a locale whose description already changed upstream is left alone.
+DESCRIPTION_EDITS = {
+ "zh-Hans": [("（如 Claude Code）", "（如 Claude Code、Codex）"), ("当前为邀请制。", "")],
+ "en-US": [("(Claude Code and more)", "(Claude Code, Codex and more)"), (" Currently invite-only.", "")],
+}
+SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 标题/副标题里不能出现 Mac / Claude / Codex(1.5 因 5.2.5 + 4.1(a) 被拒过)
+REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (Claude Code, Codex). "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"See it in action first\" (second button on the first screen) -> "
   "a demo workspace loads with simulated tasks, so every tab, the task detail (Progress | Terminal views) and the Lock Screen Live Activity "
   "can be reviewed without pairing anything. Pairing a real Mac is one line pasted into Terminal (shown in-app after \"Connect my Mac\"). "
+  "Codex-specific screens (approvals, questions, quota) only appear once a Mac with Codex is paired; the UI is otherwise identical to Claude tasks. "
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
-def upload_screenshot(set_id, filepath):
-    """Reserve → PUT parts → commit with md5. Returns the screenshot id."""
-    name = os.path.basename(filepath); data = open(filepath, "rb").read()
-    res = call("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots", "attributes": {"fileName": name, "fileSize": len(data)},
-              "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": set_id}}}}})
-    sid = res["data"]["id"]
-    for op in res["data"]["attributes"]["uploadOperations"]:
-        chunk = data[op["offset"]: op["offset"] + op["length"]]
-        hdrs = {h["name"]: h["value"] for h in op["requestHeaders"]}
-        req = urllib.request.Request(op["url"], data=chunk, method=op["method"], headers=hdrs)
-        with urllib.request.urlopen(req, timeout=300) as r: r.read()
-    call("PATCH", f"/v1/appScreenshots/{sid}", {"data": {"type": "appScreenshots", "id": sid,
-         "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
-    return sid
-
-if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "discover"
-    if cmd == "discover":
-        vers = call("GET", f"/v1/apps/{APP_ID}/appStoreVersions?limit=5&fields[appStoreVersions]=versionString,appVersionState,appStoreState,platform")["data"]
-        for v in vers: print("version", v["id"], v["attributes"]["versionString"], v["attributes"].get("appVersionState"))
-        latest = vers[0]["id"]
-        locs = call("GET", f"/v1/appStoreVersions/{latest}/appStoreVersionLocalizations")["data"]
-        for l in locs:
-            a = l["attributes"]; print("  loc", l["id"], a["locale"], "| whatsNew:", (a.get("whatsNew") or "")[:60].replace("\n", " "))
-            sets = call("GET", f"/v1/appStoreVersionLocalizations/{l['id']}/appScreenshotSets")["data"]
-            for st in sets:
-                shots = call("GET", f"/v1/appScreenshotSets/{st['id']}/appScreenshots?fields[appScreenshots]=fileName,assetDeliveryState")["data"]
-                print("     set", st["id"], st["attributes"]["screenshotDisplayType"], len(shots), [s["attributes"]["fileName"] for s in shots])
-        infos = call("GET", f"/v1/apps/{APP_ID}/appInfos")["data"]
-        for i in infos:
-            il = call("GET", f"/v1/appInfos/{i['id']}/appInfoLocalizations")["data"]
-            print("appInfo", i["id"], i["attributes"].get("appStoreState"), [(x["attributes"]["locale"], x["attributes"].get("subtitle")) for x in il])
-        rd = call("GET", f"/v1/appStoreVersions/{latest}/appStoreReviewDetail")
-        print("reviewDetail notes:", (rd.get("data", {}).get("attributes", {}).get("notes") or "")[:200].replace("\n", " "))
-        builds = call("GET", f"/v1/builds?filter[app]={APP_ID}&sort=-uploadedDate&limit=3&fields[builds]=version,processingState,uploadedDate")["data"]
-        for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
-
-WHATS_NEW = {
- "zh-Hans": "任务详情重做:顶部「进展 | 终端」一键切换。进展视图直接显示整段对话——你的每条提示、Claude 的每段回复、每次工具调用,任务跑着的时候会一直往下长;终端视图是原始画面。两边共用一个输入栏。\n欢迎页重写,讲清楚它能帮你做什么,配色和 App 其他页面统一。\n多设备:设置里新增「再加一台手机或 iPad」,扫码或输 6 位数字即可加入同一个空间;欢迎页也能直接加入已有空间。\n更快:Mac 上跑完安装命令后手机几秒内就连上;打开终端最多等 5 秒;Mac 从休眠唤醒后立刻同步。",
- "en-US": "Task detail, rebuilt: switch between Progress and Terminal at the top. Progress shows the whole conversation — every prompt you gave, every reply from Claude, every tool call — and keeps growing while the task runs; Terminal is the raw screen. One input bar for both.\nNew welcome screen that says what the app does for you, in the app's own look.\nMulti-device: Settings › Add another phone or iPad — scan or type 6 digits to join the same space; the welcome screen can join an existing space too.\nFaster: the phone connects within seconds after the install command finishes on the Mac, the terminal answers within 5 s, and a Mac that wakes from sleep syncs right away.",
-}
-SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 副标题里不能出现 Mac / Claude(1.5 因 5.2.5 + 4.1(a) 被拒过)
-REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (e.g. Claude Code). "
-  "Reviewer setup WITHOUT a Mac: launch the app -> tap \"Not right now — show me the demo\" (second button on the first screen) -> "
-  "a demo workspace loads with simulated tasks, so every tab and the Lock Screen Live Activity can be reviewed without pairing anything. "
-  "Pairing a real Mac is one line pasted into Terminal (shown in-app after \"I'm at my Mac now\"). "
-  "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
-
-VERSION = "1.5"
-BUILD = "10"
+VERSION = "1.6"
+BUILD = "11"
 SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
+SKIP_SHOTS = os.environ.get("SKIP_SHOTS") == "1"   # reuse the screenshots already on the previous version
 
 def prepare():
     # 1. version (create if missing)
@@ -172,8 +132,17 @@ def prepare():
                 "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})["data"]
             print("created localization", locale)
         lid = locs[locale]["id"]
-        call("PATCH", f"/v1/appStoreVersionLocalizations/{lid}", {"data": {"type": "appStoreVersionLocalizations", "id": lid, "attributes": {"whatsNew": text}}})
-        print("whatsNew set", locale)
+        attrs = {"whatsNew": text}
+        desc = locs[locale]["attributes"].get("description") or ""
+        new_desc = desc
+        for old, new in DESCRIPTION_EDITS.get(locale, []):
+            new_desc = new_desc.replace(old, new)
+        if new_desc != desc:
+            attrs["description"] = new_desc
+        call("PATCH", f"/v1/appStoreVersionLocalizations/{lid}", {"data": {"type": "appStoreVersionLocalizations", "id": lid, "attributes": attrs}})
+        print("whatsNew set", locale, "+ description" if "description" in attrs else "")
+        if SKIP_SHOTS:
+            print("screenshots kept", locale); continue
         # 3. iPhone screenshots: replace the APP_IPHONE_67 set contents
         sets = {s["attributes"]["screenshotDisplayType"]: s for s in call("GET", f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"]}
         st = sets.get("APP_IPHONE_67")
