@@ -23,6 +23,8 @@ import subprocess
 import sys
 import time
 
+CODEX_USAGE_MAX_AGE = 2 * 3600
+
 CONFIG_DIR = os.path.expanduser("~/.sessionbell")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 JWT_CACHE_PATH = os.path.join(CONFIG_DIR, "jwt-cache.json")
@@ -251,6 +253,1352 @@ def claude_bin():
             pass
         return p
     return None
+
+
+def codex_home():
+    return os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME", "~/.codex")))
+
+
+def codex_bin():
+    """Also works under launchd, whose PATH does not include nvm or Homebrew."""
+    import glob
+    import shutil
+    candidates = [shutil.which("codex"),
+                  "/Applications/Codex.app/Contents/Resources/codex",
+                  "/Applications/ChatGPT.app/Contents/Resources/codex",
+                  os.path.expanduser("~/.local/bin/codex"),
+                  "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
+    candidates += sorted(glob.glob(os.path.expanduser(
+        "~/.nvm/versions/node/*/bin/codex")), reverse=True)
+    return next((p for p in candidates if p and os.access(p, os.X_OK)), None)
+
+
+class CodexDesktopObserver:
+    """Read-only desktop event observer; never resumes or controls a thread."""
+    MAX_LINE = 4 * 1024 * 1024
+
+    def __init__(self, cfg, home=None):
+        self.cfg = cfg
+        self.home = os.path.realpath(home or codex_home())
+        self.started_at = time.time()
+        self.bootstrapped = False
+        self.cursor_path = os.path.join(CONFIG_DIR, "codex-desktop-cursors.json")
+        try:
+            with open(self.cursor_path) as f:
+                self.cursors = json.load(f)
+            if not isinstance(self.cursors, dict):
+                self.cursors = {}
+        except (OSError, ValueError):
+            self.cursors = {}
+
+    @staticmethod
+    def timestamp(value):
+        import datetime
+        try:
+            return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+    def index(self):
+        import glob
+        import sqlite3
+        from pathlib import Path
+        rows = {}
+        available = False
+        databases = glob.glob(os.path.join(self.home, "state_*.sqlite"))
+        databases += glob.glob(os.path.join(self.home, "sqlite", "state_*.sqlite"))
+        for database in databases:
+            connection = None
+            try:
+                connection = sqlite3.connect(Path(database).as_uri() + "?mode=ro", timeout=0.5)
+                connection.row_factory = sqlite3.Row
+                result = connection.execute(
+                        "SELECT id,rollout_path,cwd,title,updated_at FROM threads "
+                        "WHERE archived=0 AND updated_at>? ORDER BY updated_at DESC LIMIT 200",
+                        (int(time.time()) - 2 * 86400,)).fetchall()
+                available = True
+                for row in result:
+                    item = dict(row)
+                    if item["updated_at"] >= rows.get(item["id"], {}).get("updated_at", 0):
+                        rows[item["id"]] = item
+            except (OSError, sqlite3.Error):
+                continue
+            finally:
+                if connection:
+                    connection.close()
+        return rows if available else None
+
+    def metadata(self, path, sid):
+        path = os.path.realpath(path)
+        if not any(os.path.commonpath([path, os.path.join(self.home, folder)]) == os.path.join(self.home, folder)
+                   for folder in ("sessions", "archived_sessions")):
+            return None
+        try:
+            with open(path, "rb") as f:
+                line = f.readline(self.MAX_LINE + 1)
+            if len(line) > self.MAX_LINE or not line.endswith(b"\n"):
+                return None
+            event = json.loads(line)
+            data = event.get("payload") or {}
+            if event.get("type") != "session_meta" or data.get("id") != sid:
+                return None
+            if str(data.get("originator", "")).lower() != "codex desktop":
+                return None
+            return data
+        except (OSError, ValueError, AttributeError):
+            return None
+
+    def consume(self, entry, event):
+        """Return completed turn ID only for an explicit terminal event."""
+        kind = event.get("type")
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            return None
+        ts = self.timestamp(event.get("timestamp"))
+        if ts is None:
+            return None
+        if kind == "event_msg":
+            event_type = payload.get("type")
+            turn = payload.get("turn_id")
+            if event_type in ("task_started", "task_complete", "turn_aborted") and not isinstance(turn, str):
+                entry.update(status="unknown", delivery_error="Unrecognized desktop lifecycle event.")
+                return None
+            if event_type == "task_started" and isinstance(turn, str):
+                entry.update(status="running", since=ts, desktop_started_at=ts,
+                             desktop_turn=turn, latest_reply="", delivery_error="")
+                entry.pop("desktop_terminal", None)
+            elif event_type in ("task_complete", "turn_aborted"):
+                if not isinstance(turn, str) or (entry.get("desktop_turn") and entry["desktop_turn"] != turn):
+                    return None
+                failed = event_type == "turn_aborted" or bool(payload.get("error"))
+                entry.update(status="waiting" if failed else "done", since=ts,
+                             desktop_turn=turn, desktop_terminal=turn,
+                             delivery_error="Codex turn interrupted or failed." if failed else "")
+                if isinstance(payload.get("last_agent_message"), str):
+                    entry["latest_reply"] = clip_bytes(payload["last_agent_message"], 8000)
+                return turn
+            elif event_type == "token_count":
+                info = payload.get("info") or {}
+                totals = info.get("total_token_usage") if isinstance(info, dict) else None
+                if isinstance(totals, dict):
+                    # This is a cumulative snapshot, not a delta to be summed.
+                    usage = {key: value for key, value in totals.items()
+                             if key in ("input_tokens", "cached_input_tokens", "cache_write_input_tokens",
+                                        "output_tokens", "reasoning_output_tokens", "total_tokens")
+                             and type(value) is int and value >= 0}
+                    if usage:
+                        entry["token_usage"] = usage
+        elif kind == "response_item" and payload.get("type") == "message":
+            if payload.get("role") == "assistant":
+                text = "\n".join(part.get("text", "") for part in payload.get("content", [])
+                                 if isinstance(part, dict) and isinstance(part.get("text"), str))
+                if text and payload.get("phase") == "final_answer":
+                    entry["latest_reply"] = clip_bytes(text, 8000)
+        return None
+
+    def scan(self):
+        import tempfile
+        state = load_sessions()
+        changed = False
+        refreshed = False
+        alerts = []
+        now = time.time()
+        rows = self.index()
+        if rows is None:
+            return False  # A locked/unavailable index is not a session deletion.
+        for sid, row in rows.items():
+            try:
+                path = os.path.realpath(row["rollout_path"])
+                stat = os.stat(path)
+                fingerprint = [stat.st_dev, stat.st_ino]
+                cursor = self.cursors.get(sid, {})
+                old = state["local"].get(sid, {})
+                if old.get("managed") or state.get("codex_sessions", {}).get(sid, {}).get("managed"):
+                    continue
+                reset = cursor.get("file") != fingerprint or stat.st_size < cursor.get("offset", 0)
+                if reset or not cursor.get("desktop"):
+                    if not self.metadata(path, sid):
+                        continue
+                    cursor = {"file": fingerprint, "offset": 0, "desktop": True}
+                entry = dict(old or cursor.get("entry", {})) if not reset else {}
+                entry.update(engine="codex", source="desktop", managed=False,
+                             project=os.path.basename(row["cwd"].rstrip("/")) or "Codex",
+                             cwd=row["cwd"], detail=str(row.get("title") or "")[:160],
+                             agents=0)
+                entry.setdefault("status", "unknown")
+                entry.setdefault("since", row["updated_at"])
+                control = _CODEX_DESKTOP_CONTROL
+                entry["desktop_can_send"] = bool(control and control.available()
+                                                  and time.monotonic() - control.heartbeat < 45)
+                with open(path, "rb") as f:
+                    f.seek(cursor["offset"])
+                    for _ in range(20000):
+                        position = f.tell()
+                        line = f.readline(self.MAX_LINE + 1)
+                        if not line:
+                            break
+                        if len(line) > self.MAX_LINE:
+                            # Skip a complete oversized record without loading it.
+                            while line and not line.endswith(b"\n"):
+                                line = f.readline(self.MAX_LINE + 1)
+                            if not line.endswith(b"\n"):
+                                f.seek(position)
+                                break
+                            cursor["offset"] = f.tell()
+                            entry.update(status="unknown", delivery_error="Unsupported desktop event size.")
+                            continue
+                        if not line.endswith(b"\n"):
+                            break  # writer is still appending this record
+                        cursor["offset"] = f.tell()
+                        try:
+                            event = json.loads(line)
+                            if not isinstance(event, dict):
+                                continue
+                            turn = self.consume(entry, event)
+                        except (ValueError, TypeError, AttributeError):
+                            entry.update(status="unknown", delivery_error="Unrecognized desktop event.")
+                            continue
+                        if turn:
+                            fresh = (self.timestamp(event.get("timestamp")) or 0) >= self.started_at
+                            if (self.bootstrapped and not reset and fresh
+                                    and entry.get("desktop_notified_turn") != turn):
+                                alerts.append((sid, turn))
+                            entry["desktop_notified_turn"] = turn
+                # New files after startup may already contain a whole fast turn.
+                if (reset and self.bootstrapped and entry.get("desktop_terminal")
+                        and entry.get("since", 0) >= self.started_at
+                        and sid not in self.cursors):
+                    alerts.append((sid, entry["desktop_terminal"]))
+                if entry.get("status") == "running" and now - entry.get("since", now) > RUNNING_MAX_AGE:
+                    entry.update(status="unknown", delivery_error="No recent desktop activity; status is unknown.")
+                # Host publications can outlive this observer. Only successful
+                # reads renew the capability; timestamp-only renewals must not
+                # generate dashboard/APNs updates every scan.
+                if not entry["desktop_can_send"]:
+                    entry["desktop_verified_at"] = 0
+                elif now - old.get("desktop_verified_at", 0) >= 15:
+                    entry["desktop_verified_at"] = now
+                limit = {"done": DONE_LINGER_SECONDS, "waiting": WAITING_LINGER_SECONDS,
+                         "running": RUNNING_MAX_AGE}.get(entry.get("status"), SESSION_MAX_AGE)
+                if now - entry.get("since", 0) <= limit:
+                    if entry != old:
+                        state["local"][sid] = entry
+                        if ({k: v for k, v in entry.items() if k != "desktop_verified_at"}
+                                != {k: v for k, v in old.items() if k != "desktop_verified_at"}):
+                            changed = True
+                        else:
+                            refreshed = True
+                elif old.get("source") == "desktop":
+                    state["local"].pop(sid, None)
+                    changed = True
+                cursor["entry"] = entry
+                self.cursors[sid] = cursor
+            except (OSError, ValueError, TypeError):
+                continue
+        # Remove only observed desktop records no longer in the active index.
+        for sid, entry in list(state["local"].items()):
+            if entry.get("source") == "desktop" and sid not in rows:
+                state["local"].pop(sid)
+                changed = True
+        if changed or refreshed:
+            save_sessions(state)
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix="desktop-cursors-", dir=CONFIG_DIR)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump({sid: c for sid, c in self.cursors.items()
+                           if sid in rows or now - c.get("entry", {}).get("since", 0) < 2 * 86400}, f)
+            os.replace(tmp, self.cursor_path)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        # Persist before notifying: a relay restart cannot replay old completions.
+        for sid, turn in set(alerts):
+            entry = state["local"].get(sid, {})
+            if entry.get("desktop_terminal") == turn:
+                codex_alert(self.cfg, sid, "stop" if entry["status"] == "done" else "notification",
+                            entry.get("latest_reply") or entry.get("delivery_error") or "Codex completed this turn.")
+        self.bootstrapped = True
+        return changed
+
+    def run(self):
+        while True:
+            try:
+                if self.scan():
+                    state = load_sessions()
+                    label = host_label(self.cfg)
+                    sync_peers(self.cfg, state, label)
+                    push_dashboard(self.cfg, make_jwt(self.cfg), HOSTS[self.cfg.get("environment", "sandbox")], state, label)
+            except Exception as exc:
+                log("Codex desktop observer: " + type(exc).__name__)
+            time.sleep(2)
+
+
+class CodexLocalSocket:
+    """RFC 6455 over Codex's local Unix socket, using only the standard library."""
+    def __init__(self, path):
+        import hashlib
+        import socket
+        import stat
+        import threading
+        info = os.stat(path)
+        parent = os.stat(os.path.dirname(path))
+        if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid()
+                or parent.st_uid != os.getuid() or parent.st_mode & 0o022):
+            raise RuntimeError("Codex socket must be owned and protected by the current user")
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.write_lock = threading.Lock()
+        self.socket.settimeout(10)
+        try:
+            self.socket.connect(path)
+            key = base64.b64encode(os.urandom(16)).decode()
+            self.socket.sendall(("GET /rpc HTTP/1.1\r\nHost: localhost\r\n"
+                                 "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                                 "Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key +
+                                 "\r\n\r\n").encode())
+            header = b""
+            while not header.endswith(b"\r\n\r\n") and len(header) < 16384:
+                header += self.read_exact(1)
+            lines = header.decode("ascii").split("\r\n")
+            fields = dict(line.split(":", 1) for line in lines[1:] if ":" in line)
+            fields = {k.lower(): v.strip() for k, v in fields.items()}
+            expected = base64.b64encode(hashlib.sha1(
+                (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
+            if " 101 " not in lines[0] or fields.get("sec-websocket-accept") != expected:
+                raise RuntimeError("Codex websocket handshake failed")
+            self.socket.settimeout(None)
+        except Exception:
+            self.socket.close()
+            raise
+
+    def read_exact(self, size):
+        data = bytearray()
+        while len(data) < size:
+            part = self.socket.recv(size - len(data))
+            if not part:
+                raise EOFError("Codex socket closed")
+            data.extend(part)
+        return bytes(data)
+
+    def send_frame(self, payload, opcode=1):
+        import struct
+        size = len(payload)
+        head = bytes([0x80 | opcode])
+        head += (bytes([0x80 | size]) if size < 126 else
+                 b"\xfe" + struct.pack("!H", size) if size < 65536 else
+                 b"\xff" + struct.pack("!Q", size))
+        mask = os.urandom(4)
+        masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+        with self.write_lock:
+            self.socket.sendall(head + mask + masked)
+
+    def send(self, message):
+        self.send_frame(json.dumps(message, ensure_ascii=False).encode())
+
+    def read(self):
+        import struct
+        fragments = bytearray()
+        while True:
+            first, second = self.read_exact(2)
+            size = second & 127
+            if size == 126:
+                size = struct.unpack("!H", self.read_exact(2))[0]
+            elif size == 127:
+                size = struct.unpack("!Q", self.read_exact(8))[0]
+            if size + len(fragments) > 16 * 1024 * 1024 or second & 128:
+                raise RuntimeError("Invalid Codex websocket frame")
+            payload = self.read_exact(size)
+            opcode = first & 15
+            if opcode == 8:
+                raise EOFError("Codex websocket closed")
+            if opcode == 9:
+                self.send_frame(payload, 10)
+                continue
+            if opcode == 10:
+                continue
+            if opcode not in (0, 1):
+                raise RuntimeError("Unsupported Codex websocket frame")
+            fragments.extend(payload)
+            if first & 128:
+                return json.loads(fragments.decode())
+
+    def close(self):
+        import socket
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self.socket.close()
+
+
+class CodexRejected(RuntimeError):
+    """An explicit server rejection, distinct from an ambiguous disconnect."""
+
+
+class CodexRPC:
+    """Bounded JSONL client. Never prints protocol payloads or credentials.
+
+    A fresh stdio server is only used for account reads. Session control must
+    connect to the owning shared server; resuming on a second server can fork
+    the live state of a desktop conversation.
+    """
+    def __init__(self, shared=False, executable=None):
+        import queue
+        import threading
+        binary = executable or codex_bin()
+        if not binary:
+            raise RuntimeError("Codex is not installed")
+        self.process = None
+        self.socket = None
+        if shared:
+            sock = os.path.join(codex_home(), "app-server-control", "app-server-control.sock")
+            if not os.path.exists(sock):
+                raise RuntimeError("Codex shared server is not running")
+            self.socket = CodexLocalSocket(sock)
+        else:
+            args = [binary, "app-server", "--stdio"]
+            env = dict(os.environ)
+            env["PATH"] = os.path.dirname(binary) + os.pathsep + env.get("PATH", "")
+            self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                            stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env)
+        self.messages = queue.Queue()
+        self.sequence = 0
+        self.notifications = []
+        self.on_request = None
+
+        def read():
+            try:
+                if self.socket:
+                    while True:
+                        self.messages.put(self.socket.read())
+                else:
+                    for line in self.process.stdout:
+                        try:
+                            self.messages.put(json.loads(line))
+                        except ValueError:
+                            continue
+            except (OSError, EOFError, ValueError, RuntimeError):
+                pass
+            finally:
+                self.messages.put(None)
+
+        threading.Thread(target=read, daemon=True).start()
+        try:
+            self.call("initialize", {"clientInfo": {
+                "name": "sessionbell", "title": "SessionBell", "version": "1.0"},
+                "capabilities": {"experimentalApi": True}}, timeout=15)
+            self.send({"method": "initialized"})
+        except Exception:
+            self.close()
+            raise
+
+    def send(self, message):
+        if self.socket:
+            self.socket.send(message)
+            return
+        self.process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
+        self.process.stdin.flush()
+
+    def call(self, method, params=None, timeout=20):
+        import queue
+        self.sequence += 1
+        request_id = self.sequence
+        self.send({"id": request_id, "method": method, "params": params or {}})
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                message = self.messages.get(timeout=max(0, deadline - time.monotonic()))
+            except queue.Empty:
+                raise TimeoutError("Codex request timed out: " + method)
+            if message is None:
+                raise RuntimeError("Codex connection closed")
+            if message.get("id") == request_id and "method" not in message:
+                if "error" in message:
+                    # Server errors may contain prompts/paths; keep them off logs.
+                    error = CodexRejected("Codex rejected " + method + " (" +
+                                          str(message["error"].get("code", "unknown")) + ")")
+                    error.details = message["error"]
+                    raise error
+                return message.get("result") or {}
+            if "method" in message and "id" in message:
+                if self.on_request:
+                    self.on_request(message)
+                else:
+                    self.send({"id": message["id"], "error": {
+                        "code": -32601, "message": "SessionBell read-only client"}})
+            else:
+                self.notifications.append(message)
+
+    def poll(self, timeout=0.2):
+        import queue
+        events, self.notifications = self.notifications, []
+        try:
+            message = self.messages.get(timeout=timeout)
+        except queue.Empty:
+            return events
+        if message is None:
+            raise EOFError("Codex connection closed")
+        if "method" in message and "id" in message:
+            if self.on_request:
+                self.on_request(message)
+        elif "method" in message:
+            events.append(message)
+        return events
+
+    def close(self):
+        if self.socket:
+            self.socket.close()
+            return
+        if self.process is None:
+            return
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=3)
+        for stream in (self.process.stdin, self.process.stdout):
+            if stream:
+                stream.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+_CODEX_BRIDGE = None
+_CODEX_DESKTOP_CONTROL = None
+
+
+def codex_is_desktop(sid, state=None):
+    state = state if state is not None else load_sessions()
+    if state.get("local", {}).get(sid, {}).get("source") == "desktop":
+        return True
+    # A completed conversation may have aged out of the dashboard.
+    try:
+        with open(os.path.join(CONFIG_DIR, "codex-desktop-cursors.json")) as f:
+            return json.load(f).get(sid, {}).get("desktop") is True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def codex_desktop_input(sid, cid, text):
+    import uuid
+    uuid.UUID(sid)
+    uuid.UUID(cid)
+    if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+        raise ValueError("Follow-up must contain between 1 and 4000 characters.")
+    return {"conversationId": sid, "turnStart": {
+        "request": {"threadId": sid, "clientUserMessageId": cid,
+                    "input": [{"type": "text", "text": text, "text_elements": []}]},
+        "context": {"inheritThreadSettings": True, "attachments": [], "commentAttachments": []}}}
+
+
+class CodexDesktopIPC:
+    """Pinned native IPC, not the CLI app-server; no resume/configuration calls."""
+    @staticmethod
+    def path():
+        import stat
+        path = os.path.join(codex_home(), "ipc", "ipc.sock")
+        info, parent = os.lstat(path), os.lstat(os.path.dirname(path))
+        if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid()
+                or not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid()
+                or info.st_mode & 0o077 or parent.st_mode & 0o077):
+            raise ValueError("Desktop socket permissions are unsafe.")
+        return path
+
+    def __init__(self):
+        import socket
+        path = self.path()
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket.settimeout(8)
+        self.client_id = "initializing-client"
+        try:
+            self.socket.connect(path)
+            initial = self.request("initialize", {"clientType": "sessionbell-relay"}, 0)
+            self.client_id = initial["result"]["clientId"]
+            if initial.get("resultType") != "success" or not isinstance(self.client_id, str):
+                raise ValueError("Desktop initialization rejected.")
+        except Exception:
+            self.close()
+            raise
+
+    def close(self):
+        self.socket.close()
+
+    def send(self, message):
+        import struct
+        data = json.dumps(message).encode()
+        self.socket.settimeout(8)
+        self.socket.sendall(struct.pack("<I", len(data)) + data)
+
+    def exact(self, count, deadline):
+        data = bytearray()
+        while len(data) < count:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Desktop response timed out.")
+            self.socket.settimeout(remaining)
+            part = self.socket.recv(count - len(data))
+            if not part:
+                raise EOFError("Desktop disconnected.")
+            data.extend(part)
+        return bytes(data)
+
+    def request(self, method, params, version, target=None, request_id=None):
+        import struct
+        import uuid
+        if (method, version) not in (("initialize", 0), ("thread-owner-discovery", 1),
+                                     ("thread-follower-start-turn", 2)):
+            raise ValueError("Unsupported desktop method.")
+        rid = request_id or str(uuid.uuid4())
+        message = {"type": "request", "method": method, "version": version,
+                   "requestId": rid, "sourceClientId": self.client_id,
+                   "params": params, "timeoutMs": 15000}
+        if target:
+            message["targetClientId"] = target
+        self.send(message)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            size = struct.unpack("<I", self.exact(4, deadline))[0]
+            if not 0 < size <= 8 * 1024 * 1024:
+                raise ValueError("Unsupported desktop frame size.")
+            event = json.loads(self.exact(size, deadline))
+            if not isinstance(event, dict):
+                raise ValueError("Invalid desktop response.")
+            if event.get("type") == "client-discovery-request":
+                self.send({"type": "client-discovery-response", "requestId": event["requestId"],
+                           "response": {"canHandle": False}})
+            elif event.get("type") == "response" and event.get("requestId") == rid:
+                if event.get("method") != method or (target and event.get("handledByClientId") != target):
+                    raise ValueError("Unexpected desktop response routing.")
+                return event
+            # Never log or persist unrelated conversation broadcasts.
+        raise TimeoutError("Desktop response timed out.")
+
+
+class CodexDesktopControl:
+    """Opt-in pilot. Independent of CLI connectivity; ambiguous writes never retry."""
+    ARCHIVE = "/Applications/ChatGPT.app/Contents/Resources/app.asar"
+    ASSETS = {
+        "webview/assets/app-initial-1b87ae739476.js": "c87b94027faefdc31cc165975dc0f14b28e3f6d922f6a5188756c8f570f2b3d7",
+        ".vite/build/src-J2PvP4xj.js": "4cc980cd737b02f999b9fe8d9757c37d2ce86c928043f19f46d56cc52bce8f66",
+    }
+
+    def __init__(self, cfg):
+        import threading
+        self.cfg = cfg
+        self.host = canonical_label(host_label(cfg))
+        self.wake = threading.Event()
+        self.wake.set()
+        self.heartbeat = 0
+        self.build_key = None
+        self.build_ok = False
+        self.observer = CodexDesktopObserver(cfg)
+
+    @staticmethod
+    def fingerprint(path):
+        info = os.stat(path)
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+    def available(self):
+        import hashlib
+        import struct
+        if not self.cfg.get("codex_desktop_followup"):
+            return False
+        try:
+            CodexDesktopIPC.path()
+            key = self.fingerprint(self.ARCHIVE)
+            if self.build_key != key:
+                self.build_key = key
+                self.build_ok = False
+                with open(self.ARCHIVE, "rb") as f:
+                    header = f.read(16)
+                    size = struct.unpack_from("<I", header, 12)[0]
+                    if not 0 < size <= 16 * 1024 * 1024:
+                        return False
+                    index = json.loads(f.read(size))
+                    base = 8 + struct.unpack_from("<I", header, 4)[0]
+                    for path, expected in self.ASSETS.items():
+                        entry = index
+                        for part in path.split("/"):
+                            entry = entry["files"][part]
+                        if not 0 < entry["size"] <= 32 * 1024 * 1024:
+                            return False
+                        f.seek(base + int(entry["offset"]))
+                        if hashlib.sha256(f.read(entry["size"])).hexdigest() != expected:
+                            return False
+                self.build_ok = self.fingerprint(self.ARCHIVE) == key
+                self.build_key = key
+            return self.build_ok
+        except (OSError, ValueError, KeyError, TypeError, struct.error):
+            return False
+
+    def snapshot(self, sid):
+        row = (self.observer.index() or {}).get(sid)
+        if not row or not self.observer.metadata(row["rollout_path"], sid):
+            raise ValueError("Open the original conversation in Codex Desktop first.")
+        path = os.path.realpath(row["rollout_path"])
+        before = self.fingerprint(path)
+        if before[2] > 64 * 1024 * 1024:
+            raise ValueError("This conversation is too large for the desktop pilot.")
+        entry = {}
+        with open(path, "rb") as f:
+            for _ in range(100000):
+                line = f.readline(self.observer.MAX_LINE + 1)
+                if not line:
+                    break
+                if not line.endswith(b"\n") or len(line) > self.observer.MAX_LINE:
+                    raise ValueError("Desktop history is updating or unsupported. Not sent.")
+                self.observer.consume(entry, json.loads(line))
+            else:
+                raise ValueError("Desktop history exceeds the pilot limit.")
+        if self.fingerprint(path) != before:
+            raise ValueError("Desktop conversation changed during validation. Not sent.")
+        return entry, path, before
+
+    def ack(self, command, status, message=""):
+        response = backend_call(self.cfg, "POST", "/api/codex", {
+            "host": self.host, "command_id": command["command_id"], "action": "ack",
+            "status": status, "message": message, "session_id": command.get("session_id", "")})
+        return isinstance(response, dict) and response.get("ok") is True
+
+    def receipt(self, command, status, message=""):
+        state = load_sessions()
+        record = {"status": status, "message": message, "session_id": command["session_id"], "ts": int(time.time())}
+        state.setdefault("codex_commands", {})[command["command_id"]] = record
+        entry = state["local"].get(command["session_id"])
+        if entry and entry.get("source") == "desktop":
+            entry["desktop_delivery"] = message or ("Sent to the original desktop conversation." if status == "delivered" else status)
+        save_sessions(state)
+        if load_sessions().get("codex_commands", {}).get(command["command_id"]) != record:
+            raise OSError("Could not persist desktop delivery receipt")
+        self.ack(command, status, message)
+
+    def execute(self, command):
+        import fcntl
+        import uuid
+        sid, cid = command.get("session_id", ""), command.get("command_id", "")
+        if command.get("action") != "send" or not codex_is_desktop(sid):
+            return True  # The CLI bridge owns other commands.
+        uuid.UUID(cid)
+        directory = os.path.join(CONFIG_DIR, "desktop-dispatch")
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        # A durable, content-free ledger survives state loss; flock prevents two
+        # relays dispatching a command concurrently. Never delete/recycle it.
+        with open(os.path.join(directory, cid), "a+b") as ledger:
+            os.fchmod(ledger.fileno(), 0o600)
+            try:
+                fcntl.flock(ledger, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
+            previous = load_sessions().get("codex_commands", {}).get(cid)
+            if previous:
+                status = "uncertain" if previous["status"] == "dispatching" else previous["status"]
+                message = previous.get("message", "")
+                if status == "uncertain" and not message:
+                    message = "Check the original desktop conversation before sending again."
+                self.receipt(command, status, message)
+                return True
+            if ledger.tell() or command.get("status") == "dispatching":
+                self.receipt(command, "uncertain", "Delivery could not be confirmed. Check Codex Desktop; no automatic retry.")
+                return True
+            client, submitted = None, False
+            try:
+                params = codex_desktop_input(sid, cid, command.get("text"))
+                if not self.available():
+                    raise ValueError("Desktop follow-up is unavailable for this version. Continue on your Mac.")
+                created = command.get("created_at", 0) / 1000
+                if not 0 <= time.time() - created <= 900:
+                    raise ValueError("Follow-up expired or its timestamp is invalid. Not sent.")
+                entry, path, fingerprint = self.snapshot(sid)
+                if not entry.get("desktop_started_at") or entry["desktop_started_at"] > created:
+                    raise ValueError("A newer desktop turn started after this message was queued. Review it before sending again.")
+                if entry.get("status") == "running":
+                    return False
+                if entry.get("status") != "done" or entry.get("desktop_terminal") != entry.get("desktop_turn"):
+                    raise ValueError("Finish or resolve the current turn in Codex Desktop first.")
+                client = CodexDesktopIPC()
+                owner = client.request("thread-owner-discovery", {"hostId": "local", "conversationId": sid}, 1)
+                target = owner.get("handledByClientId")
+                if owner.get("resultType") != "success" or not isinstance(target, str) or not target:
+                    raise ValueError("Original conversation owner is unavailable. Open it in Codex Desktop.")
+                if not self.ack(command, "dispatching"):
+                    return False
+                # Persist before any potentially ambiguous write to the owner.
+                ledger.write(b"attempted\n")
+                ledger.flush()
+                os.fsync(ledger.fileno())
+                directory_fd = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                self.receipt(command, "dispatching")
+                if self.fingerprint(path) != fingerprint or not self.available():
+                    raise ValueError("Desktop conversation or version changed. Not sent.")
+                submitted = True
+                response = client.request("thread-follower-start-turn", params, 2, target, cid)
+                result = response.get("result") or {}
+                turn = (result.get("result") or {}).get("turn") or {}
+                if response.get("resultType") != "success" or not isinstance(turn.get("id"), str):
+                    raise RuntimeError("Desktop did not confirm the turn.")
+                self.receipt(command, "delivered")
+            except Exception as exc:
+                status = "uncertain" if submitted else "failed"
+                message = ("Delivery could not be confirmed. Check Codex Desktop; no automatic retry." if submitted
+                           else str(exc) if isinstance(exc, ValueError)
+                           else "Desktop connection or local storage unavailable. Not sent.")
+                self.receipt(command, status, message[:300])
+            finally:
+                if client:
+                    client.close()
+            return True
+
+    def run(self):
+        commands, last_poll, last_publish = [], 0, 0
+        while True:
+            try:
+                self.heartbeat = time.monotonic()
+                now = self.heartbeat
+                if (self.wake.is_set() and now - last_poll > 2) or now - last_poll > 15:
+                    self.wake.clear()
+                    last_poll = now
+                    response = backend_call(self.cfg, "GET", "/api/codex?host=" + self.host)
+                    if response is not None:
+                        commands = [c for c in response.get("commands", [])
+                                    if c.get("status") in ("queued", "dispatching")
+                                    and c.get("action") == "send" and codex_is_desktop(c.get("session_id"))]
+                remaining, blocked_sessions = [], set()
+                for command in commands:
+                    sid = command.get("session_id")
+                    if sid in blocked_sessions:
+                        remaining.append(command)
+                        continue
+                    if not self.execute(command):
+                        remaining.append(command)
+                        blocked_sessions.add(sid)
+                commands = remaining
+                state = load_sessions()
+                changed = False
+                for sid, entry in state["local"].items():
+                    if entry.get("source") == "desktop":
+                        count = sum(c.get("session_id") == sid for c in commands)
+                        if entry.get("desktop_queued", 0) != count:
+                            entry["desktop_queued"] = count
+                            changed = True
+                if changed:
+                    save_sessions(state)
+                if changed or now - last_publish > 20:
+                    sync_peers(self.cfg, load_sessions(), host_label(self.cfg))
+                    last_publish = now
+            except Exception as exc:
+                log("Codex desktop control: " + type(exc).__name__)
+            time.sleep(2)
+
+
+def codex_bridge_status():
+    try:
+        with open(os.path.join(CONFIG_DIR, "codex-bridge.json")) as f:
+            status = json.load(f)
+        if time.time() - status.get("ts", 0) > 45:
+            return {"connected": False, "message": "Codex connection is offline"}
+        return status
+    except (OSError, ValueError):
+        return {"connected": False}
+
+
+def codex_alert(cfg, sid, kind, text, request_id=None):
+    state = load_sessions()
+    entry = state["local"].get(sid, {})
+    project = entry.get("project") or "Codex"
+    # Completion always rings, even while the user is working on the Mac.
+    # Keep the existing idle policy for approvals and attention notifications.
+    idle = mac_idle_seconds() if kind != "stop" else None
+    phone_owned = state.get("codex_sessions", {}).get(sid, {}).get("phone_owned")
+    threshold = cfg.get("permission_min_idle_seconds", 30) if kind == "permission" else cfg.get("min_idle_seconds", 120)
+    if not phone_owned and idle is not None and idle < threshold:
+        log(f"codex alert {kind}: skipped at keyboard (idle {idle:.0f}s < {threshold}s)")
+        return
+    title = "✅ Codex · " + project if kind == "stop" else "Codex · " + project
+    sb = {"engine": "codex", "event": kind, "session_id": sid,
+          "source": entry.get("source", ""),
+          "project": project, "cwd": entry.get("cwd", ""), "host": host_label(cfg),
+          "ts": int(time.time()), "md": clip_bytes(text, 1500),
+          "backend": {"url": cfg["backend_url"], "secret": cfg["backend_secret"]}}
+    if request_id:
+        sb["request_id"] = request_id
+    payload = {"aps": {"alert": {"title": title, "body": clip_bytes(strip_markdown(text), 700)},
+                       "sound": "default", "thread-id": sid,
+                       "category": "SB_DECIDE" if request_id else "SB_REPLY",
+                       "interruption-level": "time-sensitive"}, "sb": sb}
+    jwt = make_jwt(cfg)
+    tokens = resolve_device_tokens(cfg)
+    if not tokens:
+        log(f"codex alert {kind}: no registered notification devices")
+    for token in tokens:
+        code, _ = send_push(jwt, HOSTS[cfg.get("environment", "sandbox")], token, payload, cfg["bundle_id"])
+        # Never log device tokens, credentials, conversation text or response bodies.
+        log(f"codex alert {kind}: HTTP {code}")
+
+
+class CodexBridge:
+    """One long-lived client of the SAME app-server used by desktop and CLI.
+
+    Only the bridge thread touches RPC. The legacy watcher wakes its mailbox
+    reader when a new UUID command arrives; idle Macs don't add a polling loop.
+    """
+    def __init__(self, cfg):
+        import threading
+        self.cfg = cfg
+        self.rpc = None
+        self.attached = set()
+        self.pending = {}
+        self.wake = threading.Event()
+        self.wake.set()
+        self.commands = []
+        self.dirty = False
+        self.last_publish = self.last_discover = self.last_decisions = 0
+        self.last_mailbox = 0
+        self.host = canonical_label(host_label(cfg))
+        self.started_at = int(time.time())
+
+    def status(self, connected, message=""):
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(os.path.join(CONFIG_DIR, "codex-bridge.json"), "w") as f:
+            json.dump({"connected": connected, "message": message, "ts": int(time.time())}, f)
+
+    def update(self, sid, **fields):
+        state = load_sessions()
+        entry = state["local"].setdefault(sid, {"project": "Codex", "since": int(time.time())})
+        entry.update(fields, engine="codex", managed=True)
+        if "status" in fields:
+            entry["since"] = int(time.time())
+        save_sessions(state)
+        self.dirty = True
+
+    @staticmethod
+    def thread_status_fields(status):
+        kind = status.get("type")
+        if kind == "active":
+            waiting = any(x in ("waitingOnApproval", "waitingOnUserInput")
+                          for x in status.get("activeFlags", []))
+            return {"status": "waiting" if waiting else "running", "delivery_error": ""}
+        if kind == "idle":
+            return {"status": "done", "delivery_error": ""}
+        if kind == "systemError":
+            return {"status": "waiting", "delivery_error": "Codex encountered a system error. Check the session on your Mac."}
+        if kind == "notLoaded":
+            return {"status": "unknown", "delivery_error": "This Codex session is not loaded."}
+        return {"status": "unknown", "delivery_error": "Codex session status is unavailable."}
+
+    def reset_requests(self):
+        # RPC request IDs belong to one connection. A resolved request may not
+        # be replayed after reconnect, so persisted phone controls must expire.
+        self.pending.clear()
+        state = load_sessions()
+        changed = False
+        for entry in state["local"].values():
+            if entry.get("engine") == "codex" and entry.get("managed") and entry.get("pending_requests"):
+                entry["pending_requests"] = []
+                changed = True
+        if changed:
+            save_sessions(state)
+            self.dirty = True
+
+    def remember(self, thread, phone_owned=False):
+        sid = thread["id"]
+        state = load_sessions()
+        record = state.setdefault("codex_sessions", {}).setdefault(sid, {})
+        record.update(cwd=thread.get("cwd", ""), project=os.path.basename(thread.get("cwd", "")) or "Codex",
+                      managed=True, engine="codex", ts=int(time.time()))
+        if phone_owned:
+            record["phone_owned"] = True
+        save_sessions(state)
+        self.update(sid, cwd=record["cwd"], project=record["project"],
+                    root=project_root(record["cwd"]), pid=None, parent_pid=None,
+                    parent_sid=thread.get("parentThreadId"),
+                    detail=(thread.get("name") or thread.get("preview") or "")[:160],
+                    **self.thread_status_fields(thread.get("status") or {}))
+
+    def attach(self, sid):
+        if sid not in self.attached:
+            self.attached.add(sid)
+            try:
+                result = self.rpc.call("thread/resume", {"threadId": sid, "excludeTurns": True})
+                self.remember(result["thread"])
+                # A short task may finish before discovery attaches. Hydrate only
+                # its latest turn, never the full conversation history.
+                page = self.rpc.call("thread/turns/list", {
+                    "threadId": sid, "limit": 1, "sortDirection": "desc", "itemsView": "full"})
+                for turn in page.get("data", []):
+                    for item in turn.get("items", []):
+                        self.event({"method": "item/completed", "params": {"threadId": sid, "item": item}})
+                    if turn.get("completedAt", 0) and turn["completedAt"] >= self.started_at:
+                        self.finish(sid, turn)
+            except Exception:
+                self.attached.discard(sid)
+                raise
+
+    def discover(self):
+        cursor = None
+        while True:
+            params = {"limit": 100}
+            if cursor:
+                params["cursor"] = cursor
+            result = self.rpc.call("thread/loaded/list", params)
+            for sid in result.get("data", []):
+                try:
+                    self.attach(sid)
+                except CodexRejected:
+                    # A newly created thread has no rollout until its first turn.
+                    # Retry on the next discovery, without dropping other sessions.
+                    continue
+            cursor = result.get("nextCursor")
+            if not cursor:
+                break
+
+    def event(self, message):
+        method, p = message.get("method"), message.get("params") or {}
+        sid = p.get("threadId")
+        if method == "thread/started":
+            thread = p.get("thread") or {}
+            if thread.get("id"):
+                self.remember(thread)
+                try:
+                    self.attach(thread["id"])
+                except CodexRejected:
+                    pass
+            return
+        if method == "account/rateLimits/updated":
+            with open(os.path.join(CONFIG_DIR, "codex-usage.json"), "w") as f:
+                json.dump(normalize_codex_usage(p), f)
+            self.dirty = True
+            return
+        if not sid or sid not in self.attached:
+            return
+        if method == "serverRequest/resolved":
+            for key, request in list(self.pending.items()):
+                if request["id"] == p.get("requestId") and request["params"].get("threadId") == sid:
+                    self.pending.pop(key)
+            self.publish_requests(sid)
+        elif method == "turn/started":
+            self.update(sid, status="running", turn_id=(p.get("turn") or {}).get("id"),
+                        delivery_error="", latest_reply="")
+        elif method == "thread/status/changed":
+            self.update(sid, **self.thread_status_fields(p.get("status") or {}))
+        elif method == "item/completed":
+            item = p.get("item") or {}
+            if item.get("type") == "agentMessage":
+                self.update(sid, latest_reply=clip_bytes(item.get("text", ""), 8000))
+            elif item.get("type") == "userMessage":
+                text = " ".join(x.get("text", "") for x in item.get("content", []) if x.get("type") == "text")
+                if text:
+                    self.update(sid, detail=text[:160])
+        elif method == "turn/completed":
+            self.finish(sid, p.get("turn") or {})
+        elif method in ("thread/archived", "thread/closed"):
+            state = load_sessions()
+            state["local"].pop(sid, None)
+            save_sessions(state)
+            self.attached.discard(sid)
+            self.dirty = True
+
+    def finish(self, sid, turn):
+        failed = turn.get("status") in ("failed", "interrupted")
+        entry = load_sessions()["local"].get(sid, {})
+        already = entry.get("notified_turn") == turn.get("id")
+        self.update(sid, status="waiting" if failed else "done", notified_turn=turn.get("id"))
+        if not already:
+            codex_alert(self.cfg, sid, "notification" if failed else "stop",
+                        entry.get("latest_reply") or ("Codex stopped before completing this turn." if failed else "Codex completed this turn."))
+
+    def request(self, message):
+        import uuid
+        method, p = message["method"], message.get("params") or {}
+        sid = p.get("threadId")
+        if not sid or sid not in self.attached:
+            # Other clients may own specialized requests. Never reject them here.
+            return
+        if method not in ("item/commandExecution/requestApproval", "item/fileChange/requestApproval",
+                          "item/permissions/requestApproval", "item/tool/requestUserInput"):
+            self.update(sid, delivery_error="This request needs attention in Codex on your Mac.")
+            return
+        if any(r["id"] == message["id"] for r in self.pending.values()):
+            return
+        key = "codex-" + uuid.uuid4().hex
+        self.pending[key] = dict(message, received_at=time.time())
+        self.publish_requests(sid)
+        public = next(x for x in self.public_requests(sid) if x["id"] == key)
+        codex_alert(self.cfg, sid, "notification" if public["kind"] == "question" else "permission",
+                    public["summary"], None if public["kind"] == "question" else key)
+
+    def public_requests(self, sid):
+        result = []
+        for key, message in self.pending.items():
+            p = message["params"]
+            if p.get("threadId") != sid:
+                continue
+            questions = p.get("questions", [])
+            summary = p.get("reason") or "Codex requests permission"
+            if p.get("command"):
+                summary += "\n" + p["command"]
+            if p.get("permissions"):
+                summary += "\n" + json.dumps(p["permissions"], ensure_ascii=False)
+            if questions:
+                summary = "\n".join(q.get("question", "") for q in questions)
+            result.append({"id": key, "kind": "question" if questions else "approval",
+                           "summary": summary[:4000], "questions": questions,
+                           "ts": int(message["received_at"])})
+        return result
+
+    def publish_requests(self, sid):
+        self.update(sid, pending_requests=self.public_requests(sid))
+
+    def answer(self, key, decision=None, answers=None):
+        request = self.pending.get(key)
+        if not request:
+            raise ValueError("This request was already answered or expired. Refresh the task.")
+        p, method = request["params"], request["method"]
+        if method == "item/tool/requestUserInput":
+            if not isinstance(answers, dict) or set(answers) != {q["id"] for q in p["questions"]}:
+                raise ValueError("Answer every question before sending.")
+            if any(not isinstance(v, str) or not v.strip() for v in answers.values()):
+                raise ValueError("Answers must not be empty.")
+            result = {"answers": {k: {"answers": [v]} for k, v in answers.items()}}
+        elif decision not in ("allow", "deny"):
+            raise ValueError("Choose allow or deny.")
+        elif method == "item/permissions/requestApproval":
+            result = {"permissions": p.get("permissions", {}) if decision == "allow" else {}, "scope": "turn"}
+        else:
+            choices = p.get("availableDecisions")
+            value = "accept" if decision == "allow" else "decline"
+            if choices and value not in choices:
+                raise ValueError("This approval needs a decision in Codex on your Mac.")
+            result = {"decision": value}
+        self.rpc.send({"id": request["id"], "result": result})
+        # Wait for serverRequest/resolved before removing the visible prompt.
+
+    def ack(self, command, status, message="", sid=""):
+        return backend_call(self.cfg, "POST", "/api/codex", {
+            "host": self.host, "command_id": command["command_id"], "action": "ack",
+            "status": status, "message": message, "session_id": sid})
+
+    def receipt(self, command, status, message="", sid=""):
+        state = load_sessions()
+        state.setdefault("codex_commands", {})[command["command_id"]] = {
+            "status": status, "message": message, "session_id": sid, "ts": int(time.time())}
+        save_sessions(state)
+        self.ack(command, status, message, sid)
+
+    def execute(self, command):
+        cid, action, sid = command["command_id"], command["action"], command.get("session_id", "")
+        state = load_sessions()
+        if action == "send" and codex_is_desktop(sid, state):
+            return True  # Native desktop control owns this, even if CLI is offline.
+        previous = state.get("codex_commands", {}).get(cid)
+        if previous:
+            status = "uncertain" if previous["status"] == "dispatching" else previous["status"]
+            self.receipt(command, status, previous.get("message", "") or "Check Codex before retrying.", previous.get("session_id", sid))
+            return True
+        if command.get("status") == "dispatching":
+            self.receipt(command, "uncertain", "Connection was interrupted. Check Codex before retrying.", sid)
+            return True
+        if action == "send":
+            record = state.get("codex_sessions", {}).get(sid, {})
+            if not record.get("managed"):
+                self.receipt(command, "failed", "Open this session in the shared Codex service first.", sid)
+                return True
+            try:
+                self.attach(sid)
+                thread = self.rpc.call("thread/read", {"threadId": sid})["thread"]
+            except CodexRejected as exc:
+                self.receipt(command, "failed", str(exc)[:300], sid)
+                return True
+            if thread.get("canAcceptDirectInput") is False:
+                self.receipt(command, "failed", "This child session does not accept direct input.", sid)
+                return True
+            if (thread.get("status") or {}).get("type") == "active":
+                return False  # queued until idle; never inject around an approval
+        if not self.ack(command, "dispatching", sid=sid):
+            return False
+        self.receipt(command, "dispatching", sid=sid)
+        try:
+            if action == "spawn":
+                cwd = os.path.expanduser(command.get("cwd", ""))
+                if not os.path.isabs(cwd) or not os.path.isdir(cwd):
+                    raise ValueError("The project folder does not exist on this Mac.")
+                # Explicit user approvals; no bypass or account-setting changes.
+                result = self.rpc.call("thread/start", {"cwd": cwd, "sandbox": "workspace-write",
+                                                       "approvalPolicy": "on-request", "approvalsReviewer": "user"})
+                sid = result["thread"]["id"]
+                self.remember(result["thread"], phone_owned=True)
+                self.attached.add(sid)
+            if action in ("spawn", "send"):
+                self.rpc.call("turn/start", {"threadId": sid, "clientUserMessageId": cid,
+                                             "input": [{"type": "text", "text": command["text"]}]})
+                self.update(sid, status="running", detail=command["text"][:160])
+            elif action == "answer":
+                key = command.get("request_id")
+                request = self.pending.get(key)
+                if not request or request["params"].get("threadId") != sid:
+                    raise ValueError("This request is no longer pending in this session.")
+                self.answer(key, answers=json.loads(command["answers"]))
+                deadline = time.monotonic() + 8
+                while key in self.pending and time.monotonic() < deadline:
+                    for event in self.rpc.poll():
+                        self.event(event)
+                if key in self.pending:
+                    raise TimeoutError("Codex did not confirm the answer")
+            else:
+                raise ValueError("Unknown Codex action.")
+            self.receipt(command, "delivered", sid=sid)
+        except (ValueError, CodexRejected) as exc:
+            self.receipt(command, "failed", str(exc)[:300], sid)
+        except Exception:
+            self.receipt(command, "uncertain", "Connection interrupted. Check Codex before sending again.", sid)
+            raise
+        return True
+
+    def tick(self):
+        for event in self.rpc.poll():
+            self.event(event)
+        now = time.monotonic()
+        if now - self.last_discover > 10:
+            self.discover()
+            self.last_discover = now
+            self.status(True)
+        if self.wake.is_set() and now - self.last_mailbox > 2:
+            self.last_mailbox = now
+            self.wake.clear()
+            response = backend_call(self.cfg, "GET", "/api/codex?host=" + self.host)
+            if response is not None:
+                self.commands = [c for c in response.get("commands", []) if c.get("status") in ("queued", "dispatching")]
+            else:
+                self.wake.set()
+        remaining = []
+        blocked_sessions = set()
+        for command in self.commands:
+            is_send = command.get("action") == "send"
+            sid = command.get("session_id")
+            if is_send and sid in blocked_sessions:
+                remaining.append(command)
+                continue
+            if not self.execute(command):
+                remaining.append(command)
+                if is_send:
+                    blocked_sessions.add(sid)
+        self.commands = remaining
+        if now - self.last_decisions > 2:
+            for key, request in list(self.pending.items()):
+                if request["method"] == "item/tool/requestUserInput":
+                    continue
+                response = backend_call(self.cfg, "GET", "/api/decision?id=" + key)
+                if response and response.get("decision") in ("allow", "deny") and not request.get("answered"):
+                    try:
+                        self.answer(key, decision=response["decision"])
+                        request["answered"] = True
+                    except ValueError as exc:
+                        self.update(request["params"]["threadId"], delivery_error=str(exc))
+            self.last_decisions = now
+        # iOS considers a bridge heartbeat older than 45 seconds offline.
+        # Keep idle connections fresh without sending extra APNs updates.
+        if (self.dirty and now - self.last_publish > 3) or now - self.last_publish > 25:
+            changed = self.dirty
+            self.dirty = False
+            state = load_sessions()
+            label = host_label(self.cfg)
+            sync_peers(self.cfg, state, label)
+            if changed:
+                push_dashboard(self.cfg, make_jwt(self.cfg), HOSTS[self.cfg.get("environment", "sandbox")], state, label)
+            self.last_publish = now
+
+    def run(self):
+        while True:
+            try:
+                with CodexRPC(shared=True) as rpc:
+                    self.rpc = rpc
+                    rpc.on_request = self.request
+                    self.attached.clear()
+                    self.reset_requests()
+                    self.wake.set()
+                    self.discover()
+                    self.status(True)
+                    self.dirty = True
+                    while True:
+                        self.tick()
+            except Exception as exc:
+                self.status(False, "Codex shared service is unavailable")
+                log("Codex bridge disconnected: " + type(exc).__name__)
+                time.sleep(5)
+
+
+def normalize_codex_usage(result, now=None):
+    """Only transport quota data, never account identifiers or auth tokens."""
+    buckets = result.get("rateLimitsByLimitId")
+    if not isinstance(buckets, dict) or not buckets:
+        one = result.get("rateLimits") or {}
+        buckets = {one.get("limitId") or "codex": one} if one else {}
+    limits = []
+    for key, bucket in sorted(buckets.items()):
+        if not isinstance(bucket, dict):
+            continue
+        windows = []
+        for name in ("primary", "secondary"):
+            window = bucket.get(name)
+            if not isinstance(window, dict):
+                continue
+            pct = window.get("usedPercent")
+            if not isinstance(pct, (int, float)) or isinstance(pct, bool):
+                continue
+            windows.append({"id": name, "used_pct": pct,
+                            "window_minutes": window.get("windowDurationMins"),
+                            "resets_at": window.get("resetsAt")})
+        if windows:
+            limits.append({"id": key, "name": bucket.get("limitName") or key,
+                           "plan": bucket.get("planType"), "windows": windows})
+    return {"updated_at": int(now if now is not None else time.time()),
+            "available": bool(limits), "limits": limits,
+            "ordinary_usage_allowed": result.get("ordinaryUsageAllowed")}
+
+
+def cached_codex_usage():
+    try:
+        with open(os.path.join(CONFIG_DIR, "codex-usage.json")) as f:
+            cached = json.load(f)
+        age = time.time() - cached.get("updated_at", 0)
+        if age < CODEX_USAGE_MAX_AGE:
+            return dict(cached, stale=age > 900)
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
+
+
+def refresh_codex_usage():
+    if not codex_bin():
+        return {}
+    cached = cached_codex_usage()
+    if cached and time.time() - cached.get("updated_at", 0) < 600:
+        return cached
+    try:
+        with CodexRPC() as rpc:
+            account = (rpc.call("account/read", {"refreshToken": False}).get("account") or {})
+            if account.get("type") != "chatgpt":
+                result = {"updated_at": int(time.time()), "available": False,
+                          "limits": [], "reason": "subscription_required"}
+            else:
+                result = normalize_codex_usage(rpc.call("account/rateLimits/read"))
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(os.path.join(CONFIG_DIR, "codex-usage.json"), "w") as f:
+            json.dump(result, f)
+        return result
+    except Exception as exc:
+        log("Codex usage unavailable: " + type(exc).__name__)
+        return dict(cached, stale=True) if cached else {
+            "available": False, "limits": [], "reason": "unavailable"}
 
 
 def handle_spawn(cfg: dict, text: str) -> None:
@@ -561,9 +1909,11 @@ def handle_type(cfg: dict, state: dict, payload: str) -> None:
         log(f"type: no terminal record for {sid[:8]}")
         return
     ok, err = type_into_terminal(entry, text)
-    if ok and sid in state["local"]:
-        # Raw typing supersedes any queued sid-keyed command, like local typing.
-        state["local"][sid]["cmd_ts"] = int(time.time() * 1000)
+    if ok:
+        # Preserve the installed relay's server-side queue cancellation.
+        claim_command(cfg, sid)
+        if sid in state["local"]:
+            state["local"][sid]["cmd_ts"] = int(time.time() * 1000)
     log(f"type: {sid[:8]} {'ok: ' + text[:40] if ok else 'failed: ' + err}")
 
 
@@ -915,10 +2265,11 @@ def use_backend(cfg: dict) -> bool:
     return bool(cfg.get("backend_url") and cfg.get("backend_secret"))
 
 
-def backend_call(cfg: dict, method: str, path: str, body=None):
-    """GET/POST against the Vercel backend; returns parsed JSON or None."""
+def backend_call(cfg: dict, method: str, path: str, body=None, timeout: int = 8):
+    """GET/POST against the backend; returns parsed JSON or None.
+    `timeout` must exceed any `wait=` long-poll budget in `path`."""
     url = cfg["backend_url"].rstrip("/") + path
-    cmd = ["curl", "-sS", "-m", "8", "-H", f"x-sb-secret: {cfg['backend_secret']}"]
+    cmd = ["curl", "-sS", "-m", str(timeout), "-H", f"x-sb-secret: {cfg['backend_secret']}"]
     if method == "POST":
         cmd += ["-X", "POST", "-H", "Content-Type: application/json",
                 "-d", json.dumps(body or {})]
@@ -931,6 +2282,38 @@ def backend_call(cfg: dict, method: str, path: str, body=None):
         return json.loads(p.stdout)
     except ValueError:
         return None
+
+
+# Long-poll: the backend holds GET /api/command|/api/decision open for up to
+# `wait` seconds and returns the moment a row newer than `since` (ms) lands.
+# One held connection replaces a 3 s hammer (which was 86% of all requests).
+LP_WAIT = 25          # backend caps at 25; curl timeout adds headroom
+LP_HTTP_TIMEOUT = LP_WAIT + 10
+
+
+def backend_poll(cfg: dict, path: str, wait: int, since: int = 0):
+    """GET with long-poll params; wait<=0 degrades to a plain GET."""
+    wait = max(0, min(LP_WAIT, int(wait)))
+    sep = "&" if "?" in path else "?"
+    return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}",
+                        timeout=(wait + 10) if wait else 8)
+
+
+def claim_command(cfg: dict, key: str, ts=None) -> bool:
+    """Only the winner of a server-side claim may deliver a legacy command.
+
+    The watcher and Stop hook can see the same row concurrently. Timestamp-
+    guarded deletion retains newer messages; missing confirmation fails closed.
+    ts=None cancels a queued message after explicit raw terminal input.
+    """
+    body = {"key": key}
+    if ts is not None:
+        body["ts"] = ts
+    resp = backend_call(cfg, "POST", "/api/command/claim", body)
+    if not isinstance(resp, dict) or "claimed" not in resp:
+        log(f"claim {key[:12]}: backend didn't answer, leaving it queued")
+        return False
+    return bool(resp["claimed"])
 
 
 _GATEWAY_CFG = {}  # set once in main(); lets send_* route without signature churn
@@ -986,21 +2369,65 @@ PEER_FRESH_SECONDS = 3600       # ignore peer-Mac state older than this
 
 
 def load_sessions() -> dict:
+    import copy
     try:
         with open(SESSIONS_PATH) as f:
             s = json.load(f)
         s.setdefault("local", {})
         s.setdefault("peers", {})
+        s["_baseline"] = copy.deepcopy(s)
         return s
     except (OSError, ValueError):
-        return {"local": {}, "peers": {}}
+        return {"local": {}, "peers": {}, "_baseline": {"local": {}, "peers": {}}}
 
 
 def save_sessions(state: dict) -> None:
+    """Merge only this caller's changes under a lock; hooks run concurrently."""
+    import copy
+    import tempfile
     try:
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(SESSIONS_PATH, "w") as f:
-            json.dump(state, f, indent=2)
+        with open(SESSIONS_PATH + ".lock", "a+b") as lock:
+            if IS_WIN:
+                import msvcrt
+                if os.path.getsize(SESSIONS_PATH + ".lock") == 0:
+                    lock.write(b"0")
+                    lock.flush()
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            current = load_sessions()
+            current.pop("_baseline", None)
+            baseline = state.get("_baseline", {})
+
+            def merge(old, new, live):
+                if isinstance(old, dict) and isinstance(new, dict) and isinstance(live, dict):
+                    for key in old.keys() - new.keys():
+                        if live.get(key) == old[key]:
+                            live.pop(key, None)
+                    for key, value in new.items():
+                        if key not in old:
+                            live[key] = copy.deepcopy(value)
+                        elif value != old[key]:
+                            live[key] = merge(old[key], value, live.get(key))
+                    return live
+                return copy.deepcopy(new)
+
+            desired = {k: v for k, v in state.items() if k != "_baseline"}
+            current = merge(baseline, desired, current)
+            fd, tmp = tempfile.mkstemp(prefix="sessions-", suffix=".tmp", dir=CONFIG_DIR)
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(current, f, indent=2)
+                os.replace(tmp, SESSIONS_PATH)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            state.clear()
+            state.update(current)
+            state["_baseline"] = copy.deepcopy(current)
     except OSError:
         pass
 
@@ -1095,6 +2522,26 @@ def claude_pids():
     chain = claude_pid_chain()
     return (chain[0] if chain else None,
             chain[1] if len(chain) > 1 else None)
+
+
+def engine_pids(engine=None):
+    if engine != "codex":
+        return claude_pids()
+    # A desktop app-server owns many threads: it is never their parent agent.
+    pid = os.getppid()
+    for _ in range(12):
+        try:
+            line = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)],
+                                  capture_output=True, text=True, timeout=2).stdout.strip()
+            parent, executable = line.split(None, 1)
+            if os.path.basename(executable).lower() in ("codex", "codex.exe"):
+                return pid, None
+            pid = int(parent)
+            if pid <= 1:
+                break
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            break
+    return None, None
 
 
 def find_claude_pid():
@@ -1206,7 +2653,9 @@ def merged_tasks(state: dict, my_label: str, now: int) -> list:
                 t["agents"] = e["agents"]
             if e.get("mode") and e["mode"] != "default":
                 t["mode"] = e["mode"]
-            parent = pid2sid.get(e.get("parent_pid"))
+            if e.get("engine"):
+                t["engine"] = e["engine"]
+            parent = e.get("parent_sid") or pid2sid.get(e.get("parent_pid"))
             collected[sid] = (t, parent if parent != sid else None)
 
     add_group(state["local"], my_label)
@@ -1247,6 +2696,8 @@ def sync_peers(cfg: dict, state: dict, my_label: str) -> None:
         backend_call(cfg, "POST", "/api/state",
                      {"host": my_label, "ts": int(time.time()),
                       "sessions": state["local"], "usage": cached_usage() or None,
+                      "codex_usage": cached_codex_usage() or None,
+                      "codex": codex_bridge_status(),
                       "awake": caffeinate_active(),
                       "projects": recent_projects(),
                       "hook_v": hook_version()})
@@ -1299,6 +2750,13 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
             content_state["approvalSummary"] = approval["summary"]
     except (OSError, ValueError, KeyError):
         pass
+    if not content_state.get("approvalId"):
+        approvals = [r for entry in state["local"].values()
+                     for r in entry.get("pending_requests", []) if r.get("kind") == "approval"]
+        if approvals:
+            approval = min(approvals, key=lambda r: r.get("ts", 0))
+            content_state["approvalId"] = approval["id"]
+            content_state["approvalSummary"] = clip_bytes(approval["summary"], 300)
     tokens = load_activity_tokens()
 
     entry = tokens.get("_dashboard")
@@ -1457,6 +2915,8 @@ def self_update(cfg: dict, exit_after: bool = True) -> None:
     exit_after=True is the relay's mode (launchd KeepAlive restarts it on the
     new code); hook processes pass False and restart the relay explicitly."""
     import hashlib
+    if cfg.get("auto_update") is False:
+        return
     me = os.path.abspath(__file__)
     # normcase/normpath: on Windows expanduser mixes / and \ — a raw
     # startswith would silently disable self-update there.
@@ -1503,36 +2963,32 @@ def run_watcher(cfg: dict) -> None:
     last_usage = 0.0
     last_cmd = 0.0
     last_reap = 0.0
+    # Newest command ts the backend has shown us; the long-poll returns early
+    # only for rows newer than this. 0 → the first call answers immediately.
+    seen_ts = 0
+    backend_down = False
+    # `watcher_poll_seconds` keeps the legacy fixed-interval mode (no hold).
+    legacy_poll = cfg.get("watcher_poll_seconds")
     first = True
+    last_pass = time.time()
     while True:
-        # Adaptive: poll fast while a session likely awaits a phone reply
-        # (waiting / freshly done) or the phone is actively driving us
-        # (terminal view, recent machine commands); lazily when quiet.
-        # Quiet cadence bounds how long the phone waits for its FIRST
-        # terminal frame / typed command (after that we're hot). 5 s ≈ 17k
-        # requests a day per Mac — fine on Workers Paid, which we're on.
-        try:
-            now0 = time.time()
-            hot = (now0 - last_cmd < 180) or any(
-                e.get("status") == "waiting"
-                or (e.get("status") == "done" and now0 - e.get("since", 0) < 900)
-                for e in load_sessions()["local"].values())
-        except Exception:
-            hot = False
-        poll = cfg.get("watcher_poll_seconds") or (3 if hot else 5)
-        before = time.time()
+        # The server holds the request when quiet; only back off locally if
+        # the backend is unreachable or a legacy fixed interval is configured.
+        poll = legacy_poll or (10 if backend_down else 1)
         # First pass runs straight away: a freshly (re)started relay should
         # publish state now, not after an idle 15 s.
         if first:
             first = False
         else:
             time.sleep(poll)
-        # Sleep/wake: a sleep that took far longer than asked means the Mac
-        # was suspended. Re-sync right away instead of waiting for the next
+        # Include the held network request in sleep/wake detection: the Mac
+        # may suspend during the long-poll, not just during time.sleep().
+        # Re-sync right away instead of waiting for the next
         # 10-min tick, so the phone stops showing pre-sleep state. The network
         # (and any VPN) may lag the wake by a while — wait for the backend to
         # answer before forcing the tick, so the sync itself doesn't time out.
-        asleep = time.time() - before - poll
+        asleep = time.time() - last_pass - poll - (0 if legacy_poll else LP_WAIT)
+        last_pass = time.time()
         if asleep > 90:
             log(f"watcher: woke after {int(asleep)}s asleep, resyncing")
             for _ in range(24):
@@ -1547,6 +3003,7 @@ def run_watcher(cfg: dict) -> None:
                 last_usage = time.time()
                 self_update(cfg)
                 usage_summary(cfg)
+                refresh_codex_usage()
                 state = load_sessions()
                 sync_peers(cfg, state, host_label(cfg))
             # Reap dead/expired sessions even when no hook events fire —
@@ -1564,10 +3021,15 @@ def run_watcher(cfg: dict) -> None:
                     push_dashboard(cfg, make_jwt(cfg),
                                    HOSTS[cfg.get("environment", "sandbox")],
                                    state, lbl)
-            resp = backend_call(cfg, "GET", "/api/command") or {}
+            resp = backend_poll(cfg, "/api/command",
+                                0 if legacy_poll else LP_WAIT, seen_ts)
+            backend_down = resp is None
+            if backend_down:
+                continue
             commands = resp.get("commands") or {}
             if not commands:
                 continue
+            seen_ts = max([seen_ts] + [int(c.get("ts", 0)) for c in commands.values()])
             state = load_sessions()
             changed = False
             # Machine-level commands addressed to THIS Mac.
@@ -1575,6 +3037,7 @@ def run_watcher(cfg: dict) -> None:
             cursors = state.setdefault("_cursors", {})
             for key, cmd in commands.items():
                 action = ("sys" if key == f"_sys-{my_canon}"
+                          else "codex" if key == f"_codex-{my_canon}"
                           else "spawn" if key == f"_spawn-{my_canon}"
                           else "tail" if key == f"_tail-{my_canon}"
                           else "md" if key == f"_md-{my_canon}"
@@ -1584,11 +3047,18 @@ def run_watcher(cfg: dict) -> None:
                 if cmd.get("ts", 0) <= max(cursors.get(key, 0),
                                            (time.time() - 4 * 3600) * 1000):
                     continue
+                if not claim_command(cfg, key, cmd.get("ts")):
+                    continue
                 cursors[key] = cmd["ts"]
                 changed = True
                 last_cmd = time.time()
                 if action == "sys":
                     handle_sys_command(cfg, cmd["text"])
+                elif action == "codex":
+                    if _CODEX_BRIDGE:
+                        _CODEX_BRIDGE.wake.set()
+                    if _CODEX_DESKTOP_CONTROL:
+                        _CODEX_DESKTOP_CONTROL.wake.set()
                 elif action == "spawn":
                     handle_spawn(cfg, cmd["text"])
                 elif action == "type":
@@ -1598,15 +3068,40 @@ def run_watcher(cfg: dict) -> None:
                 else:
                     handle_tail(cfg, cmd["text"].strip())
             for sid, cmd in commands.items():
-                entry = state["local"].get(sid)
+                entry = state["local"].get(sid) or state.get("codex_sessions", {}).get(sid)
                 if not entry or not cmd.get("text"):
                     continue
                 cursor = entry.get("cmd_ts", 0)
                 if cmd.get("ts", 0) <= max(cursor, (time.time() - 4 * 3600) * 1000):
                     continue
+                if entry.get("engine") == "codex":
+                    if codex_is_desktop(sid, state):
+                        # Conversion to /api/codex would reset this legacy
+                        # reply's acceptance time and bypass context/age guards.
+                        if claim_command(cfg, sid, cmd.get("ts")):
+                            entry["cmd_ts"] = cmd["ts"]
+                            entry["desktop_delivery"] = (
+                                "Legacy notification reply was not sent. Review the conversation "
+                                "and resend from the updated SessionBell app.")
+                            changed = True
+                        continue
+                    import uuid
+                    command_id = str(uuid.uuid5(uuid.NAMESPACE_URL, sid + ":" + str(cmd["ts"])))
+                    result = backend_call(cfg, "POST", "/api/codex", {
+                        "host": my_canon, "command_id": command_id, "action": "send",
+                        "session_id": sid, "text": cmd["text"]})
+                    if result and result.get("ok"):
+                        claim_command(cfg, sid, cmd.get("ts"))
+                        entry["cmd_ts"] = cmd["ts"]
+                        changed = True
+                        if _CODEX_BRIDGE:
+                            _CODEX_BRIDGE.wake.set()
+                    continue
                 if not (entry.get("term_type") or entry.get("pane")):
                     continue  # no injection route; stop-window fallback covers it
                 if not entry.get("pid") or not pid_alive(entry["pid"]):
+                    continue
+                if not claim_command(cfg, sid, cmd.get("ts")):
                     continue
                 text = " ".join(cmd["text"].split())
                 ok_inject, err = type_into_terminal(entry, text)
@@ -1617,7 +3112,10 @@ def run_watcher(cfg: dict) -> None:
                     log(f"watcher: typed into {sid[:8]} "
                         f"({entry.get('term_type') or 'otty'}): {text[:40]}")
                 else:
-                    log(f"watcher: inject failed for {sid[:8]}: {err}")
+                    restored = backend_call(cfg, "POST", "/api/command/restore",
+                                            {"session_id": sid, "text": cmd["text"], "ts": cmd["ts"]})
+                    outcome = "restored" if isinstance(restored, dict) and restored.get("restored") else "not restored"
+                    log(f"watcher: inject failed for {sid[:8]}, {outcome}: {err}")
             if changed:
                 save_sessions(state)
         except Exception as exc:
@@ -1630,6 +3128,13 @@ def run_relay(cfg: dict) -> None:
 
     if use_backend(cfg):
         import threading
+        global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
+        if cfg.get("codex_enabled") and not IS_WIN:
+            _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
+            threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
+            _CODEX_BRIDGE = CodexBridge(cfg)
+            threading.Thread(target=_CODEX_BRIDGE.run, daemon=True).start()
+            threading.Thread(target=CodexDesktopObserver(cfg).run, daemon=True).start()
         threading.Thread(target=run_watcher, args=(cfg,), daemon=True).start()
         log("watcher: started (instant command injection via Otty panes)")
 
@@ -1752,8 +3257,10 @@ def handle_permission(cfg: dict, hook: dict) -> None:
     if isinstance(tool_input, dict) and tool_input.get("description"):
         summary = f"{tool_input['description']}\n{summary}"
     # What was Claude doing when it hit this prompt?
-    context = clip_bytes(
-        strip_markdown(last_assistant_text(hook.get("transcript_path", ""))), 600)
+    engine = os.environ.get("SESSIONBELL_ENGINE")
+    context = clip_bytes(strip_markdown(
+        hook.get("last_assistant_message") or
+        ("" if engine == "codex" else last_assistant_text(hook.get("transcript_path", "")))), 600)
 
     now = int(time.time())
     relays = relays_list(cfg)
@@ -1781,6 +3288,8 @@ def handle_permission(cfg: dict, hook: dict) -> None:
         },
         "sb": {
             "event": "permission",
+            "engine": engine,
+            "source": "desktop" if os.environ.get("SESSIONBELL_DESKTOP_PERMISSIONS") == "1" else "",
             "session_id": session_id,
             "cwd": cwd,
             "project": project,
@@ -1811,7 +3320,10 @@ def handle_permission(cfg: dict, hook: dict) -> None:
     except OSError:
         pass
     state = load_sessions()
-    state["local"][session_id] = {"project": project, "status": "waiting", "since": now}
+    state["local"][session_id] = {**state["local"].get(session_id, {}),
+                                 "project": project, "status": "waiting", "since": now,
+                                 "engine": engine, "cwd": cwd,
+                                 "approval_id": request_id}
     save_sessions(state)
     sync_peers(cfg, state, host)
     push_dashboard(cfg, jwt, HOSTS[env], state, host)
@@ -1827,11 +3339,16 @@ def handle_permission(cfg: dict, hook: dict) -> None:
                 log(f"permission {request_id[:12]}: user returned, terminal takes over")
                 break
         if use_backend(cfg):
-            resp = backend_call(cfg, "GET", f"/api/decision?id={request_id}")
+            # Long-poll; stay short unless the phone owns this prompt, so the
+            # "user is back at the Mac" check above keeps its ~1 s reaction.
+            hold = LP_WAIT if phone_owned else 1
+            hold = int(min(hold, max(0, deadline - time.time())))
+            resp = backend_poll(cfg, f"/api/decision?id={request_id}", hold)
             if resp and resp.get("decision") in ("allow", "deny"):
                 decision = resp["decision"]
                 break
-            time.sleep(1)
+            if resp is None:
+                time.sleep(1)
             continue
         try:
             with open(decision_path) as f:
@@ -1843,13 +3360,20 @@ def handle_permission(cfg: dict, hook: dict) -> None:
 
     # Clear the buttons; reflect the outcome on the dashboard.
     try:
-        os.unlink(PENDING_APPROVAL_PATH)
-    except OSError:
+        with open(PENDING_APPROVAL_PATH) as f:
+            pending = json.load(f)
+        if pending.get("id") == request_id:
+            os.unlink(PENDING_APPROVAL_PATH)
+    except (OSError, ValueError):
         pass
+    state = load_sessions()
+    entry = state["local"].get(session_id)
+    if entry and entry.get("approval_id") == request_id:
+        entry.pop("approval_id", None)
     if decision in ("allow", "deny"):
-        state = load_sessions()
-        state["local"][session_id] = {"project": project, "status": "running", "since": now}
-        save_sessions(state)
+        state["local"][session_id] = {**(entry or {}), "project": project,
+                                     "status": "running", "since": int(time.time())}
+    save_sessions(state)
     push_dashboard(cfg, make_jwt(cfg), HOSTS[env], load_sessions(), host)
 
     if decision in ("allow", "deny"):
@@ -1903,9 +3427,17 @@ def try_inject_command(cfg, env, session_id, project, host,
                 log("stop wait: user is back at the Mac, releasing")
                 return False
         cursor = max(cursor, (load_sessions()["local"].get(session_id) or {}).get("cmd_ts", 0))
-        resp = backend_call(cfg, "GET", f"/api/command?id={session_id}")
+        # Hold the request open; keep it short while we also watch for the
+        # user coming back to the keyboard (that check runs between polls).
+        hold = 5 if watch_return else LP_WAIT
+        hold = int(min(hold, max(0, deadline - time.time())))
+        resp = backend_poll(cfg, f"/api/command?id={session_id}", hold, cursor)
         cmd = (resp or {}).get("command")
         fresh = cmd and cmd.get("ts", 0) > max(cursor, (time.time() - 4 * 3600) * 1000)
+        if fresh and cmd.get("text") and not claim_command(cfg, session_id, cmd.get("ts")):
+            cursor = max(cursor, cmd.get("ts", 0))
+            log("stop: command already claimed by the watcher")
+            fresh = False
         if fresh and cmd.get("text"):
             text = cmd["text"]
             state = load_sessions()
@@ -1929,7 +3461,8 @@ def try_inject_command(cfg, env, session_id, project, host,
                 },
             }, ensure_ascii=False))
             return True
-        time.sleep(2)
+        if resp is None or hold < 2:
+            time.sleep(2)  # backend unreachable / budget nearly spent
     return False
 
 
@@ -2235,40 +3768,127 @@ def cmd_calibrate(pct_str: str) -> None:
 
 
 def cmd_codex_setup() -> None:
-    """Register SessionBell in ~/.codex/hooks.json — Codex CLI, desktop app
-    and the VS Code extension all fire these. Merges with existing entries
-    (e.g. other tools' hooks); safe to re-run."""
+    """Register the optional desktop permission hook, preserving other tools.
+
+    Lifecycle monitoring is read-only; shared CLI approvals use app-server.
+    Codex's normal explicit hook trust review is still required.
+    """
     me = os.path.abspath(__file__)
     py = sys.executable or "/usr/bin/python3"
 
-    def group(kind, timeout):
-        return {"hooks": [{"type": "command", "timeout": timeout,
-                           "command": f"SESSIONBELL_ENGINE=codex {py} {me} {kind}"}]}
+    import shlex
+    import shutil
 
-    # PermissionRequest rides the notification kind: waiting + phone push,
-    # NO stdout — codex falls through to its own approval UI. Blocking
-    # phone approval waits until the decision schema is verified live.
-    wanted = {"UserPromptSubmit": group("prompt", 10),
-              "Stop": group("stop", 15),
-              "SessionEnd": group("session-end", 10),
-              "PermissionRequest": group("notification", 10)}
-    path = os.path.expanduser("~/.codex/hooks.json")
+    def group(kind, timeout, matcher=None):
+        entry = {"hooks": [{"type": "command", "timeout": timeout,
+                            "command": "SESSIONBELL_ENGINE=codex SESSIONBELL_DESKTOP_PERMISSIONS=1 " +
+                            " ".join(shlex.quote(x) for x in (py, me, kind))}]}
+        if matcher:
+            entry["matcher"] = matcher
+        return entry
+
+    wanted = {"PermissionRequest": group("permission", 900)}
+    path = os.path.join(codex_home(), "hooks.json")
     try:
         with open(path) as f:
             data = json.load(f)
-    except (OSError, ValueError):
+    except FileNotFoundError:
         data = {}
+    except (OSError, ValueError):
+        raise SystemExit("Cannot read Codex hooks.json; no changes made.")
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        raise SystemExit("Invalid Codex hooks.json; no changes made.")
     hooks = data.setdefault("hooks", {})
-    for ev, g in wanted.items():
+    for ev in set(hooks) | set(wanted):
         arr = hooks.setdefault(ev, [])
-        arr[:] = [x for x in arr if "sessionbell" not in json.dumps(x).lower()]
-        arr.append(g)
+        if not isinstance(arr, list):
+            raise SystemExit("Invalid hook group; no changes made: " + ev)
+        # Preserve unrelated handlers even when they share a matcher group.
+        keep = []
+        for entry in arr:
+            handlers = [h for h in entry.get("hooks", [])
+                        if "sessionbell_hook.py" not in h.get("command", "")]
+            if handlers:
+                keep.append(dict(entry, hooks=handlers))
+        arr[:] = keep
+        if ev in wanted:
+            arr.append(wanted[ev])
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    if os.path.exists(path):
+        backup = path + ".sessionbell-backup-" + str(time.time_ns())
+        shutil.copy2(path, backup)
+        print("Backup: " + backup)
+    import tempfile
+    fd, tmp = tempfile.mkstemp(prefix="hooks-", suffix=".json", dir=os.path.dirname(path))
+    with os.fdopen(fd, "w") as f:
         json.dump(data, f, indent=2)
+    os.replace(tmp, path)
     print(f"✓ 已注册 SessionBell → {path}")
-    print("  事件: UserPromptSubmit / Stop / SessionEnd / PermissionRequest(仅提醒)")
-    print("  Codex session 会带 CODEX 角标出现在 App;批准联动待实测后开启。")
+    print("  已配置可选的桌面手机审批；状态与完成通知由只读监测器提供。")
+    print("  请在 Codex 的 /hooks 或 Hooks 设置中审核并信任 SessionBell hooks。")
+    print("  信任完成后新开会话生效；桌面会话不支持手机追问。")
+
+
+def cmd_codex_enable():
+    """Enable shared CLI control and read-only native desktop observation."""
+    import plistlib
+    import shutil
+    if IS_WIN or sys.platform != "darwin":
+        raise SystemExit("Shared Codex desktop integration currently requires macOS.")
+    binary = codex_bin()
+    if not binary:
+        raise SystemExit("Install Codex first.")
+    cfg = load_config("test")
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    launch_dir = os.path.expanduser("~/Library/LaunchAgents")
+    os.makedirs(launch_dir, exist_ok=True)
+    path = os.path.join(launch_dir, "dev.piper.sessionbell.codex.plist")
+    stamp = str(time.time_ns())
+    backup_dir = os.path.join(CONFIG_DIR, "codex-backup-" + stamp)
+    os.makedirs(backup_dir, mode=0o700)
+    shutil.copy2(CONFIG_PATH, os.path.join(backup_dir, "config.json"))
+    if os.path.exists(path):
+        shutil.copy2(path, os.path.join(backup_dir, "codex.plist"))
+    prior = {key: subprocess.run(["launchctl", "getenv", key], capture_output=True, text=True).stdout.strip()
+             for key in ("CODEX_APP_SERVER_USE_LOCAL_DAEMON", "CODEX_APP_SERVER_WS_URL")}
+    with open(os.path.join(backup_dir, "desktop-env.json"), "w") as f:
+        json.dump(prior, f)
+    service = {"Label": "dev.piper.sessionbell.codex",
+               "ProgramArguments": [binary, "-c", "features.code_mode_host=true",
+                                    "app-server", "--listen", "unix://"],
+               "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 10,
+               "EnvironmentVariables": {
+                   "PATH": os.path.dirname(binary) + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+                   "CODEX_HOME": codex_home(), "SESSIONBELL_CODEX_SHARED": "1"},
+               "StandardOutPath": os.path.join(CONFIG_DIR, "codex-service.log"),
+               "StandardErrorPath": os.path.join(CONFIG_DIR, "codex-service.log")}
+    # Never replace/restart an existing daemon; it may already own active turns.
+    sock = os.path.join(codex_home(), "app-server-control", "app-server-control.sock")
+    if os.path.exists(sock):
+        with CodexRPC(shared=True) as rpc:
+            rpc.call("thread/loaded/list")
+    else:
+        with open(path, "wb") as f:
+            plistlib.dump(service, f)
+        domain = "gui/" + str(os.getuid())
+        result = subprocess.run(["launchctl", "bootstrap", domain, path], capture_output=True)
+        if result.returncode != 0:
+            subprocess.run(["launchctl", "kickstart", domain + "/dev.piper.sessionbell.codex"], check=True)
+        deadline = time.monotonic() + 15
+        while not os.path.exists(sock) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        with CodexRPC(shared=True) as rpc:
+            rpc.call("thread/loaded/list")
+    # Never redirect the desktop: its native MCP transports require its own server.
+    cfg["codex_enabled"] = True
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+    with open(os.path.join(CONFIG_DIR, "codex-install.json"), "w") as f:
+        json.dump({"backup": backup_dir, "service": path, "desktop": "read-only observer"}, f)
+    print("Codex shared service ready. Backup: " + backup_dir)
+    print("CLI: codex --remote unix://")
+    print("Desktop sessions are observed read-only; no desktop restart or transport change.")
+    print("Restart SessionBell relay after installing this hook version.")
 
 
 def main():
@@ -2293,6 +3913,17 @@ def main():
         return
     if kind == "codex-setup":
         cmd_codex_setup()
+        return
+    if kind == "codex-enable":
+        cmd_codex_enable()
+        return
+    if kind == "codex":
+        binary = codex_bin()
+        if not binary:
+            raise SystemExit("Install Codex first.")
+        os.execv(binary, [binary, "--remote", "unix://"] + sys.argv[2:])
+    if kind == "codex-usage":
+        print(json.dumps(refresh_codex_usage(), ensure_ascii=False, indent=2))
         return
     if kind == "calibrate":
         cmd_calibrate(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -2341,7 +3972,19 @@ def main():
         except ValueError:
             hook = {}
 
+    if os.environ.get("SESSIONBELL_ENGINE") == "codex":
+        # Shared sessions are observed directly by the bridge, including native
+        # approval requests. Do not also run blocking hooks for the same turn.
+        known = load_sessions().get("codex_sessions", {}).get(hook.get("session_id"), {})
+        if os.environ.get("SESSIONBELL_CODEX_SHARED") == "1" or (
+                known.get("managed") and codex_bridge_status().get("connected")):
+            return
+
     if kind == "permission":
+        if os.environ.get("SESSIONBELL_DESKTOP_PERMISSIONS") == "1":
+            path = hook.get("transcript_path")
+            if not isinstance(path, str) or not CodexDesktopObserver(cfg).metadata(path, hook.get("session_id")):
+                return  # Never intercept CLI/extension approvals or an unknown origin.
         handle_permission(cfg, hook)
         return
 
@@ -2352,6 +3995,8 @@ def main():
     session_id = (hook.get("session_id") or hook.get("thread_id")
                   or hook.get("conversation_id") or "unknown")
     engine = os.environ.get("SESSIONBELL_ENGINE")
+    if engine == "codex" and session_id == "unknown":
+        return  # Never merge unrelated conversations into an invented session.
     host = host_label(cfg)
     env = cfg.get("environment", "sandbox")
     now = int(time.time())
@@ -2362,7 +4007,7 @@ def main():
 
     # Dashboard bookkeeping runs for every event, idle or not — it's a status
     # board, not a ring. Alert pushes below stay idle-gated.
-    dashboard_kinds = ("prompt", "session-end", "notification", "stop",
+    dashboard_kinds = ("prompt", "session-end", "notification", "stop", "interrupt",
                        "subagent-start", "subagent-stop")
     if kind in dashboard_kinds:
         state = load_sessions()
@@ -2371,7 +4016,7 @@ def main():
         # so stop/notification after a prune/resurrect still name the task.
         last_prompt = clean_detail((state.get("prompts", {}).get(session_id) or {}).get("text", ""))
         if kind == "prompt":
-            own_pid, parent_pid = claude_pids()
+            own_pid, parent_pid = engine_pids(engine)
             # 注入的伪 prompt 不能当任务名,否则锁屏上全是 <task-notification> <task-id>…;沿用上一条真实 prompt。
             ptext = "" if injected_text(hook.get("prompt")) else excerpt(hook.get("prompt"))
             if ptext:
@@ -2379,6 +4024,7 @@ def main():
                     "text": ptext, "ts": int(now)}
             # Typing locally supersedes anything queued from the phone.
             state["local"][session_id] = {
+                **prev,
                 "project": project, "status": "running", "since": now,
                 # Slash commands / spawned first beats carry no prompt text —
                 # never blank out a task that already has a name.
@@ -2405,36 +4051,45 @@ def main():
                     "term_handle": ent.get("term_handle"),
                     "pane": ent.get("pane"), "pid": ent.get("pid"),
                 }
+            if engine == "codex":
+                state.setdefault("codex_sessions", {})[session_id] = {
+                    "cwd": cwd, "project": project, "engine": engine, "ts": now}
         elif kind == "session-end":
             state["local"].pop(session_id, None)
         elif kind == "notification":
             # Keep the prompt excerpt — it names the task; the generic
             # "waiting for your input" message does not.
             state["local"][session_id] = {
+                **prev,
                 "project": project, "status": "waiting", "since": now,
                 "detail": clean_detail(prev.get("detail")) or last_prompt or excerpt(
                     hook.get("message") or hook.get("tool_name")),
                 "agents": prev.get("agents", 0),
                 "cmd_ts": prev.get("cmd_ts", 0),
-                "pid": prev.get("pid") or find_claude_pid(),
-                "parent_pid": prev.get("parent_pid") or claude_pids()[1],
+                "pid": prev.get("pid") or engine_pids(engine)[0],
+                "parent_pid": prev.get("parent_pid") or engine_pids(engine)[1],
                 "pane": os.environ.get("OTTY_PANE_ID") or prev.get("pane"),
                 "mode": hook.get("permission_mode") or prev.get("mode"),
                 "effort": hook.get("effort") or prev.get("effort"),
                 "engine": engine or prev.get("engine"),
+                "cwd": cwd,
             }
-        elif kind == "stop":
+        elif kind in ("stop", "interrupt"):
             state["local"][session_id] = {
-                "project": project, "status": "done", "since": now,
+                **prev,
+                "project": project, "status": "waiting" if kind == "interrupt" else "done", "since": now,
                 "detail": clean_detail(prev.get("detail")) or last_prompt, "agents": 0,
                 "cmd_ts": prev.get("cmd_ts", 0),
-                "pid": prev.get("pid") or find_claude_pid(),
-                "parent_pid": prev.get("parent_pid") or claude_pids()[1],
+                "pid": prev.get("pid") or engine_pids(engine)[0],
+                "parent_pid": prev.get("parent_pid") or engine_pids(engine)[1],
                 "pane": os.environ.get("OTTY_PANE_ID") or prev.get("pane"),
                 "mode": hook.get("permission_mode") or prev.get("mode"),
                 "effort": hook.get("effort") or prev.get("effort"),
                 "engine": engine or prev.get("engine"),
+                "cwd": cwd,
             }
+            if engine == "codex" and hook.get("last_assistant_message"):
+                state["local"][session_id]["latest_reply"] = clip_bytes(hook["last_assistant_message"], 8000)
         elif kind == "subagent-start":
             if not prev:
                 return  # unseen session; don't invent a row
@@ -2449,7 +4104,7 @@ def main():
         save_sessions(state)
         # Subagent churn is bookkeeping only — a badge isn't worth a network
         # round-trip and an LA push per spawn; it rides the next real event.
-        if kind in ("subagent-start", "subagent-stop"):
+        if kind in ("subagent-start", "subagent-stop", "interrupt"):
             return
         sync_peers(cfg, state, host)
         push_dashboard(cfg, make_jwt(cfg), HOSTS[env], state, host)
@@ -2458,7 +4113,8 @@ def main():
 
     # Only ring the phone when the user actually stepped away from the Mac.
     # Phone-spawned sessions are exempt: their owner IS the phone.
-    if (kind != "test" and not os.environ.get("SESSIONBELL_FORCE")
+    if (kind != "test" and not (engine == "codex" and kind == "stop")
+            and not os.environ.get("SESSIONBELL_FORCE")
             and not os.environ.get("SESSIONBELL_SPAWNED")):
         idle = mac_idle_seconds()
         min_idle = cfg.get("min_idle_seconds", 120)
@@ -2469,7 +4125,7 @@ def main():
             log(f"skip {kind}: user at keyboard (idle {idle:.0f}s < {min_idle}s)")
             # Still honor a phone command sent moments ago — a quick mailbox
             # check so remote control works even with the user at the desk.
-            if kind == "stop" and use_backend(cfg):
+            if kind == "stop" and use_backend(cfg) and engine != "codex":
                 try_inject_command(cfg, env, session_id, project, host,
                                    10, watch_return=False)
             return
@@ -2480,10 +4136,11 @@ def main():
     body_key = body_args = None   # 固定短语走 loc-key;动态正文(Claude 的回复)原样发
     if kind == "stop":
         title_key, title_args = "✅ %@ · 任务完成", [project]
-        raw_md = last_assistant_text(hook.get("transcript_path", ""))
+        raw_md = (hook.get("last_assistant_message") or "") if engine == "codex" else last_assistant_text(hook.get("transcript_path", ""))
         body = strip_markdown(raw_md)
         if not body:
-            body, body_key, body_args = "Claude 已完成本轮任务", "Claude 已完成本轮任务", []
+            body = "Codex 已完成本轮任务" if engine == "codex" else "Claude 已完成本轮任务"
+            body_key, body_args = body, []
         if task_detail:
             title_key, title_args = "✅ %@ · 完成「%@」", [project, task_detail[:24]]
     elif kind == "notification":
@@ -2500,13 +4157,13 @@ def main():
                 pass
         title_key, title_args = "🖐 %@ · 需要你", [project]
         # What is Claude actually asking? The last assistant message says.
-        raw_md = last_assistant_text(hook.get("transcript_path", ""))
+        raw_md = (hook.get("last_assistant_message") or "") if engine == "codex" else last_assistant_text(hook.get("transcript_path", ""))
         if raw_md:
             body = strip_markdown(raw_md)
         else:
-            body = hook.get("message") or "Claude 在等待你的输入或授权"
+            body = hook.get("message") or ("Codex 在等待你的输入或授权" if engine == "codex" else "Claude 在等待你的输入或授权")
             if not hook.get("message"):
-                body_key, body_args = "Claude 在等待你的输入或授权", []
+                body_key, body_args = body, []
             if task_detail:
                 body_key, body_args = "「%@」%@", [task_detail, body]
                 body = f"「{task_detail}」{body}"
@@ -2535,6 +4192,7 @@ def main():
         },
         "sb": {
             "event": kind,
+            "engine": engine,
             "session_id": session_id,
             "cwd": cwd,
             "project": project,
@@ -2581,7 +4239,7 @@ def main():
     # Remote control: while the user is away, keep the turn open after the
     # done-push so a phone reply can be injected. Releases the moment the
     # user touches the Mac again, or after reply_wait_seconds.
-    if kind == "stop" and ok and use_backend(cfg):
+    if kind == "stop" and ok and use_backend(cfg) and engine != "codex":
         try_inject_command(cfg, env, session_id, project, host,
                            cfg.get("reply_wait_seconds", 900), watch_return=True)
 

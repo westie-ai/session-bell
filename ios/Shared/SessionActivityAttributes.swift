@@ -12,6 +12,7 @@ struct SessionActivityAttributes: ActivityAttributes {
         var agents: Int?         // running subagent count
         var sub: Bool?           // spawned by another session — render nested
         var mode: String?        // permission mode when not default (plan/auto…)
+        var engine: String?      // absent on older hooks = Claude Code
 
         var sinceDate: Date { Date(timeIntervalSince1970: since) }
     }

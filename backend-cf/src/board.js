@@ -530,6 +530,11 @@ ${feedbackSection()}
     ? `每次打开都会现算;App Store 数据缓存 ${Math.round(ascTtlMin)} 分钟${asc.fetchedAt ? `,上次拉取 ${ago(asc.fetchedAt)}` : ''}。`
     : '这是一份静态快照;刷新请重新运行 <code>node backend-cf/scripts/board.mjs</code>。'}
 </footer>
+<script>
+// 看板开着时别熄屏(Screen Wake Lock;Safari 16.4+ / Chrome 支持,不支持就静默跳过);切回前台重新申请。
+(() => { const wake = async () => { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch {} };
+  document.addEventListener('visibilitychange', wake); wake(); })();
+</script>
 </div>
 `;
 

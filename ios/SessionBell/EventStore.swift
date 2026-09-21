@@ -16,6 +16,8 @@ final class EventStore: ObservableObject {
         let backend: String
         let secret: String
         let date: Date
+        var engine: String? = nil
+        var seenInState = false
     }
     @Published var pendingApproval: PendingApproval?
     @Published var openSessionId: String?
@@ -36,6 +38,15 @@ final class EventStore: ObservableObject {
         var engine: String = ""   // "" = claude; "codex" = OpenAI Codex
         var cwd: String = ""
         var rootDir: String = ""
+        var latestReply: String = ""
+        var deliveryError: String = ""
+        var requests: [CodexPendingRequest] = []
+        var source: String = ""
+        var tokenUsage: CodexTokenUsage? = nil
+        var desktopCanSend: Bool = false
+        var desktopQueued: Int = 0
+        var desktopDelivery: String = ""
+        var desktopVerifiedAt: Date = .distantPast
     }
 
     /// 与 Claude Code 官方模式一一对应
@@ -66,6 +77,8 @@ final class EventStore: ObservableObject {
         var awake: Bool = false
         var canonicalKey: String = ""
         var projects: [String] = []
+        var codexUsage: CodexUsage? = nil
+        var codexConnected: Bool = false
         var id: String { host }
 
         /// 新建 session 的目录候选:电脑发布的最近项目 + 活跃 session 目录
@@ -102,6 +115,34 @@ final class EventStore: ObservableObject {
                              body: ["session_id": key, "text": text],
                              to: backend.url, secret: backend.secret)
     }
+
+    /// Accepted by the backend is distinct from delivered to the Codex session.
+    func sendCodexCommand(host: String, action: String, sessionId: String = "",
+                          text: String = "", cwd: String = "", requestId: String = "",
+                          answers: [String: String] = [:]) async -> (ok: Bool, message: String, sessionId: String?) {
+        let id = UUID().uuidString.lowercased()
+        let answerData = (try? JSONSerialization.data(withJSONObject: answers)) ?? Data()
+        let body = ["host": Self.canonicalHost(host), "command_id": id,
+                    "action": action, "session_id": sessionId, "text": text, "cwd": cwd,
+                    "request_id": requestId, "answers": String(data: answerData, encoding: .utf8) ?? "{}"]
+        let accepted = await SBBackend.postChecked("/api/codex", body: body)
+        for _ in 0..<12 {
+            guard !Task.isCancelled else { break }
+            if let response = await SBBackend.getJSON("/api/codex?host=\(Self.canonicalHost(host))&id=\(id)") as? [String: Any],
+               let command = response["command"] as? [String: Any] {
+                switch command["status"] as? String {
+                case "delivered":
+                    return (true, String(localized: "Delivered to Codex"), command["session_id"] as? String)
+                case "failed", "uncertain":
+                    return (false, command["message"] as? String ?? String(localized: "Check Codex on your Mac before trying again."), nil)
+                default: break
+                }
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        return accepted ? (true, String(localized: "Queued · waiting for your Mac and an idle turn"), nil)
+            : (false, String(localized: "Delivery could not be confirmed. Check Codex before sending again."), nil)
+    }
     @Published var liveTasks: [LiveTask] = []
     @Published var liveGroups: [HostGroup] = []
 
@@ -129,6 +170,8 @@ final class EventStore: ObservableObject {
         var fableFractionFor: [String: Double] = [:]
         var sessionTextFor: [String: String] = [:]
         var sessionFractionFor: [String: Double] = [:]
+        var codexUsageFor: [String: CodexUsage] = [:]
+        var codexConnectedFor: [String: Bool] = [:]
         func fmtTokens(_ n: Double) -> String {
             n >= 1e6 ? String(format: "%.1fM", n / 1e6)
                 : n >= 1000 ? String(format: "%.0fk", n / 1000) : String(Int(n))
@@ -145,6 +188,13 @@ final class EventStore: ObservableObject {
                 labelFor[key] = (host, ts)
                 awakeFor[key] = blob["awake"] as? Bool ?? false
                 projectsFor[key] = blob["projects"] as? [String] ?? []
+                let codex = blob["codex"] as? [String: Any] ?? [:]
+                codexConnectedFor[key] = (codex["connected"] as? Bool ?? false) && now - (codex["ts"] as? Double ?? 0) < 45
+                if let usage = blob["codex_usage"] as? [String: Any],
+                   let data = try? JSONSerialization.data(withJSONObject: usage),
+                   let decoded = try? JSONDecoder().decode(CodexUsage.self, from: data) {
+                    codexUsageFor[key] = decoded
+                }
                 if let u = blob["usage"] as? [String: Any],
                    let todayOut = u["today_out"] as? Double,
                    let weekOut = u["week_out"] as? Double {
@@ -210,6 +260,11 @@ final class EventStore: ObservableObject {
                       let project = e["project"] as? String else { continue }
                 if let existing = bySession[sid],
                    existing.since.timeIntervalSince1970 >= since { continue }
+                let requestData = try? JSONSerialization.data(withJSONObject: e["pending_requests"] as? [[String: Any]] ?? [])
+                let requests = requestData.flatMap { try? JSONDecoder().decode([CodexPendingRequest].self, from: $0) } ?? []
+                let tokenData = try? JSONSerialization.data(withJSONObject: e["token_usage"] as? [String: Any] ?? [:])
+                let tokens = tokenData.flatMap { try? JSONDecoder().decode(CodexTokenUsage.self, from: $0) }
+                let desktopVerifiedAt = e["desktop_verified_at"] as? Double ?? 0
                 bySession[sid] = LiveTask(
                     id: sid, sessionId: sid, project: project, host: host,
                     status: status,
@@ -219,7 +274,18 @@ final class EventStore: ObservableObject {
                     mode: e["mode"] as? String ?? "",
                     engine: e["engine"] as? String ?? "",
                     cwd: e["cwd"] as? String ?? "",
-                    rootDir: e["root"] as? String ?? "")
+                    rootDir: e["root"] as? String ?? "",
+                    latestReply: e["latest_reply"] as? String ?? "",
+                    deliveryError: e["delivery_error"] as? String ?? "",
+                    requests: requests,
+                    source: e["source"] as? String ?? "",
+                    tokenUsage: tokens,
+                    desktopCanSend: (e["desktop_can_send"] as? Bool ?? false)
+                        && now - desktopVerifiedAt >= 0 && now - desktopVerifiedAt < 45,
+                    desktopQueued: e["desktop_queued"] as? Int ?? 0,
+                    desktopDelivery: e["desktop_delivery"] as? String ?? "",
+                    desktopVerifiedAt: Date(timeIntervalSince1970: desktopVerifiedAt))
+                if let parent = e["parent_sid"] as? String { parentOf[sid] = parent }
                 if let ppid = e["parent_pid"] as? Int,
                    let parentSid = pidToSid[ppid], parentSid != sid {
                     parentOf[sid] = parentSid
@@ -261,11 +327,21 @@ final class EventStore: ObservableObject {
                                     sessionFraction: sessionFractionFor[hostKey],
                                     awake: awakeFor[hostKey] ?? false,
                                     canonicalKey: hostKey,
-                                    projects: projectsFor[hostKey] ?? []))
+                                    projects: projectsFor[hostKey] ?? [],
+                                    codexUsage: codexUsageFor[hostKey],
+                                    codexConnected: codexConnectedFor[hostKey] ?? false))
         }
         groups.sort { $0.host < $1.host }
         liveGroups = groups
         liveTasks = groups.flatMap { $0.cards.flatMap { [$0.root] + $0.subs } }
+        if var approval = pendingApproval, approval.engine == "codex" {
+            if liveTasks.contains(where: { $0.requests.contains(where: { $0.id == approval.id }) }) {
+                approval.seenInState = true
+                pendingApproval = approval
+            } else if approval.seenInState {
+                pendingApproval = nil
+            }
+        }
     }
 
     private var knownIDs = Set<String>()
@@ -312,7 +388,8 @@ final class EventStore: ObservableObject {
             // Only surface approvals the Mac is still waiting on.
             if Date().timeIntervalSince(date) < 600 {
                 pendingApproval = PendingApproval(
-                    id: requestId, summary: summary, backend: url, secret: secret, date: date)
+                    id: requestId, summary: summary, backend: url, secret: secret, date: date,
+                    engine: sb["engine"] as? String)
             }
         }
 
@@ -337,7 +414,9 @@ final class EventStore: ObservableObject {
             title: title,
             body: body,
             md: sb["md"] as? String,
-            date: Date(timeIntervalSince1970: ts)
+            date: Date(timeIntervalSince1970: ts),
+            engine: sb["engine"] as? String,
+            source: sb["source"] as? String
         )
         knownIDs.insert(id)
         events.append(event)

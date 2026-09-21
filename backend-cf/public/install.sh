@@ -102,6 +102,12 @@ json.dump(s, open(p, "w"), indent=2, ensure_ascii=False)
 print("✓ hooks 已接入 Claude Code")
 EOF
 
+# Explicit opt-in: this changes the local Codex desktop connection on next launch.
+if [ "${SB_CODEX:-0}" = "1" ]; then
+  python3 "$HOOK" codex-enable
+  echo "✓ Codex 共享服务已就绪;桌面 App 重开后接入,CLI 使用 codex --remote unix://"
+fi
+
 # relay + watcher 常驻
 PLIST="$HOME/Library/LaunchAgents/dev.piper.sessionbell.relay.plist"
 mkdir -p "$HOME/Library/LaunchAgents"

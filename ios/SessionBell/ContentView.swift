@@ -215,7 +215,7 @@ struct ContentView: View {
 
     private var hasUsage: Bool {
         store.liveGroups.contains {
-            !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+            !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil || $0.codexUsage != nil
         }
     }
 
@@ -223,10 +223,13 @@ struct ContentView: View {
         NavigationStack {
             List {
                 ForEach(store.liveGroups.filter {
-                    !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil
+                    !$0.usage.isEmpty || $0.usageFraction != nil || $0.sessionFraction != nil || $0.codexUsage != nil
                 }) { group in
                     Section {
                         UsageDashboard(group: group)
+                        if let usage = group.codexUsage {
+                            CodexUsageDashboard(usage: usage)
+                        }
                     } header: {
                         HStack(spacing: 8) {
                             Circle().fill(Color.sbDone).frame(width: 7, height: 7)
@@ -249,7 +252,7 @@ struct ContentView: View {
                     ContentUnavailableView {
                         Label("No Usage Data", systemImage: "gauge.with.needle")
                     } description: {
-                        Text("After a task runs on your Mac, this shows the official weekly quota and premium-model usage, same source as /usage.")
+                        Text("After your Mac connects, this shows official Claude Code and Codex quota windows.")
                     }
                 }
             }
@@ -441,7 +444,7 @@ struct ContentView: View {
                     HStack(spacing: 12) {
                         StatusTile(symbol: "checkmark.shield", color: .sbAccentText, soft: .sbApprovalSoft)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Claude is asking for permission")
+                            Text(approval.engine == "codex" ? "Codex requests permission" : "Claude is asking for permission")
                                 .font(.callout.weight(.medium))
                                 .foregroundStyle(Color.sbInk)
                             Text(approval.date, style: .relative)
@@ -756,11 +759,24 @@ struct SpawnSheet: View {
     @State private var cwd = ""
     @State private var prompt = ""
     @State private var permMode = "auto"
+    @State private var engine = "claude"
+    @State private var sendResult = ""
     @State private var sent = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Agent") {
+                    Picker("Agent", selection: $engine) {
+                        Text("Claude Code").tag("claude")
+                        Text("Codex").tag("codex")
+                    }
+                    .pickerStyle(.segmented)
+                    if engine == "codex" && !group.codexConnected {
+                        Text("Codex is offline. This task will wait for your Mac to reconnect.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Section("Project Folder") {
                     ForEach(group.spawnDirs, id: \.self) { path in
                         Button {
@@ -785,7 +801,7 @@ struct SpawnSheet: View {
                     TextField("What should it do…", text: $prompt, axis: .vertical)
                         .lineLimit(3...6)
                 }
-                Section("Permission Mode") {
+                if engine == "claude" { Section("Permission Mode") {
                     Picker("Permission Mode", selection: $permMode) {
                         Text("Default").tag("default")
                         Text("⏵⏵ Auto").tag("auto")
@@ -798,6 +814,11 @@ struct SpawnSheet: View {
                          ? "Auto mode: safe actions pass automatically, doubtful ones go to your phone (recommended)"
                          : "Asks nothing and runs straight through. The first time on a machine you must accept a warning on the Mac.")
                         .font(.caption2).foregroundStyle(.secondary)
+                } } else {
+                    Section {
+                        Text("Codex works in this project folder. Requests for additional permissions go to your phone or Mac.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
                 Section {
                     Button {
@@ -806,20 +827,29 @@ struct SpawnSheet: View {
                               let json = String(data: data, encoding: .utf8) else { return }
                         sent = true
                         Task {
+                            if engine == "codex" {
+                                let result = await store.sendCodexCommand(host: group.host, action: "spawn", text: prompt, cwd: cwd)
+                                sendResult = result.message
+                                if result.ok { dismiss() } else { sent = false }
+                                return
+                            }
                             await store.sendMachineCommand("_spawn-\(group.canonicalKey)",
                                                            text: json)
                             try? await Task.sleep(for: .seconds(1))
                             dismiss()
                         }
                     } label: {
-                        Label(sent ? "Sent. Starting in about 10 seconds" : "🚀 Start on \(group.host)",
+                        Label(sent ? (engine == "codex" ? "Sending to Codex…" : "Sent. Starting in about 10 seconds") : "🚀 Start on \(group.host)",
                               systemImage: "paperplane.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
                 } footer: {
-                    Text("Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
+                    Text(engine == "codex"
+                         ? "Starts a Codex task on your Mac. Follow its progress and continue the conversation from your phone or a connected CLI."
+                         : "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
                 }
+                if !sendResult.isEmpty { Text(sendResult).foregroundStyle(Color.sbWaiting) }
             }
             .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)
@@ -848,6 +878,9 @@ struct UsageDashboard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !group.usage.isEmpty || group.sessionFraction != nil {
+                Text("Claude Code").font(.headline)
+            }
             // 5 小时窗口最先耗尽,放最上面。
             if let sessionFraction = group.sessionFraction {
                 Meter(icon: "clock", label: "5-Hour Window",
@@ -871,6 +904,53 @@ struct UsageDashboard: View {
                     Text(group.fableText).font(.caption2)
                 }
                 .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+struct CodexUsageDashboard: View {
+    let usage: CodexUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Codex").font(.headline)
+            if usage.available {
+                ForEach(usage.limits) { limit in
+                    if usage.limits.count > 1 {
+                        Text(limit.name).font(.subheadline.weight(.medium))
+                    }
+                    ForEach(limit.windows) { window in
+                        Meter(icon: "gauge.with.needle", label: LocalizedStringKey(window.label),
+                              fraction: window.used_pct / 100,
+                              color: window.used_pct >= 85 ? .sbWaiting : .sbAccentText,
+                              detail: String(localized: "official figures"))
+                        if let reset = window.resets_at {
+                            HStack {
+                                Text("Resets")
+                                Text(Date(timeIntervalSince1970: reset), style: .relative)
+                            }
+                            .font(.caption).foregroundStyle(Color.sbInk3)
+                        }
+                    }
+                }
+            } else {
+                Text(usage.reason == "subscription_required"
+                     ? "Subscription quota is only available when Codex is signed in with ChatGPT."
+                     : "Codex usage is currently unavailable.")
+                    .font(.footnote).foregroundStyle(Color.sbInk3)
+            }
+            if usage.ordinary_usage_allowed == false {
+                Text("Included usage is currently unavailable for this account.")
+                    .font(.caption).foregroundStyle(Color.sbWaiting)
+            }
+            if let updated = usage.updated_at {
+                HStack {
+                    Text(usage.stale == true ? "Last known usage" : "Updated")
+                    Text(Date(timeIntervalSince1970: updated), style: .relative)
+                }
+                .font(.caption2).foregroundStyle(Color.sbInk3)
             }
         }
         .padding(.vertical, 6)
@@ -970,7 +1050,8 @@ struct LiveTaskRow: View {
         switch task.status {
         case "waiting": return "Waiting for you"
         case "running": return "Running"
-        default: return "Done"
+        case "done": return "Done"
+        default: return "Status unavailable"
         }
     }
 
@@ -982,8 +1063,8 @@ struct LiveTaskRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            StatusTile(symbol: Color.sbStatusSymbol(task.status), color: color,
-                       soft: Color.sbStatusSoft(task.status), size: task.isSub ? 24 : 30)
+            SBAgentIcon(engine: task.engine, size: task.isSub ? 26 : 36)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -991,28 +1072,31 @@ struct LiveTaskRow: View {
                     .foregroundStyle(task.status == "done" ? Color.sbInk2 : Color.sbInk)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    if title != task.project {
-                        Text(task.project).lineLimit(1)
-                        Dot()
-                    }
-                    if task.isSub {
-                        Text("sub-agent")
-                        Dot()
-                    }
-                    if task.engine == "codex" {
-                        Tag("CODEX")
-                        Dot()
-                    }
-                    if let badge = EventStore.modeBadge(task.mode) {
-                        Tag(badge.text)
-                        Dot()
-                    }
+                    Text(SBAgent(engine: task.engine).name)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.sbInk2)
+                        .fixedSize()
+                    Circle().fill(color).frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
                     Text(statusLabel)
                         .fontWeight(.medium)
                         .foregroundStyle(color)
+                        .fixedSize()
                     Dot()
                     Text(task.since, style: .relative)
                         .monospacedDigit()
+                    if title != task.project {
+                        Dot()
+                        Text(task.project).lineLimit(1)
+                    }
+                    if task.isSub {
+                        Dot()
+                        Text("sub-agent")
+                    }
+                    if let badge = EventStore.modeBadge(task.mode) {
+                        Dot()
+                        Tag(badge.text)
+                    }
                     if task.agents > 0 {
                         Dot()
                         Text("\(task.agents) sub-agents")
@@ -1063,11 +1147,8 @@ struct SessionRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: group.latest.kind.symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(group.latest.kind.color)
-                .frame(width: 20)
-                .padding(.top, 2)
+            SBAgentIcon(engine: group.latest.engine, size: 36)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
@@ -1080,6 +1161,13 @@ struct SessionRow: View {
                         .lineLimit(2)
                 }
                 HStack(spacing: 6) {
+                    Text(SBAgent(engine: group.latest.engine).name)
+                        .fontWeight(.semibold).foregroundStyle(Color.sbInk2).fixedSize()
+                    Circle().fill(group.latest.kind.color).frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
+                    Text(group.latest.kind.label)
+                        .foregroundStyle(group.latest.kind.color)
+                    Text("·")
                     if title != group.project { Text(group.project); Text("·") }
                     if let host = group.latest.host { Text(host); Text("·") }
                     Text(group.latest.date, style: .relative)
@@ -1101,10 +1189,14 @@ struct EventHistoryView: View {
         List {
             ForEach(group.events) { event in
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: event.kind.symbol)
-                        .foregroundStyle(event.kind.color)
+                    SBAgentIcon(engine: event.engine, size: 30)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
+                        Text(SBAgent(engine: event.engine).name)
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         HStack {
+                            Circle().fill(event.kind.color).frame(width: 5, height: 5)
+                                .accessibilityHidden(true)
                             Text(event.kind.label).font(.subheadline.bold())
                             Spacer()
                             Text(event.date, format: .dateTime.month().day().hour().minute())
@@ -1132,6 +1224,7 @@ struct SessionPage: View {
     @EnvironmentObject var store: EventStore
     @State private var input = ""
     @State private var sendNote = ""
+    @State private var isSending = false
     @State private var sendNoteOK = true
     @State private var noteTask: Task<Void, Never>?
     @FocusState private var inputFocused: Bool
@@ -1146,7 +1239,12 @@ struct SessionPage: View {
         liveTask?.host ?? host ?? group?.events.compactMap(\.host).first
     }
     private var isLive: Bool { liveTask != nil }
-    private var isCodex: Bool { liveTask?.engine == "codex" }
+    private var isCodex: Bool { (liveTask?.engine ?? group?.latest.engine) == "codex" }
+    private var isDesktopObserver: Bool { (liveTask?.source ?? group?.latest.source) == "desktop" }
+    private var desktopCanSend: Bool {
+        liveTask?.desktopCanSend == true && ["running", "done"].contains(liveTask?.status ?? "")
+            && Date().timeIntervalSince(liveTask?.desktopVerifiedAt ?? .distantPast) < 45
+    }
 
     private var peekTask: EventStore.LiveTask? {
         guard let h = resolvedHost else { return nil }
@@ -1161,6 +1259,7 @@ struct SessionPage: View {
         case "waiting": return ("Waiting for you", .orange)
         case "running": return ("Running", .blue)
         case "done": return ("Done", .green)
+        case "unknown": return ("Status unavailable", .gray)
         default: return ("Ended", .gray)
         }
     }
@@ -1198,7 +1297,13 @@ struct SessionPage: View {
             } else {
                 progressPane
             }
-            inputBar
+            if isDesktopObserver && !desktopCanSend {
+                Text("Desktop follow-up unavailable · open the original conversation in Codex on your Mac. Monitoring remains active.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .padding().frame(maxWidth: .infinity).background(.bar)
+            } else {
+                inputBar
+            }
         }
         .navigationTitle(project)
         .navigationBarTitleDisplayMode(.inline)
@@ -1236,6 +1341,11 @@ struct SessionPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     headerCard
+                    if isCodex, let host = resolvedHost {
+                        ForEach(liveTask?.requests ?? []) { request in
+                            CodexRequestCard(request: request, sessionId: sessionId, host: host)
+                        }
+                    }
                     if !mdText.isEmpty {
                         MarkdownText(text: mdText)
                             .padding(.horizontal, 2)
@@ -1383,6 +1493,13 @@ struct SessionPage: View {
     /// 通知事件的类型/时间与实时状态说的是同一件事 — 不再各说一遍。
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                SBAgentIcon(engine: liveTask?.engine ?? group?.latest.engine, size: 30)
+                    .accessibilityHidden(true)
+                Text(SBAgent(engine: liveTask?.engine ?? group?.latest.engine).name)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+            }
             HStack(spacing: 8) {
                 Circle().fill(statusInfo.color).frame(width: 8, height: 8)
                 Text(statusInfo.label)
@@ -1408,11 +1525,40 @@ struct SessionPage: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            if mdText.isEmpty, let event = group?.latest {
+            if let reply = liveTask?.latestReply, isCodex, !reply.isEmpty {
+                Divider()
+                MarkdownText(text: reply)
+            } else if mdText.isEmpty, let event = group?.latest {
                 let content = event.md ?? event.body
                 if !content.isEmpty {
                     Divider()
                     MarkdownText(text: content)
+                }
+            }
+            if let error = liveTask?.deliveryError, !error.isEmpty {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(Color.sbWaiting)
+            }
+            if isDesktopObserver {
+                Label("Codex Desktop", systemImage: "desktopcomputer")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let task = liveTask, task.desktopQueued > 0 {
+                    Label("Follow-up queued · waiting for this turn to finish", systemImage: "clock")
+                        .font(.caption).foregroundStyle(.orange)
+                } else if let delivery = liveTask?.desktopDelivery, !delivery.isEmpty {
+                    Text(delivery).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let tokens = liveTask?.tokenUsage, let total = tokens.total_tokens {
+                Text("Session tokens: \(total)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                if let input = tokens.input_tokens, let output = tokens.output_tokens {
+                    Text("Input: \(input) · Output: \(output)")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                if let cached = tokens.cached_input_tokens {
+                    Text("Cached input: \(cached)")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
         }
@@ -1422,12 +1568,18 @@ struct SessionPage: View {
     }
 
     private var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+            && (!isDesktopObserver || (desktopCanSend && (liveTask?.desktopQueued ?? 0) == 0))
     }
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 0) {
             Divider().opacity(0.6)
+            if isDesktopObserver {
+                Text("Continue in the original desktop conversation · queued while running")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 16).padding(.top, 8)
+            }
             // 发送回执:彩色药丸,出现 3 秒自动淡出,不常驻占地方。
             if !sendNote.isEmpty {
                 HStack(spacing: 5) {
@@ -1446,7 +1598,7 @@ struct SessionPage: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField(tab == .terminal || !isLive ? "Type straight into the terminal…" : "What's next…",
+                TextField(!isCodex && (tab == .terminal || !isLive) ? "Type straight into the terminal…" : "What's next…",
                           text: $input, axis: .vertical)
                     .lineLimit(1...5)
                     .font(.subheadline)
@@ -1485,12 +1637,19 @@ struct SessionPage: View {
     /// 活跃 session 走队列注入(空闲/结束时自动接上);
     /// 已结束的走原始通道直打终端 pane(还开着就能续)。
     private func send() {
+        guard canSend else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         input = ""
+        isSending = true
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         Task {
-            if isLive {
+            defer { isSending = false }
+            if isCodex, let host = resolvedHost {
+                showNote(String(localized: "Sending to Codex…"))
+                let result = await store.sendCodexCommand(host: host, action: "send", sessionId: sessionId, text: text)
+                showNote(result.message, ok: result.ok)
+            } else if isLive {
                 guard let backend = SBBackend.saved else {
                     showNote(String(localized: "Backend not configured"), ok: false)
                     return
@@ -1519,6 +1678,79 @@ struct SessionPage: View {
         noteTask = Task {
             try? await Task.sleep(for: .seconds(3))
             if !Task.isCancelled { sendNote = "" }
+        }
+    }
+}
+
+struct CodexRequestCard: View {
+    let request: CodexPendingRequest
+    let sessionId: String
+    let host: String
+    @EnvironmentObject var store: EventStore
+    @State private var answers: [String: String] = [:]
+    @State private var sending = false
+    @State private var result = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(request.kind == "question" ? "Codex needs your input" : "Codex requests permission",
+                  systemImage: request.kind == "question" ? "questionmark.bubble" : "lock.shield")
+                .font(.headline)
+            if request.kind == "question" {
+                ForEach(request.questions) { question in
+                    Text(question.question).font(.subheadline)
+                    if let options = question.options, !options.isEmpty {
+                        ForEach(options, id: \.label) { option in
+                            Button {
+                                answers[question.id] = option.label
+                            } label: {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Label(option.label, systemImage: answers[question.id] == option.label ? "checkmark.circle.fill" : "circle")
+                                    Text(option.description).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    let value = Binding(get: { answers[question.id] ?? "" }, set: { answers[question.id] = $0 })
+                    if question.isSecret == true {
+                        SecureField("Your answer", text: value).textFieldStyle(.roundedBorder)
+                    } else {
+                        TextField("Your answer", text: value, axis: .vertical).textFieldStyle(.roundedBorder)
+                    }
+                }
+                Button("Send answers") {
+                    sending = true
+                    Task {
+                        let response = await store.sendCodexCommand(host: host, action: "answer", sessionId: sessionId,
+                                                                   requestId: request.id, answers: answers)
+                        result = response.message
+                        sending = response.ok
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(sending || request.questions.contains { (answers[$0.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            } else {
+                Text(request.summary).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
+                HStack {
+                    Button("Allow") { decide("allow") }.buttonStyle(.borderedProminent)
+                    Button("Deny", role: .destructive) { decide("deny") }.buttonStyle(.bordered)
+                }
+                .disabled(sending)
+            }
+            if !result.isEmpty { Text(result).font(.caption).foregroundStyle(.secondary) }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.sbCard, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func decide(_ decision: String) {
+        sending = true
+        Task {
+            let ok = await SBBackend.postChecked("/api/decision", body: ["request_id": request.id, "decision": decision])
+            result = ok ? String(localized: "Decision sent to Codex") : String(localized: "Couldn't send the decision. Try again.")
+            sending = ok
         }
     }
 }

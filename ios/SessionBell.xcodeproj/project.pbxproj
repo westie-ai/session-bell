@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A81000000000000000000001 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A81000000000000000000003 /* AgentAssets.xcassets */; };
+		A81000000000000000000002 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A81000000000000000000003 /* AgentAssets.xcassets */; };
 		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		2CDC8B1D229E7B1CDFD540F3 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */; };
@@ -68,6 +70,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A81000000000000000000003 /* AgentAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = AgentAssets.xcassets; sourceTree = "<group>"; };
 		04728A4EDC1F6FE46294F21C /* SBPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBPairing.swift; sourceTree = "<group>"; };
 		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
@@ -142,6 +145,7 @@
 		C5BDA1F4F64A4AC6B865937B /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				A81000000000000000000003 /* AgentAssets.xcassets */,
 				17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */,
 				39DF9CF186A28179A81D6783 /* Localizable.xcstrings */,
 				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
@@ -279,6 +283,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A81000000000000000000001 /* AgentAssets.xcassets in Resources */,
 				D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */,
 				7D25FDF327B92F1D4EA80CB5 /* InfoPlist.xcstrings in Resources */,
 				49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */,
@@ -289,6 +294,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A81000000000000000000002 /* AgentAssets.xcassets in Resources */,
 				7245D196AF0B8C6835D5408F /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

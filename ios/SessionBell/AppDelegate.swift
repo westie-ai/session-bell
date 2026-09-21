@@ -124,6 +124,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
               let url = backend["url"], let secret = backend["secret"]
         else { return }
         SBBackend.save(url: url, secret: secret)
+        if sb["engine"] as? String == "codex" {
+            guard let host = sb["host"] as? String else { return }
+            // Preserve the server acceptance time for expiry and native
+            // conversation-change checks, even while the Mac is offline.
+            await SBBackend.post(
+                "/api/codex",
+                body: ["host": EventStore.canonicalHost(host),
+                       "command_id": UUID().uuidString.lowercased(),
+                       "action": "send", "session_id": sessionId, "text": text],
+                to: url, secret: secret)
+            return
+        }
         await SBBackend.post(
             "/api/command",
             body: ["session_id": sessionId, "text": text],

@@ -1,6 +1,59 @@
 import SwiftUI
 import UIKit
 
+/// Missing engine is the legacy Claude schema, not an unknown agent.
+enum SBAgent: Equatable {
+    case claude, codex, unknown
+
+    init(engine: String?) {
+        switch engine?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" {
+        case "", "claude": self = .claude
+        case "codex": self = .codex
+        default: self = .unknown
+        }
+    }
+
+    var name: String {
+        switch self { case .claude: return "Claude"; case .codex: return "Codex"; case .unknown: return "Agent" }
+    }
+
+    var assetName: String? {
+        switch self { case .claude: return "AgentClaude"; case .codex: return "AgentCodex"; case .unknown: return nil }
+    }
+}
+
+/// Identity and status are independent: never tint the brand mark by task status.
+/// Both the app and widget bundle include AgentAssets.xcassets.
+struct SBAgentIcon: View {
+    let engine: String?
+    var size: CGFloat = 34
+
+    private var agent: SBAgent { SBAgent(engine: engine) }
+
+    var body: some View {
+        Group {
+            if let asset = agent.assetName {
+                Image(asset)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    // The Codex source includes a wider built-in clear-space margin.
+                    .frame(width: agent == .claude ? size * 0.86 : size,
+                           height: agent == .claude ? size * 0.86 : size)
+                    .clipShape(RoundedRectangle(
+                        cornerRadius: agent == .claude ? size * 0.18 : 0,
+                        style: .continuous))
+            } else {
+                Image(systemName: "terminal")
+                    .font(.system(size: size * 0.55, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(Text(agent.name))
+    }
+}
+
 /// SessionBell 品牌色 — 黄油底 + 铃铛黄 + 炭黑描线(cartoon-2 图标同源)。
 extension Color {
     /// 主强调:铃铛黄(浅底上用 sbAccentDeep 保证对比度)
@@ -42,13 +95,13 @@ extension Color {
     static let sbApprovalSoft = sbDynamic(0xFEF3C7, 0x3A3016)
 
     static func sbStatus(_ status: String) -> Color {
-        switch status { case "waiting": return .sbWaiting; case "running": return .sbRunning; default: return .sbDone }
+        switch status { case "waiting": return .sbWaiting; case "running": return .sbRunning; case "done": return .sbDone; default: return .sbInk2 }
     }
     static func sbStatusSoft(_ status: String) -> Color {
-        switch status { case "waiting": return .sbWaitingSoft; case "running": return .sbRunningSoft; default: return .sbDoneSoft }
+        switch status { case "waiting": return .sbWaitingSoft; case "running": return .sbRunningSoft; case "done": return .sbDoneSoft; default: return .sbInk2.opacity(0.1) }
     }
     static func sbStatusSymbol(_ status: String) -> String {
-        switch status { case "waiting": return "ellipsis.bubble"; case "running": return "arrow.triangle.2.circlepath"; default: return "checkmark" }
+        switch status { case "waiting": return "ellipsis.bubble"; case "running": return "arrow.triangle.2.circlepath"; case "done": return "checkmark"; default: return "questionmark" }
     }
 }
 

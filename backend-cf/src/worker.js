@@ -73,6 +73,8 @@ async function gc(env) {
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('command/', 'command/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('codex-command/', 'codex-command/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('decision/', 'decision/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
       .bind('sys', 'rl/', 'rl/\uffff', now - day),
@@ -130,6 +132,8 @@ async function handleState(req, env, n) {
     const doc = {
       host: b.host, ts: b.ts || Math.floor(Date.now() / 1000), sessions: b.sessions,
       usage: b.usage || null, awake: b.awake === true,
+      codex_usage: b.codex_usage || null,
+      codex: b.codex || null,
       projects: Array.isArray(b.projects) ? b.projects.slice(0, 12) : [],
       hook_v: b.hook_v || null,
     };
@@ -142,12 +146,41 @@ async function handleState(req, env, n) {
       const d = JSON.parse(r.v);
       if (d && d.host) {
         out[d.host] = { ts: d.ts, sessions: d.sessions, usage: d.usage || null,
+                        codex_usage: d.codex_usage || null,
+                        codex: d.codex || null,
                         awake: d.awake === true, projects: d.projects || [],
                         hook_v: d.hook_v || null };
       }
     } catch {}
   }
   return json(out);
+}
+
+// Long-poll knobs shared by /api/command and /api/decision: the Mac relay
+// holds one GET open for up to LP_MAX_WAIT s instead of hammering every 3 s
+// (that loop alone was 86% of all requests). Sleeping costs no CPU time; D1
+// is re-read every LP_STEP ms, so a phone command lands within ~2 s.
+const LP_MAX_WAIT = 25;
+const LP_STEP_MS = 2000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function longPollParams(url) {
+  const wait = Math.min(LP_MAX_WAIT, Math.max(0, Number(url.searchParams.get('wait')) || 0));
+  const since = Math.max(0, Number(url.searchParams.get('since')) || 0);
+  return { wait, since };
+}
+
+/// Re-run `read()` until `fresh(rows)` or the wait budget is spent; always
+/// resolves with the last read so the response shape never changes.
+async function longPoll(url, read, fresh) {
+  const { wait, since } = longPollParams(url);
+  const deadline = Date.now() + wait * 1000;
+  for (;;) {
+    const rows = await read();
+    const remaining = deadline - Date.now();
+    if (!wait || fresh(rows, since) || remaining <= 0) return rows;
+    await sleep(Math.min(LP_STEP_MS, remaining));
+  }
 }
 
 async function handleCommand(req, env, n, url) {
@@ -164,14 +197,45 @@ async function handleCommand(req, env, n, url) {
   const sid = url.searchParams.get('id');
   if (sid) {
     if (!SID.test(sid)) return json({ error: 'bad id' }, 400);
-    const row = await kvGet(env, n, `command/${sid}`);
+    const row = await longPoll(url, () => kvGet(env, n, `command/${sid}`),
+                               (r, since) => !!r && r.ts > since);
     return json({ command: row ? { ts: row.ts, text: row.v } : null });
   }
+  const rows = await longPoll(url, () => kvList(env, n, 'command/'),
+                              (rs, since) => rs.some((r) => r.ts > since));
   const out = {};
-  for (const r of await kvList(env, n, 'command/')) {
+  for (const r of rows) {
     out[r.k.slice('command/'.length)] = { ts: r.ts, text: r.v };
   }
   return json({ commands: out });
+}
+
+// Preserve the existing production claim API, including timestamp-guarded deletion.
+async function handleCommandClaim(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (typeof b.key !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(b.key)) {
+    return json({ error: 'bad key' }, 400);
+  }
+  const r = b.ts == null
+    ? await env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, `command/${b.key}`).run()
+    : await env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=? AND ts=?').bind(n, `command/${b.key}`, Number(b.ts) || 0).run();
+  return json({ claimed: (r.meta?.changes || 0) > 0 });
+}
+
+// A failed terminal injection may restore its claimed message only while the
+// mailbox is still empty. Never overwrite a newer user instruction or renew age.
+async function handleCommandRestore(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (!SID.test(b.session_id || '') || typeof b.text !== 'string' || !b.text.trim()
+      || b.text.length > 4000 || !Number.isSafeInteger(b.ts) || b.ts <= 0
+      || b.ts > Date.now() + 60000) {
+    return json({ error: 'bad request' }, 400);
+  }
+  const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+    .bind(n, `command/${b.session_id}`, b.text, b.ts).run();
+  return json({ restored: (r.meta?.changes || 0) > 0 });
 }
 
 // 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
@@ -194,6 +258,61 @@ async function handleCapture(req, env, n, url) {
   return json({ capture: row ? { ts: row.ts, text: row.v } : null });
 }
 
+// Codex commands are a queue, not the legacy last-message-per-session mailbox.
+// The client supplies a UUID so retrying an HTTP upload cannot duplicate a turn.
+async function handleCodex(req, env, n, url) {
+  const hostPattern = /^[a-z0-9]{1,128}$/;
+  const idPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  if (req.method === 'POST') {
+    const b = await readBody(req);
+    if (!hostPattern.test(b.host || '') || !idPattern.test(b.command_id || '')) {
+      return json({ error: 'bad identity' }, 400);
+    }
+    const key = `codex-command/${b.host}/${b.command_id}`;
+    if (b.action === 'ack') {
+      if (!['dispatching', 'delivered', 'failed', 'uncertain'].includes(b.status)) {
+        return json({ error: 'bad status' }, 400);
+      }
+      const row = await kvGet(env, n, key);
+      if (!row) return json({ error: 'missing command' }, 404);
+      const entry = JSON.parse(row.v);
+      if (['delivered', 'failed', 'uncertain'].includes(entry.status)) return json({ ok: true });
+      entry.status = b.status;
+      entry.message = String(b.message || '').slice(0, 300);
+      if (SID.test(b.session_id || '')) entry.session_id = b.session_id;
+      await kvPut(env, n, key, JSON.stringify(entry), row.ts);
+      return json({ ok: true });
+    }
+    if (!['send', 'spawn', 'answer'].includes(b.action)
+        || (b.action !== 'spawn' && !SID.test(b.session_id || ''))
+        || (b.action === 'spawn' && (typeof b.cwd !== 'string' || b.cwd.length > 2048))
+        || (b.action !== 'answer' && (typeof b.text !== 'string' || !b.text.trim() || b.text.length > 4000))
+        || (b.action === 'answer' && (!RID.test(b.request_id || '')
+            || typeof b.answers !== 'string' || b.answers.length > 8000))) {
+      return json({ error: 'bad command' }, 400);
+    }
+    const entry = { command_id: b.command_id, action: b.action, status: 'queued',
+      session_id: b.session_id || '', text: b.text || '', cwd: b.cwd || '',
+      request_id: b.request_id || '', answers: b.answers || '', created_at: Date.now() };
+    await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+      .bind(n, key, JSON.stringify(entry), entry.created_at).run();
+    await kvPut(env, n, `command/_codex-${b.host}`, b.command_id);
+    return json({ ok: true, command_id: b.command_id });
+  }
+  const host = url.searchParams.get('host');
+  if (!hostPattern.test(host || '')) return json({ error: 'bad host' }, 400);
+  const id = url.searchParams.get('id');
+  if (id) {
+    if (!idPattern.test(id)) return json({ error: 'bad id' }, 400);
+    const row = await kvGet(env, n, `codex-command/${host}/${id}`);
+    return json({ command: row ? JSON.parse(row.v) : null });
+  }
+  const rows = await kvList(env, n, `codex-command/${host}/`);
+  return json({ commands: rows.filter(r => r.ts > Date.now() - 4 * 3600e3)
+    .sort((a, b) => a.ts - b.ts).map(r => JSON.parse(r.v))
+    .filter(r => ['queued', 'dispatching'].includes(r.status)).slice(0, 100) });
+}
+
 async function handleDecision(req, env, n, url) {
   if (req.method === 'POST') {
     const b = await readBody(req);
@@ -205,8 +324,9 @@ async function handleDecision(req, env, n, url) {
   }
   const rid = url.searchParams.get('id');
   if (!RID.test(rid || '')) return json({ error: 'bad id' }, 400);
-  const row = await kvGet(env, n, `decision/${rid}`);
-  if (row && (row.v === 'allow' || row.v === 'deny')) return json({ decision: row.v });
+  const isDecision = (r) => !!r && (r.v === 'allow' || r.v === 'deny');
+  const row = await longPoll(url, () => kvGet(env, n, `decision/${rid}`), isDecision);
+  if (isDecision(row)) return json({ decision: row.v });
   return json({ decision: null }, 404);
 }
 
@@ -827,6 +947,9 @@ export default {
       if (path === '/api/token') return handleToken(req, env, n);
       if (path === '/api/state') return handleState(req, env, n);
       if (path === '/api/command') return handleCommand(req, env, n, url);
+      if (path === '/api/command/claim') return handleCommandClaim(req, env, n);
+      if (path === '/api/command/restore') return handleCommandRestore(req, env, n);
+      if (path === '/api/codex') return handleCodex(req, env, n, url);
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);
       if (path === '/api/push') return handlePush(req, env, n);

@@ -1,6 +1,296 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Session tokens: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "会话 token：%lld"}}}
+    },
+    "Input: %lld · Output: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "输入：%lld · 输出：%lld"}}}
+    },
+    "Cached input: %lld": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "缓存输入：%lld"}}}
+    },
+    "Codex Desktop": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Codex 桌面端"}}}
+    },
+    "Status unavailable": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "状态未知"}}}
+    },
+    "Desktop session · monitoring only. Continue this conversation in Codex on your Mac.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "桌面会话 · 仅监测。请在 Mac 上的 Codex 中继续对话。"}}}
+    },
+    "Agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体"
+          }
+        }
+      }
+    },
+    "Your answer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的回答"
+          }
+        }
+      }
+    },
+    "Send answers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送回答"
+          }
+        }
+      }
+    },
+    "Codex requests permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 请求授权"
+          }
+        }
+      }
+    },
+    "Codex needs your input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 需要你的回答"
+          }
+        }
+      }
+    },
+    "Delivered to Codex": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已送达 Codex"
+          }
+        }
+      }
+    },
+    "Updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新于"
+          }
+        }
+      }
+    },
+    "Resets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置时间"
+          }
+        }
+      }
+    },
+    "Primary Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主要额度窗口"
+          }
+        }
+      }
+    },
+    "Secondary Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次要额度窗口"
+          }
+        }
+      }
+    },
+    "Last known usage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近一次用量"
+          }
+        }
+      }
+    },
+    "Sending to Codex…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在发送给 Codex…"
+          }
+        }
+      }
+    },
+    "Decision sent to Codex": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授权决定已发送给 Codex"
+          }
+        }
+      }
+    },
+    "Couldn't send the decision. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送授权决定失败，请重试。"
+          }
+        }
+      }
+    },
+    "Queued · waiting for your Mac and an idle turn": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已排队 · 等待电脑连接且当前轮次结束"
+          }
+        }
+      }
+    },
+    "Delivery could not be confirmed. Check Codex before sending again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法确认是否送达，请先在 Codex 中检查后再发送。"
+          }
+        }
+      }
+    },
+    "Check Codex on your Mac before trying again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先在电脑上的 Codex 中检查后再重试。"
+          }
+        }
+      }
+    },
+    "Codex is offline. This task will wait for your Mac to reconnect.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 当前离线，任务将等待电脑重新连接。"
+          }
+        }
+      }
+    },
+    "Codex works in this project folder. Requests for additional permissions go to your phone or Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 在此项目目录中执行任务，需要额外权限时会在手机或电脑上请求批准。"
+          }
+        }
+      }
+    },
+    "Starts a Codex task on your Mac. Follow its progress and continue the conversation from your phone or a connected CLI.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上启动 Codex 任务。在手机或已连接的 CLI 中查看进度并继续对话。"
+          }
+        }
+      }
+    },
+    "Subscription quota is only available when Codex is signed in with ChatGPT.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 ChatGPT 账号登录 Codex 后才有订阅额度数据。"
+          }
+        }
+      }
+    },
+    "Codex usage is currently unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法获取 Codex 用量。"
+          }
+        }
+      }
+    },
+    "Included usage is currently unavailable for this account.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此账号目前无法使用套餐内额度。"
+          }
+        }
+      }
+    },
+    "%lld minute window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟窗口"
+          }
+        }
+      }
+    },
+    "Codex 已完成本轮任务": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 已完成本轮任务"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex completed this turn"
+          }
+        }
+      }
+    },
+    "Codex 在等待你的输入或授权": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 在等待你的输入或授权"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex is waiting for your input or approval"
+          }
+        }
+      }
+    },
     "%@\n\n⤷ 正在进行：%@\n（锁屏卡片可直接批准，或长按这条通知）": {
       "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
       "localizations": {

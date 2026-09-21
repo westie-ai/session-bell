@@ -1,6 +1,13 @@
 #!/bin/bash
 # SessionBell CLI — https://sessionbell.westie.ai
 case "$1" in
+  codex|codex-setup|codex-usage|codex-enable)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    HOOK="$SCRIPT_DIR/sessionbell_hook.py"
+    [ -f "$HOOK" ] || HOOK="$HOME/.sessionbell/sessionbell_hook.py"
+    [ -f "$HOOK" ] || { echo "请先运行 sessionbell pair <配对码>"; exit 1; }
+    exec python3 "$HOOK" "$@"
+    ;;
   pair)
     CODE="$2"
     if [ -z "$CODE" ]; then
@@ -27,6 +34,10 @@ case "$1" in
     echo "用法:"
     echo "  sessionbell pair [配对码]   接入(不带参数时自动读剪贴板)"
     echo "  sessionbell status          查看守护日志"
+    echo "  sessionbell codex-setup     接入 Codex hooks(保留已有配置)"
+    echo "  sessionbell codex-usage     查看 Codex 官方账号额度"
+    echo "  sessionbell codex-enable    开启本机共享服务和桌面连接"
+    echo "  sessionbell codex [参数]    在共享服务里使用 Codex CLI"
     echo "  sessionbell code            给另一台手机/iPad 出 6 位加入码"
     ;;
 esac
