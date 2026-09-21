@@ -21,9 +21,10 @@ one-tap permission approvals, remote terminal control, and official usage stats.
                       └──────HTTPS──────── iPhone app
 ```
 
-No always-on server process on the Mac. The hook script is a single
-zero-dependency Python file that fires on Claude Code lifecycle events; the
-backend is a ~350-line Cloudflare Worker with one D1 table.
+The Mac integration uses a single zero-dependency Python script: Claude Code
+lifecycle hooks plus a background relay for phone commands and state. Opt-in
+Codex support adds a shared CLI app-server and a native desktop observer.
+The backend is a Cloudflare Worker with one D1 table.
 
 ## What it does
 
@@ -39,11 +40,14 @@ backend is a ~350-line Cloudflare Worker with one D1 table.
   with `claude -c`.
 - **Usage dashboard** — your official Claude usage limits (weekly / per-model),
   fetched from the same source as `/usage`, no manual calibration.
-- **Codex on macOS** — native desktop tasks are monitored read-only, including
-  completion and session token usage. Shared CLI sessions additionally support
-  approvals, questions, follow-ups and new tasks, with official account quotas.
+- **Codex on macOS (pilot)** — track native desktop tasks, completion and session
+  tokens alongside Claude. Shared CLI sessions support approvals, questions,
+  follow-ups and new tasks, with official account quotas. Original desktop
+  follow-ups are an opt-in, version-pinned private-protocol pilot.
   Requires the updated relay, backend and iOS app; see the
   [integration and validation notes](docs/codex-integration.md).
+  The product focus is a cross-agent lock-screen overview; see
+  [how this differs from Codex Remote](docs/codex-remote-comparison.md).
 
 ## Two ways to run it
 
@@ -155,9 +159,15 @@ turn is idle. Approvals are available on the lock screen and in the task;
 structured questions are answered individually in the task view. Existing
 independent sessions must finish their active turn before being opened on the
 shared service; SessionBell never silently resumes them on a second server.
-Desktop task pages are monitoring-only, with source and cumulative token counts.
+Desktop task pages show source and cumulative token counts. Monitoring is the
+default; supported builds can opt into original-conversation follow-ups with
+`codex_desktop_followup: true` in the relay configuration. This uses an internal
+desktop protocol, queues input until the turn finishes, and falls back to
+monitoring on unsupported builds. Native desktop approvals/questions, cancellation,
+and archived-session reopening are not covered by this follow-up pilot.
 Optional `codex-setup` registers a desktop permission hook requiring normal Codex
-hook review/trust; it does not enable arbitrary desktop follow-ups.
+hook review/trust; real native desktop approval round trips remain unverified.
+The Codex integration is a local pilot, not a public installer/App Store release.
 
 ### Claude Code
 

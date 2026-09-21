@@ -20,8 +20,9 @@ Claude Code 的手机监控与遥控:
                       └──────HTTPS──────── iPhone App
 ```
 
-Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Claude Code
-生命周期事件触发;后端是约 350 行的 Cloudflare Worker + 一张 D1 表。
+Mac 侧使用单文件零依赖 Python 脚本：Claude Code 生命周期钩子负责事件，
+后台 relay 负责手机指令与状态同步。可选 Codex 接入增加共享 CLI app-server
+和原生桌面 observer；后端是 Cloudflare Worker + 一张 D1 表。
 
 ## 功能
 
@@ -32,9 +33,11 @@ Mac 上没有常驻服务进程:钩子是单文件零依赖 Python 脚本,随 Cl
 - **远程控制** — 从手机往 session 的真实终端(iTerm / Terminal.app)注入文字、
   回读输出,已结束的 session 用 `claude -c` 复活
 - **用量面板** — 官方口径的周限额/分模型用量,与 `/usage` 同源,无需手动校准
-- **Codex 接入** — macOS CLI 和桌面 App 可连接同一个本地共享服务，支持
-  状态、锁屏卡片、审批、问答、续聊、新建任务和官方账号额度。
+- **Codex 接入（试点）** — 原生桌面任务的状态、完成结果和累计 token 可与
+  Claude 一起查看；共享 CLI 会话支持审批、问答、续聊、新建任务和官方账号额度。
+  桌面原会话续聊是需显式开启、绑定客户端版本的私有协议试点。
   此功能需要新版后端与 iOS App，接入与验证边界见 [Codex 接入说明](docs/codex-integration.md)。
+  产品重点是跨 agent 的锁屏聚合，具体见 [与 Codex Remote 的区别](docs/codex-remote-comparison.md)。
 
 ## 两种用法
 
@@ -115,17 +118,22 @@ irm https://sessionbell.westie.ai/install.ps1 | iex
 
 ```bash
 python3 ~/.sessionbell/sessionbell_hook.py codex-enable
-# 桌面 App 退出并重开一次；CLI 明确连接同一个本机服务：
+# 桌面 App 保持原样；CLI 明确连接同一个本机服务：
 codex --remote unix://
 ```
 
 也可在初次安装时使用 `SB_CODEX=1` 环境变量启用。`codex-enable` 会备份配置、
-安装 launchd 服务，并设置桌面 App 的本地连接地址，不开放 TCP 网络端口。
-手机新建页选择 Codex；回复会排队到当前轮次结束。权限请求可以从锁屏或
-会话页处理，多问题询问在会话页逐项回答。
+安装 CLI launchd 服务，使用本机 Unix socket，不开放 TCP 端口，也不修改桌面连接。
+原生桌面任务通过只读本地记录监控，显示来源、状态、结果和累计 token。
+共享 CLI 会话可从手机新建、续聊、处理权限请求和逐项回答问题；回复排队到当前轮次结束。
 
-旧的独立 CLI/桌面会话需先在原客户端结束活动轮次，再通过共享服务打开。
-SessionBell 不会把仍在另一进程执行的会话强行恢复到第二个服务。
+支持的客户端版本可在 relay 配置中显式开启 `codex_desktop_followup: true`，
+通过内部 IPC 继续桌面原会话；版本不匹配时退回监控。这项试点不包含原生桌面
+审批／结构化问答、取消或重新打开已归档会话。可选权限 hook 需正常审核信任，
+桌面真实审批往返仍待验证。当前是本地试点，尚未公开发布到安装器或 App Store。
+
+旧的独立 CLI 会话需先在原客户端结束活动轮次，再通过共享服务打开。
+原生桌面会话保留原服务；SessionBell 不会把仍在另一进程执行的会话强行恢复到第二个服务。
 
 ### Claude Code
 

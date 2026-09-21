@@ -1,6 +1,8 @@
 # Codex integration
 
-Scope: native macOS desktop read-only monitoring (task state, completion, replies and cumulative tokens); shared CLI control (approvals, structured questions, follow-ups and new tasks); official account quota. Desktop arbitrary control is not available. The integration is a single-device pilot, not a public release.
+Scope: native macOS desktop monitoring (task state, completion, replies and cumulative tokens); shared CLI control (approvals, structured questions, follow-ups and new tasks); official account quota. Original desktop follow-ups are an opt-in, version-pinned private-IPC pilot; full native desktop control is not available. The integration is a single-device pilot, not a public release.
+
+Product decision: prioritize a cross-agent lock-screen overview for Claude and Codex. Official Remote already covers notifications, follow-ups, approvals and multiple hosts; these alone are not differentiators. See [capability boundaries and the Remote comparison](codex-remote-comparison.md).
 
 ## Single-device pilot, 2026-09-20
 
@@ -22,7 +24,7 @@ The desktop keeps its own native server and MCP configuration. The relay opens i
 
 ## Install and release order
 
-1. Deploy the updated `backend-cf` Worker. `/api/codex` must exist before phone controls can work. For a pilot, reuse existing assets with Cloudflare's `keep_assets` upload metadata; do not publish the newer public hook or installer. A normal unrestricted `wrangler deploy` also updates public assets and is not the pilot workflow.
+1. Deploy the updated `backend-cf` Worker. `/api/codex` must exist before phone controls can work, and `/api/command/restore` must exist before enabling the updated relay's failed-terminal retry path. Restore inserts only into an empty mailbox and retains the original timestamp, so a retry cannot overwrite a newer instruction. For a pilot, reuse existing assets with Cloudflare's `keep_assets` upload metadata; do not publish the newer public hook or installer. A normal unrestricted `wrangler deploy` also updates public assets and is not the pilot workflow.
 2. Build and install the updated iOS app and Widget. Legacy Claude endpoints remain compatible.
 3. After pairing, run `python3 ~/.sessionbell/sessionbell_hook.py codex-enable`, or use `python3 mac/sessionbell_hook.py codex-enable` from the source checkout.
 4. Install the updated hook at the relay's configured path and restart the relay. A development relay can point directly to the repository script. Set `auto_update: false` during a hosted-install development test so the published asset cannot replace newer local code.
@@ -34,7 +36,7 @@ Shared sessions use app-server events and native approval requests; SessionBell 
 
 ## Behavior
 
-The controls below apply to shared CLI/phone-created sessions. Desktop pages explicitly show monitoring-only and hide the follow-up composer. They show cumulative session tokens separately from account quota; those counters are not a billing estimate. Native desktop structured questions and arbitrary message submission are not supported.
+The controls below apply to shared CLI/phone-created sessions. Desktop pages show cumulative session tokens separately from account quota; those counters are not a billing estimate. Desktop monitoring is the default. With `codex_desktop_followup: true`, a supported client build and a fresh capability, the task page exposes an original-conversation composer. Messages wait for an active turn to finish; unsupported or stale capabilities fall back to monitoring. Native desktop structured questions, cancellation and archived-session reopening are not supported. See [the private-protocol pilot and its validation limits](codex-desktop-followup-design.md).
 
 - New-task UI has a Claude / Codex selector. Phone-created Codex tasks use workspace-write, on-request approval, and a human reviewer.
 - Follow-ups preserve line breaks and wait until the current turn is idle.
@@ -47,7 +49,7 @@ The controls below apply to shared CLI/phone-created sessions. Desktop pages exp
 
 ## Validation
 
-- `python3 -B -m unittest discover -s tests -v`: protocol mappings, approvals, questions, timeout, state merging, engine identity, busy queueing, duplicate and ambiguous dispatch.
+- `env -u SESSIONBELL_CODEX_SHARED python3 -B -m unittest discover -s tests -v`: protocol mappings, approvals, questions, timeout, state merging, engine identity, busy queueing, duplicate and ambiguous dispatch. Clear the inherited shared-mode flag for this test process so standalone-hook cases are not skipped by production guards.
 - `node --test tests/codex_backend.test.mjs`: queue retention, duplicate uploads, terminal receipts, validation, and host/tenant isolation.
 - `python3 -B tests/smoke_codex_socket.py`: isolated unauthenticated socket handshake and two clients seeing one loaded thread; no model calls.
 - `python3 -B tests/smoke_codex_live.py`: opt-in authenticated test of model completion, second-client resume, an actual CLI follow-up, and SessionBell spawn/receipt/completion/reply extraction. Only its own test conversations are created and archived.
@@ -55,6 +57,7 @@ The controls below apply to shared CLI/phone-created sessions. Desktop pages exp
 - `wrangler deploy --dry-run` successfully builds the Worker and its assets without deploying them.
 - `python3 -B tests/smoke_codex_desktop.py`: read actual native desktop records into disposable state; print only counts/status and assert historical notifications stay silent.
 - Desktop shared initialization was insufficient validation: real task creation failed. This path has been removed. Desktop UI interaction is user-assisted because computer use prohibits controlling its own app.
+- `tests/codex_desktop_input_contract.mjs` is an offline helper receiving a JSON turn payload on stdin, not a standalone no-argument test. It checks the pinned installed frontend's plain-text decoder; use the follow-up smoke helper's `validate_native_decoder` with a fixed offline payload. No IPC or model call is required for that check.
 
 The production queue and real relay round trips are verified as described above. Physical notification display, approvals and lock-screen verification remain pending; the iPhone installation and launch check alone do not establish those behaviors.
 
