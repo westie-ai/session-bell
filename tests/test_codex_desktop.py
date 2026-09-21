@@ -10,7 +10,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SPEC = importlib.util.spec_from_file_location(
     "desktop_sessionbell", Path(__file__).resolve().parents[1] / "mac/sessionbell_hook.py")
@@ -193,6 +193,43 @@ class DesktopTests(unittest.TestCase):
             connection.execute("CREATE TABLE different (id TEXT)")
         self.assertFalse(self.observer.scan())
         self.assertEqual(self.entry()["source"], "desktop")
+
+    def test_capability_timestamp_renews_without_dashboard_change(self):
+        self.create()
+        control = Mock(heartbeat=time.monotonic())
+        control.available.return_value = True
+        now = time.time()
+        with patch.object(sb, "_CODEX_DESKTOP_CONTROL", control), patch.object(sb.time, "time", return_value=now):
+            self.assertTrue(self.observer.scan())
+            self.assertEqual(self.entry()["desktop_verified_at"], now)
+        with patch.object(sb, "_CODEX_DESKTOP_CONTROL", control), patch.object(sb.time, "time", return_value=now + 20):
+            self.assertFalse(self.observer.scan(), "Capability heartbeat alone must not push the dashboard")
+            self.assertEqual(self.entry()["desktop_verified_at"], now + 20)
+        self.alert.assert_not_called()
+
+    def test_unavailable_index_cannot_renew_desktop_capability(self):
+        self.create()
+        control = Mock(heartbeat=time.monotonic())
+        control.available.return_value = True
+        now = time.time()
+        with patch.object(sb, "_CODEX_DESKTOP_CONTROL", control), patch.object(sb.time, "time", return_value=now):
+            self.observer.scan()
+        with patch.object(self.observer, "index", return_value=None), patch.object(sb.time, "time", return_value=now + 60):
+            self.assertFalse(self.observer.scan())
+            self.assertEqual(self.entry()["desktop_verified_at"], now)
+            self.assertGreaterEqual(sb.time.time() - self.entry()["desktop_verified_at"], 45)
+
+    def test_failed_transcript_read_cannot_renew_desktop_capability(self):
+        path = self.create()
+        control = Mock(heartbeat=time.monotonic())
+        control.available.return_value = True
+        now = time.time()
+        with patch.object(sb, "_CODEX_DESKTOP_CONTROL", control), patch.object(sb.time, "time", return_value=now):
+            self.observer.scan()
+        path.unlink()
+        with patch.object(sb, "_CODEX_DESKTOP_CONTROL", control), patch.object(sb.time, "time", return_value=now + 60):
+            self.assertFalse(self.observer.scan())
+            self.assertEqual(self.entry()["desktop_verified_at"], now)
 
     def test_archive_removes_only_observed_record(self):
         self.create()

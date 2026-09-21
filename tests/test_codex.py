@@ -83,6 +83,59 @@ class CodexTests(unittest.TestCase):
                 self.assertEqual(sb.claim_command({}, "claude-1", 123), expected)
                 self.assertEqual(backend.call_args.args[3], {"key": "claude-1", "ts": 123})
 
+    def test_legacy_desktop_reply_is_rejected_without_resetting_acceptance_time(self):
+        class StopWatcher(BaseException):
+            pass
+        for won in (False, True):
+            with self.subTest(claimed=won), contextlib.ExitStack() as stack:
+                state = sb.load_sessions()
+                state["local"]["desktop"] = {"engine": "codex", "source": "desktop",
+                    "status": "running", "desktop_started_at": 1900, "cmd_ts": 0}
+                sb.save_sessions(state)
+                stack.enter_context(patch.object(sb.time, "time", return_value=2000))
+                stack.enter_context(patch.object(sb.time, "sleep"))
+                stack.enter_context(patch.object(sb, "host_label", return_value="test-mac"))
+                for name in ("self_update", "usage_summary", "refresh_codex_usage", "sync_peers", "prune_sessions"):
+                    stack.enter_context(patch.object(sb, name))
+                stack.enter_context(patch.object(sb, "backend_poll", side_effect=[
+                    {"commands": {"desktop": {"ts": 1000000, "text": "old instruction"}}}, StopWatcher()]))
+                claim = stack.enter_context(patch.object(sb, "claim_command", return_value=won))
+                backend = stack.enter_context(patch.object(sb, "backend_call"))
+                inject = stack.enter_context(patch.object(sb, "type_into_terminal"))
+                with self.assertRaises(StopWatcher):
+                    sb.run_watcher({})
+                claim.assert_called_once_with({}, "desktop", 1000000)
+                backend.assert_not_called()
+                inject.assert_not_called()
+                entry = sb.load_sessions()["local"]["desktop"]
+                self.assertEqual(entry["cmd_ts"], 1000000 if won else 0)
+                self.assertEqual("desktop_delivery" in entry, won)
+
+    def test_legacy_claude_reply_still_reaches_terminal(self):
+        class StopWatcher(BaseException):
+            pass
+        state = sb.load_sessions()
+        state["local"]["claude"] = {"engine": "claude", "pid": 123, "term_type": "test", "cmd_ts": 0}
+        sb.save_sessions(state)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(sb.time, "time", return_value=2000))
+            stack.enter_context(patch.object(sb.time, "sleep"))
+            stack.enter_context(patch.object(sb, "host_label", return_value="test-mac"))
+            for name in ("self_update", "usage_summary", "refresh_codex_usage", "sync_peers", "prune_sessions"):
+                stack.enter_context(patch.object(sb, name))
+            stack.enter_context(patch.object(sb, "backend_poll", side_effect=[
+                {"commands": {"claude": {"ts": 2000000, "text": "continue"}}}, StopWatcher()]))
+            stack.enter_context(patch.object(sb, "claim_command", return_value=True))
+            stack.enter_context(patch.object(sb, "pid_alive", return_value=True))
+            backend = stack.enter_context(patch.object(sb, "backend_call"))
+            inject = stack.enter_context(patch.object(sb, "type_into_terminal", return_value=(True, "")))
+            with self.assertRaises(StopWatcher):
+                sb.run_watcher({})
+            inject.assert_called_once()
+            self.assertEqual(inject.call_args.args[1], "continue")
+            backend.assert_not_called()
+            self.assertEqual(sb.load_sessions()["local"]["claude"]["cmd_ts"], 2000000)
+
     def test_raw_terminal_input_cancels_legacy_mailbox(self):
         state = {"local": {"claude-1": {"cmd_ts": 0}}}
         with patch.object(sb, "type_into_terminal", return_value=(True, "")), patch.object(sb, "claim_command") as claim:
@@ -371,6 +424,125 @@ class CodexTests(unittest.TestCase):
             self.assertFalse(bridge.execute(command))
             ack.assert_not_called()
         self.assertEqual(bridge.rpc.call.call_args.args[0], "thread/read")
+
+    def test_rejected_send_preflight_gets_terminal_receipt_without_reconnect(self):
+        for stage in ("attach", "read"):
+            with self.subTest(stage=stage):
+                bridge = self.bridge()
+                state = sb.load_sessions()
+                state["codex_sessions"] = {"c": {"managed": True}}
+                sb.save_sessions(state)
+                command = {"command_id": stage, "action": "send", "session_id": "c", "text": "continue"}
+                with patch.object(bridge, "ack"), patch.object(bridge, "attach") as attach:
+                    if stage == "attach":
+                        attach.side_effect = sb.CodexRejected("Session unavailable")
+                    else:
+                        bridge.rpc.call.side_effect = sb.CodexRejected("Session unavailable")
+                    self.assertTrue(bridge.execute(command))
+                    self.assertTrue(bridge.execute(command))
+                receipt = sb.load_sessions()["codex_commands"][stage]
+                self.assertEqual(receipt["status"], "failed")
+                self.assertEqual(attach.call_count, 1)
+                self.assertFalse(any(c.args[0] == "turn/start" for c in bridge.rpc.call.call_args_list))
+
+    def test_preflight_connection_failure_still_requests_reconnect(self):
+        bridge = self.bridge()
+        state = sb.load_sessions()
+        state["codex_sessions"] = {"c": {"managed": True}}
+        sb.save_sessions(state)
+        with patch.object(bridge, "attach", side_effect=ConnectionError()), patch.object(bridge, "receipt") as receipt:
+            with self.assertRaises(ConnectionError):
+                bridge.execute({"command_id": "connection", "action": "send", "session_id": "c", "text": "continue"})
+            receipt.assert_not_called()
+
+    def test_session_fifo_survives_turn_finishing_between_queue_checks(self):
+        bridge = self.bridge()
+        bridge.attached.update(("c", "d"))
+        bridge.wake.clear()
+        bridge.last_discover = bridge.last_decisions = bridge.last_publish = 100
+        bridge.rpc.poll.return_value = []
+        state = sb.load_sessions()
+        state["codex_sessions"] = {sid: {"managed": True} for sid in ("c", "d")}
+        sb.save_sessions(state)
+        commands = [{"command_id": name, "action": "send", "session_id": sid, "text": name}
+                    for name, sid in (("first", "c"), ("second", "c"), ("other", "d"))]
+        answer = {"command_id": "answer", "action": "answer", "session_id": "c"}
+        bridge.commands = commands[:2] + [answer, commands[2]]
+        reads, sends, answers = [], [], []
+        def rpc(method, params):
+            if method == "thread/read":
+                reads.append(params["threadId"])
+                return {"thread": {"status": {"type": "active" if len(reads) == 1 else "idle"}}}
+            if method == "turn/start":
+                sends.append(params["input"][0]["text"])
+                return {"turn": {"id": "turn"}}
+            self.fail("Unexpected RPC: " + method)
+        bridge.rpc.call.side_effect = rpc
+        execute = bridge.execute
+        def dispatch(command):
+            if command["action"] == "answer":
+                answers.append(command["command_id"])
+                return True
+            return execute(command)
+        with patch.object(sb.time, "monotonic", return_value=100), patch.object(bridge, "ack", return_value={"ok": True}), \
+             patch.object(bridge, "execute", side_effect=dispatch):
+            bridge.tick()
+            self.assertEqual(reads, ["c", "d"])
+            self.assertEqual(sends, ["other"])
+            self.assertEqual(answers, ["answer"])
+            self.assertEqual([c["command_id"] for c in bridge.commands], ["first", "second"])
+            bridge.tick()
+            self.assertEqual(sends, ["other", "first", "second"])
+            self.assertFalse(bridge.commands)
+
+    def test_reconnect_clears_persisted_requests_before_discovery_replay(self):
+        class StopBridge(BaseException):
+            pass
+        bridge = self.bridge()
+        bridge.pending["stale"] = {"id": 7}
+        state = sb.load_sessions()
+        state["local"] = {
+            "c": {"engine": "codex", "managed": True, "pending_requests": [{"id": "stale"}]},
+            "desktop": {"engine": "codex", "managed": False, "pending_requests": [{"id": "native"}]},
+            "claude": {"engine": "claude", "pending_requests": [{"id": "claude"}]}}
+        sb.save_sessions(state)
+        def discover():
+            self.assertFalse(bridge.pending)
+            self.assertEqual(sb.load_sessions()["local"]["c"]["pending_requests"], [])
+            bridge.attached.add("c")
+            bridge.request({"id": 8, "method": "item/commandExecution/requestApproval",
+                            "params": {"threadId": "c", "command": "test"}})
+        with patch.object(sb, "CodexRPC") as rpc, patch.object(bridge, "discover", side_effect=discover), \
+             patch.object(bridge, "tick", side_effect=StopBridge()), patch.object(bridge, "status"), \
+             patch.object(sb, "codex_alert"):
+            rpc.return_value.__enter__.return_value = bridge.rpc
+            with self.assertRaises(StopBridge):
+                bridge.run()
+        local = sb.load_sessions()["local"]
+        self.assertEqual(len(local["c"]["pending_requests"]), 1)
+        self.assertNotEqual(local["c"]["pending_requests"][0]["id"], "stale")
+        self.assertEqual(local["desktop"]["pending_requests"], [{"id": "native"}])
+        self.assertEqual(local["claude"]["pending_requests"], [{"id": "claude"}])
+
+    def test_error_unloaded_and_unknown_thread_statuses_are_not_done(self):
+        bridge = self.bridge()
+        bridge.attached.add("c")
+        cases = [("systemError", "waiting"), ("notLoaded", "unknown"), ("futureStatus", "unknown"),
+                 (None, "unknown"), ("idle", "done"), ("active", "running")]
+        for kind, expected in cases:
+            status = {"type": kind} if kind else {}
+            with self.subTest(kind=kind), patch.object(sb, "project_root", return_value="/tmp"), \
+                 patch.object(sb, "codex_alert") as alert:
+                bridge.remember({"id": "c", "cwd": "/tmp", "status": status})
+                self.assertEqual(sb.load_sessions()["local"]["c"]["status"], expected)
+                bridge.event({"method": "thread/status/changed", "params": {"threadId": "c", "status": status}})
+                entry = sb.load_sessions()["local"]["c"]
+                self.assertEqual(entry["status"], expected)
+                self.assertEqual(bool(entry["delivery_error"]), kind not in ("idle", "active"))
+                alert.assert_not_called()
+        bridge.event({"method": "thread/status/changed", "params": {
+            "threadId": "c", "status": {"type": "active", "activeFlags": ["waitingOnApproval"]}}})
+        self.assertEqual(sb.load_sessions()["local"]["c"]["status"], "waiting")
 
     def test_unmanaged_desktop_session_is_not_resumed_elsewhere(self):
         bridge = self.bridge()

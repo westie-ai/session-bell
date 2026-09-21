@@ -223,6 +223,21 @@ async function handleCommandClaim(req, env, n) {
   return json({ claimed: (r.meta?.changes || 0) > 0 });
 }
 
+// A failed terminal injection may restore its claimed message only while the
+// mailbox is still empty. Never overwrite a newer user instruction or renew age.
+async function handleCommandRestore(req, env, n) {
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (!SID.test(b.session_id || '') || typeof b.text !== 'string' || !b.text.trim()
+      || b.text.length > 4000 || !Number.isSafeInteger(b.ts) || b.ts <= 0
+      || b.ts > Date.now() + 60000) {
+    return json({ error: 'bad request' }, 400);
+  }
+  const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+    .bind(n, `command/${b.session_id}`, b.text, b.ts).run();
+  return json({ restored: (r.meta?.changes || 0) > 0 });
+}
+
 // 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
 // markdown 进度(24 KB),手机「进展」视图用。同一接口,kind 区分。
 async function handleCapture(req, env, n, url) {
@@ -933,6 +948,7 @@ export default {
       if (path === '/api/state') return handleState(req, env, n);
       if (path === '/api/command') return handleCommand(req, env, n, url);
       if (path === '/api/command/claim') return handleCommandClaim(req, env, n);
+      if (path === '/api/command/restore') return handleCommandRestore(req, env, n);
       if (path === '/api/codex') return handleCodex(req, env, n, url);
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);

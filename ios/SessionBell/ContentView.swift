@@ -846,7 +846,7 @@ struct SpawnSheet: View {
                     .disabled(cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
                 } footer: {
                     Text(engine == "codex"
-                         ? "Starts a Codex task on your Mac. The same conversation is available in Codex on the desktop and CLI, and its result is pushed to your phone."
+                         ? "Starts a Codex task on your Mac. Follow its progress and continue the conversation from your phone or a connected CLI."
                          : "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
                 }
                 if !sendResult.isEmpty { Text(sendResult).foregroundStyle(Color.sbWaiting) }
@@ -1224,6 +1224,7 @@ struct SessionPage: View {
     @EnvironmentObject var store: EventStore
     @State private var input = ""
     @State private var sendNote = ""
+    @State private var isSending = false
     @State private var sendNoteOK = true
     @State private var noteTask: Task<Void, Never>?
     @FocusState private var inputFocused: Bool
@@ -1240,6 +1241,10 @@ struct SessionPage: View {
     private var isLive: Bool { liveTask != nil }
     private var isCodex: Bool { (liveTask?.engine ?? group?.latest.engine) == "codex" }
     private var isDesktopObserver: Bool { (liveTask?.source ?? group?.latest.source) == "desktop" }
+    private var desktopCanSend: Bool {
+        liveTask?.desktopCanSend == true && ["running", "done"].contains(liveTask?.status ?? "")
+            && Date().timeIntervalSince(liveTask?.desktopVerifiedAt ?? .distantPast) < 45
+    }
 
     private var peekTask: EventStore.LiveTask? {
         guard let h = resolvedHost else { return nil }
@@ -1292,8 +1297,8 @@ struct SessionPage: View {
             } else {
                 progressPane
             }
-            if isDesktopObserver {
-                Text("Desktop session · monitoring only. Continue this conversation in Codex on your Mac.")
+            if isDesktopObserver && !desktopCanSend {
+                Text("Desktop follow-up unavailable · open the original conversation in Codex on your Mac. Monitoring remains active.")
                     .font(.footnote).foregroundStyle(.secondary)
                     .padding().frame(maxWidth: .infinity).background(.bar)
             } else {
@@ -1537,6 +1542,12 @@ struct SessionPage: View {
             if isDesktopObserver {
                 Label("Codex Desktop", systemImage: "desktopcomputer")
                     .font(.caption).foregroundStyle(.secondary)
+                if let task = liveTask, task.desktopQueued > 0 {
+                    Label("Follow-up queued · waiting for this turn to finish", systemImage: "clock")
+                        .font(.caption).foregroundStyle(.orange)
+                } else if let delivery = liveTask?.desktopDelivery, !delivery.isEmpty {
+                    Text(delivery).font(.caption).foregroundStyle(.secondary)
+                }
             }
             if let tokens = liveTask?.tokenUsage, let total = tokens.total_tokens {
                 Text("Session tokens: \(total)")
@@ -1557,12 +1568,18 @@ struct SessionPage: View {
     }
 
     private var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+            && (!isDesktopObserver || (desktopCanSend && (liveTask?.desktopQueued ?? 0) == 0))
     }
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 0) {
             Divider().opacity(0.6)
+            if isDesktopObserver {
+                Text("Continue in the original desktop conversation · queued while running")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 16).padding(.top, 8)
+            }
             // 发送回执:彩色药丸,出现 3 秒自动淡出,不常驻占地方。
             if !sendNote.isEmpty {
                 HStack(spacing: 5) {
@@ -1620,12 +1637,14 @@ struct SessionPage: View {
     /// 活跃 session 走队列注入(空闲/结束时自动接上);
     /// 已结束的走原始通道直打终端 pane(还开着就能续)。
     private func send() {
-        guard !isDesktopObserver else { return }
+        guard canSend else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         input = ""
+        isSending = true
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         Task {
+            defer { isSending = false }
             if isCodex, let host = resolvedHost {
                 showNote(String(localized: "Sending to Codex…"))
                 let result = await store.sendCodexCommand(host: host, action: "send", sessionId: sessionId, text: text)

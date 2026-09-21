@@ -209,12 +209,12 @@
         }
       }
     },
-    "Starts a Codex task on your Mac. The same conversation is available in Codex on the desktop and CLI, and its result is pushed to your phone.": {
+    "Starts a Codex task on your Mac. Follow its progress and continue the conversation from your phone or a connected CLI.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在电脑上启动 Codex 任务。同一会话可在桌面 App 和 CLI 中继续，完成后会推送到手机。"
+            "value": "在电脑上启动 Codex 任务。在手机或已连接的 CLI 中查看进度并继续对话。"
           }
         }
       }

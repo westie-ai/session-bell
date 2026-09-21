@@ -14,8 +14,9 @@ function database() {
         if (matches) rows.delete(key);
         return { success: true, meta: { changes: matches ? 1 : 0 } };
       }
-      if (!sql.startsWith('INSERT OR IGNORE') || !rows.has(key)) rows.set(key, { ns, k, v, ts });
-      return { success: true };
+      const changes = !sql.startsWith('INSERT OR IGNORE') || !rows.has(key);
+      if (changes) rows.set(key, { ns, k, v, ts });
+      return { success: true, meta: { changes: changes ? 1 : 0 } };
     },
     async all() { return { results: [...rows.values()].filter(r => r.ns === args[0] && r.k >= args[1] && r.k < args[2]) }; }
   }; } }; } };
@@ -53,6 +54,28 @@ test('merged main retains separate Markdown progress and terminal captures', asy
   const progress = await (await call(env, '/api/capture?id=claude-1&kind=md')).json();
   assert.equal(terminal.capture.text, 'terminal frame');
   assert.equal(progress.capture.text.length, 24000);
+});
+
+test('failed injection restores original timestamp without overwriting a newer command', async () => {
+  const env = { DB: database() };
+  const path = '/api/command/restore';
+  const original = { session_id: 'claude-1', text: 'old instruction', ts: Date.now() - 60000 };
+  const restore = async (body, token = secret) => (await call(env, path, body, token)).json();
+  assert.deepEqual(await restore(original), { restored: true });
+  const read = async () => (await (await call(env, '/api/command?id=claude-1')).json()).command;
+  assert.deepEqual(await read(), { text: original.text, ts: original.ts });
+  await call(env, '/api/command/claim', { key: 'claude-1', ts: original.ts });
+  await call(env, '/api/command', { session_id: 'claude-1', text: 'new instruction' });
+  const newer = await read();
+  assert.deepEqual(await restore(original), { restored: false });
+  assert.deepEqual(await read(), newer);
+  assert.deepEqual(await restore(original, 'another-test-secret'), { restored: true });
+  assert.deepEqual(await read(), newer);
+  assert.equal((await call(env, path, { ...original, ts: Date.now() + 120000 })).status, 400);
+  assert.equal((await call(env, path, { ...original, ts: 'invalid' })).status, 400);
+  assert.equal((await call(env, path, { ...original, session_id: '../invalid' })).status, 400);
+  assert.equal((await call(env, path, original, '')).status, 401);
+  assert.equal((await call(env, path)).status, 404);
 });
 
 test('duplicate upload cannot create a second task or change the first prompt', async () => {
