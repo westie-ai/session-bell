@@ -40,6 +40,9 @@ struct SBAgentIcon: View {
                     // The Codex source includes a wider built-in clear-space margin.
                     .frame(width: agent == .claude ? size * 0.86 : size,
                            height: agent == .claude ? size * 0.86 : size)
+                    .clipShape(RoundedRectangle(
+                        cornerRadius: agent == .claude ? size * 0.18 : 0,
+                        style: .continuous))
             } else {
                 Image(systemName: "terminal")
                     .font(.system(size: size * 0.55, weight: .medium))
