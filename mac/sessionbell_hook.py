@@ -2240,7 +2240,8 @@ def last_assistant_text(transcript_path: str) -> str:
             obj = json.loads(line)
         except ValueError:
             continue
-        if obj.get("type") == "assistant":
+        # Claude: {"type":"assistant",...}; Cursor: {"role":"assistant",...}
+        if obj.get("type") == "assistant" or obj.get("role") == "assistant":
             content = (obj.get("message") or {}).get("content") or []
             texts = [
                 c.get("text", "")
@@ -2553,6 +2554,8 @@ def claude_pids():
 
 
 def engine_pids(engine=None):
+    if engine == "cursor":
+        return None, None   # editor process; nothing to type into or watch
     if engine != "codex":
         return claude_pids()
     # A desktop app-server owns many threads: it is never their parent agent.
@@ -3407,6 +3410,7 @@ def handle_permission(cfg: dict, hook: dict) -> None:
     if decision in ("allow", "deny"):
         log(f"permission {request_id[:12]}: {decision} (from phone)")
         print(json.dumps({
+            "permission": decision,   # Cursor beforeShellExecution
             "hookSpecificOutput": {
                 "hookEventName": "PermissionRequest",
                 "decision": {"behavior": decision},
@@ -3482,6 +3486,7 @@ def try_inject_command(cfg, env, session_id, project, host,
             print(json.dumps({
                 "decision": "block",
                 "reason": f"📱 手机远程指令: {text[:60]}",
+                "followup_message": text,   # Cursor: submitted as the next user message
                 "hookSpecificOutput": {
                     "hookEventName": "Stop",
                     "additionalContext":
@@ -3919,6 +3924,75 @@ def cmd_codex_enable():
     print("Restart SessionBell relay after installing this hook version.")
 
 
+def is_cursor_event(hook: dict) -> bool:
+    """Cursor's hook payload: conversation_id + workspace_roots (+ cursor_version)."""
+    return (isinstance(hook, dict) and isinstance(hook.get("workspace_roots"), list)
+            and bool(hook.get("conversation_id") or hook.get("cursor_version")))
+
+
+AGENT_NAMES = {"codex": "Codex", "cursor": "Cursor"}
+
+
+def cmd_cursor_enable():
+    """Register SessionBell in ~/.cursor/hooks.json (Cursor's native hook format).
+
+    Cursor already imports our Claude hooks, but that path has no permission
+    event and its timeouts are Cursor's own; native hooks give lock-screen
+    approvals (beforeShellExecution) and a stop window long enough for a phone
+    reply. Once enabled, the imported Claude hooks step aside for Cursor
+    payloads (see is_cursor_event in main) so nothing is delivered twice."""
+    import shlex
+    import shutil
+    import tempfile
+    me = os.path.abspath(__file__)
+    py = sys.executable or "/usr/bin/python3"
+
+    def cmd(kind):
+        return "SESSIONBELL_CURSOR_NATIVE=1 " + " ".join(shlex.quote(x) for x in (py, me, kind))
+
+    cfg = load_config("test")
+    wanted = {
+        "beforeSubmitPrompt": {"command": cmd("prompt"), "timeout": 30},
+        "stop": {"command": cmd("stop"), "timeout": int(cfg.get("reply_wait_seconds", 900)) + 60},
+        "sessionEnd": {"command": cmd("session-end"), "timeout": 30},
+        "beforeShellExecution": {"command": cmd("permission"), "timeout": 900},
+    }
+    path = os.path.expanduser("~/.cursor/hooks.json")
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+    except (OSError, ValueError):
+        raise SystemExit("Cannot read ~/.cursor/hooks.json; no changes made.")
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        raise SystemExit("Invalid ~/.cursor/hooks.json; no changes made.")
+    data["version"] = 1
+    hooks = data.setdefault("hooks", {})
+    for ev in set(hooks) | set(wanted):
+        arr = hooks.setdefault(ev, [])
+        if not isinstance(arr, list):
+            raise SystemExit("Invalid hook group; no changes made: " + ev)
+        arr[:] = [h for h in arr if "sessionbell_hook.py" not in str(h.get("command", ""))]
+        if ev in wanted:
+            arr.append(wanted[ev])
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        backup = path + ".sessionbell-backup-" + str(time.time_ns())
+        shutil.copy2(path, backup)
+        print("Backup: " + backup)
+    fd, tmp = tempfile.mkstemp(prefix="hooks-", suffix=".json", dir=os.path.dirname(path))
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+    cfg["cursor_enabled"] = True
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+    print(f"✓ 已注册 SessionBell → {path}(Cursor 无需重启)")
+    print("  本机 Cursor Agent 会话会出现在手机上;shell 命令可在锁屏批准;任务完成后 15 分钟内手机回复会作为下一条消息发给 Cursor。")
+    print("  Cloud Agent 不经过本机 hook,手机上看不到。")
+
+
 def main():
     kind = sys.argv[1] if len(sys.argv) > 1 else "test"
     if kind == "stayawake":
@@ -3941,6 +4015,9 @@ def main():
         return
     if kind == "codex-setup":
         cmd_codex_setup()
+        return
+    if kind == "cursor-enable":
+        cmd_cursor_enable()
         return
     if kind == "codex-enable":
         cmd_codex_enable()
@@ -3999,6 +4076,37 @@ def main():
             hook = json.load(sys.stdin)
         except ValueError:
             hook = {}
+
+    if is_cursor_event(hook):
+        # Cursor runs Claude-format hooks from ~/.claude/settings.json (its
+        # third-party import, on by default) with its own payload — same
+        # session_id, but workspace_roots instead of cwd. Left alone the task
+        # shows up on the phone as project ".claude" (the hook's own cwd).
+        os.environ["SESSIONBELL_ENGINE"] = "cursor"
+        os.environ.pop("OTTY_PANE_ID", None)   # an inherited pane is never Cursor's
+        if not hook.get("cwd") and hook.get("workspace_roots"):
+            hook["cwd"] = hook["workspace_roots"][0]
+        native = os.environ.get("SESSIONBELL_CURSOR_NATIVE") == "1"
+        if cfg.get("cursor_enabled") and not native:
+            return  # ~/.cursor/hooks.json handlers own this session; no double delivery
+        if kind == "permission":
+            # beforeShellExecution: {command, cwd, sandbox} -> PermissionRequest shape
+            if hook.get("command") and not hook.get("tool_name"):
+                hook["tool_name"] = "Bash"
+                hook["tool_input"] = {"command": hook["command"]}
+                hook["tool_use_id"] = hook.get("generation_id") or None
+            import io
+            buf, real = io.StringIO(), sys.stdout
+            sys.stdout = buf
+            try:
+                handle_permission(cfg, hook)
+            finally:
+                sys.stdout = real
+            out = buf.getvalue().strip()
+            # Empty output would let Cursor proceed silently; hand the
+            # decision back to Cursor's own dialog instead.
+            print(out if out else json.dumps({"permission": "ask"}))
+            return
 
     if os.environ.get("SESSIONBELL_ENGINE") == "codex":
         # Shared sessions are observed directly by the bridge, including native
@@ -4167,7 +4275,7 @@ def main():
         raw_md = (hook.get("last_assistant_message") or "") if engine == "codex" else last_assistant_text(hook.get("transcript_path", ""))
         body = strip_markdown(raw_md)
         if not body:
-            body = "Codex 已完成本轮任务" if engine == "codex" else "Claude 已完成本轮任务"
+            body = f"{AGENT_NAMES.get(engine, 'Claude')} 已完成本轮任务"
             body_key, body_args = body, []
         if task_detail:
             title_key, title_args = "✅ %@ · 完成「%@」", [project, task_detail[:24]]
@@ -4189,7 +4297,7 @@ def main():
         if raw_md:
             body = strip_markdown(raw_md)
         else:
-            body = hook.get("message") or ("Codex 在等待你的输入或授权" if engine == "codex" else "Claude 在等待你的输入或授权")
+            body = hook.get("message") or f"{AGENT_NAMES.get(engine, 'Claude')} 在等待你的输入或授权"
             if not hook.get("message"):
                 body_key, body_args = body, []
             if task_detail:
