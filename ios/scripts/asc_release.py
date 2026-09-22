@@ -90,8 +90,8 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "新增 Codex 支持(macOS):Codex 桌面端的任务和 Claude Code 一起出现在任务列表和锁屏面板上——运行、完成、需要你的时候都会提醒,并显示本轮 token 用量。共享 CLI 会话还能在手机上批准授权、回答提问、追加指令、新建任务,并查看官方额度。新建任务时可选 Claude 或 Codex。\n任务列表和锁屏卡片按智能体显示图标。\nMac 端:远程新建会话会自动找到能用的 Claude 命令(官方安装器和 npm 安装都支持);手机发出的指令保证只送达一次;Mac 从休眠唤醒后立刻同步。",
- "en-US": "Codex support (macOS): Codex desktop tasks show up next to Claude Code on the Tasks tab and the Lock Screen panel — running, done, or waiting for you — with per-session token counts. Shared CLI sessions can be driven from the phone: approve commands, answer questions, send follow-ups, start new tasks, and see your official quota. The new-task screen lets you pick Claude or Codex.\nTasks and Lock Screen cards show which agent is running.\nOn the Mac: remotely started sessions find a working Claude command whether it was installed natively or via npm; a command sent from the phone is delivered exactly once; a Mac waking from sleep syncs immediately.",
+ "zh-Hans": "新增 Cursor 支持(macOS):Cursor 编辑器里的 Agent 任务和 Claude Code、Codex 一起出现在任务列表和锁屏面板上——开始、完成、需要批准时都会提醒;进展视图显示完整对话;shell 命令可在锁屏一键批准;任务完成后从手机回一句,会作为下一条消息直接发给 Cursor。Mac 上运行 sessionbell cursor-enable 即可开启。\n每个任务显示正在使用的模型,如「Cursor · grok-4.6」「Claude · fable-5-1」。\n任务列表和锁屏卡片新增 Cursor 图标。",
+ "en-US": "Cursor support (macOS): Agent tasks in the Cursor editor show up next to Claude Code and Codex on the Tasks tab and the Lock Screen panel — you're pinged when a task starts, finishes, or needs approval; Progress shows the whole conversation; shell commands can be approved from the Lock Screen; and a reply from the phone after a task finishes is sent to Cursor as the next message. Run sessionbell cursor-enable on the Mac to turn it on.\nEach task now shows the model it is running on, e.g. \"Cursor · grok-4.6\" or \"Claude · fable-5-1\".\nNew Cursor icon on task rows and Lock Screen cards.",
 }
 # Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
 # so a locale whose description already changed upstream is left alone.
@@ -100,15 +100,15 @@ DESCRIPTION_EDITS = {
  "en-US": [("(Claude Code and more)", "(Claude Code, Codex and more)"), (" Currently invite-only.", "")],
 }
 SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 标题/副标题里不能出现 Mac / Claude / Codex(1.5 因 5.2.5 + 4.1(a) 被拒过)
-REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (Claude Code, Codex). "
+REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (Claude Code, Codex, Cursor). "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"See it in action first\" (second button on the first screen) -> "
   "a demo workspace loads with simulated tasks, so every tab, the task detail (Progress | Terminal views) and the Lock Screen Live Activity "
   "can be reviewed without pairing anything. Pairing a real Mac is one line pasted into Terminal (shown in-app after \"Connect my Mac\"). "
-  "Codex-specific screens (approvals, questions, quota) only appear once a Mac with Codex is paired; the UI is otherwise identical to Claude tasks. "
+  "Codex- and Cursor-specific screens only appear once a Mac running those tools is paired; the UI is otherwise identical to Claude tasks. "
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
-VERSION = "1.6"
-BUILD = "11"
+VERSION = "1.7"
+BUILD = "12"
 SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
 SKIP_SHOTS = os.environ.get("SKIP_SHOTS") == "1"   # reuse the screenshots already on the previous version

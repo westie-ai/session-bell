@@ -1,6 +1,6 @@
 # App Store & ASO Notes
 
-_Last updated: 2026-09-21_
+_Last updated: 2026-09-22_
 
 Working notes for SessionBell's App Store listing and App Store Optimization
 (ASO). This is not build config — the source of truth for version/build numbers
@@ -31,6 +31,28 @@ at the demo button. Build 7 (replacing 6 before review started) adds
 localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
+
+## 1.7 — submitted 2026-09-22 (build 12)
+
+Screenshots reused from 1.5 (`SKIP_SHOTS=1`). Title/subtitle unchanged. What changed:
+
+- **Cursor on macOS.** Cursor imports `~/.claude/settings.json` hooks by
+  default, so its Agent turns were already calling our hooks and landing on
+  the phone as project ".claude". The hook now recognises Cursor's payload
+  (engine `cursor`, cwd from `workspace_roots`), `sessionbell cursor-enable`
+  registers native `~/.cursor/hooks.json` handlers (prompt, stop with a
+  reply-window timeout, session end, `beforeShellExecution` for Lock Screen
+  approvals), Progress reads Cursor's transcript, and a phone reply in the
+  stop window is returned as `followup_message`, which Cursor submits as the
+  next user message. Verified end to end on Cursor 3.21.16: task, approval,
+  done push, Progress, phone reply → new Cursor turn. Cloud Agents are not
+  visible (no local hooks). Research notes: docs/cursor-compat-research.md.
+- **Model per task.** Hook records `model` (Cursor `model_id`, Claude
+  transcript `message.model`, Codex thread/turn or rollout `turn_context`);
+  task rows and the detail header show "Cursor · grok-4.6".
+- **Cursor icon** (AgentCursor) next to Claude and Codex.
+- Backend/hook already deployed (Worker efdef77e); the app change is icon +
+  model label, everything else works on 1.6 too.
 
 ## 1.6 — submitted 2026-09-21 (build 11); approved 2026-09-22
 
@@ -216,15 +238,15 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.6**, build **11** (approved 2026-09-22). Worker deployed 2026-09-22 (version 145ab9dd) with the Codex-aware public hook.
-- Next build number: **≥ 12**.
+- Last shipped: **1.6**, build **11** (approved 2026-09-22). In review: **1.7**, build **12** (submitted 2026-09-22).
+- Next build number: **≥ 13**.
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> `ios/project.yml` on `main` is at 1.6 / build 11.
+> `ios/project.yml` on `main` is at 1.7 / build 12.
 
 ## Context (not App Store)
 
