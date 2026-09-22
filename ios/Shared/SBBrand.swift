@@ -18,6 +18,13 @@ enum SBAgent: Equatable {
         switch self { case .claude: return "Claude"; case .codex: return "Codex"; case .cursor: return "Cursor"; case .unknown: return "Agent" }
     }
 
+    /// "Cursor · grok-4.6": agent name plus the model when the hook reported one.
+    func label(model: String?) -> String {
+        var m = (model ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["claude-", "cursor-"] where m.hasPrefix(prefix) { m.removeFirst(prefix.count) }
+        return m.isEmpty ? name : "\(name) · \(m)"
+    }
+
     var assetName: String? {
         switch self { case .claude: return "AgentClaude"; case .codex: return "AgentCodex"; case .cursor: return "AgentCursor"; case .unknown: return nil }
     }

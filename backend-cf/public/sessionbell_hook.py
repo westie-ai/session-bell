@@ -385,6 +385,9 @@ class CodexDesktopObserver:
         ts = self.timestamp(event.get("timestamp"))
         if ts is None:
             return None
+        if kind == "turn_context" and isinstance(payload.get("model"), str) and payload["model"]:
+            entry["model"] = payload["model"]
+            return None
         if kind == "event_msg":
             event_type = payload.get("type")
             turn = payload.get("turn_id")
@@ -1248,6 +1251,7 @@ class CodexBridge:
         save_sessions(state)
         self.update(sid, cwd=record["cwd"], project=record["project"],
                     root=project_root(record["cwd"]), pid=None, parent_pid=None,
+                    **({"model": thread["model"]} if isinstance(thread.get("model"), str) and thread.get("model") else {}),
                     parent_sid=thread.get("parentThreadId"),
                     detail=(thread.get("name") or thread.get("preview") or "")[:160],
                     **self.thread_status_fields(thread.get("status") or {}))
@@ -1314,8 +1318,10 @@ class CodexBridge:
                     self.pending.pop(key)
             self.publish_requests(sid)
         elif method == "turn/started":
+            turn_model = (p.get("turn") or {}).get("model")
             self.update(sid, status="running", turn_id=(p.get("turn") or {}).get("id"),
-                        delivery_error="", latest_reply="")
+                        delivery_error="", latest_reply="",
+                        **({"model": turn_model} if isinstance(turn_model, str) and turn_model else {}))
         elif method == "thread/status/changed":
             self.update(sid, **self.thread_status_fields(p.get("status") or {}))
         elif method == "item/completed":
@@ -2252,6 +2258,35 @@ def last_assistant_text(transcript_path: str) -> str:
             if text:
                 return text
     return ""
+
+
+def transcript_model(transcript_path: str) -> str:
+    """Model of the last assistant turn in a Claude Code transcript
+    (message.model, e.g. claude-fable-5-1). Empty when unknown."""
+    try:
+        with open(transcript_path) as f:
+            lines = f.readlines()
+    except (OSError, TypeError):
+        return ""
+    for line in reversed(lines):
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if obj.get("type") == "assistant":
+            model = (obj.get("message") or {}).get("model")
+            if isinstance(model, str) and model:
+                return model
+    return ""
+
+
+def event_model(hook: dict, engine) -> str:
+    """Which model this session is running on, per engine's own signal."""
+    if engine == "cursor":
+        return str(hook.get("model_id") or hook.get("model") or "")
+    if engine == "codex":
+        return str(hook.get("model") or "")
+    return transcript_model(hook.get("transcript_path", ""))
 
 
 # ---------------- Live Activity ----------------
@@ -4236,6 +4271,10 @@ def main():
                 return
             prev["agents"] = max(0, prev.get("agents", 0) - 1)
             state["local"][session_id] = prev
+        if kind in ("prompt", "notification", "stop") and session_id in state["local"]:
+            model = event_model(hook, engine)
+            if model:
+                state["local"][session_id]["model"] = model
         prune_sessions(state, now)
         save_sessions(state)
         # Subagent churn is bookkeeping only — a badge isn't worth a network

@@ -1072,7 +1072,7 @@ struct LiveTaskRow: View {
                     .foregroundStyle(task.status == "done" ? Color.sbInk2 : Color.sbInk)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(SBAgent(engine: task.engine).name)
+                    Text(SBAgent(engine: task.engine).label(model: task.model))
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.sbInk2)
                         .fixedSize()
@@ -1496,7 +1496,7 @@ struct SessionPage: View {
             HStack(spacing: 6) {
                 SBAgentIcon(engine: liveTask?.engine ?? group?.latest.engine, size: 30)
                     .accessibilityHidden(true)
-                Text(SBAgent(engine: liveTask?.engine ?? group?.latest.engine).name)
+                Text(SBAgent(engine: liveTask?.engine ?? group?.latest.engine).label(model: liveTask?.model))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
             }

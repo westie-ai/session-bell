@@ -36,6 +36,7 @@ final class EventStore: ObservableObject {
         var isSub: Bool = false
         var mode: String = ""
         var engine: String = ""   // "" = claude; "codex" = OpenAI Codex
+        var model: String = ""    // e.g. claude-fable-5-1 / gpt-5-codex / grok-4.6; "" = unknown
         var cwd: String = ""
         var rootDir: String = ""
         var latestReply: String = ""
@@ -273,6 +274,7 @@ final class EventStore: ObservableObject {
                     agents: e["agents"] as? Int ?? 0,
                     mode: e["mode"] as? String ?? "",
                     engine: e["engine"] as? String ?? "",
+                    model: e["model"] as? String ?? "",
                     cwd: e["cwd"] as? String ?? "",
                     rootDir: e["root"] as? String ?? "",
                     latestReply: e["latest_reply"] as? String ?? "",
