@@ -3,22 +3,23 @@ import UIKit
 
 /// Missing engine is the legacy Claude schema, not an unknown agent.
 enum SBAgent: Equatable {
-    case claude, codex, unknown
+    case claude, codex, cursor, unknown
 
     init(engine: String?) {
         switch engine?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" {
         case "", "claude": self = .claude
         case "codex": self = .codex
+        case "cursor": self = .cursor
         default: self = .unknown
         }
     }
 
     var name: String {
-        switch self { case .claude: return "Claude"; case .codex: return "Codex"; case .unknown: return "Agent" }
+        switch self { case .claude: return "Claude"; case .codex: return "Codex"; case .cursor: return "Cursor"; case .unknown: return "Agent" }
     }
 
     var assetName: String? {
-        switch self { case .claude: return "AgentClaude"; case .codex: return "AgentCodex"; case .unknown: return nil }
+        switch self { case .claude: return "AgentClaude"; case .codex: return "AgentCodex"; case .cursor: return "AgentCursor"; case .unknown: return nil }
     }
 }
 
@@ -37,7 +38,7 @@ struct SBAgentIcon: View {
                     .renderingMode(.original)
                     .resizable()
                     .scaledToFit()
-                    // The Codex source includes a wider built-in clear-space margin.
+                    // The Codex and Cursor sources include a wider built-in clear-space margin.
                     .frame(width: agent == .claude ? size * 0.86 : size,
                            height: agent == .claude ? size * 0.86 : size)
                     .clipShape(RoundedRectangle(
