@@ -1853,13 +1853,35 @@ def tool_line(c: dict) -> str:
     return clip_bytes(" ".join(f"{name} {what}".split()), 120)
 
 
-def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
-    """整理版进度:把 Claude Code 的本地会话记录压成 markdown —— 你的每条提示、
-    Claude 的每段回复、工具调用一行一个。给手机的「进展」视图用,内容和终端
-    画面对应,只是排好了版。只保留末尾 max_bytes,按块截断。"""
+def find_transcript(session_id: str) -> str:
+    """Local transcript for a session: Claude Code keeps
+    ~/.claude/projects/<enc-cwd>/<sid>.jsonl, Cursor keeps
+    ~/.cursor/projects/<enc-cwd>/agent-transcripts/<sid>/<sid>.jsonl."""
     import glob
-    paths = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{session_id}.jsonl"))
-    if not paths:
+    if not session_id or "/" in session_id or ".." in session_id:
+        return ""
+    for pattern in (f"~/.claude/projects/*/{session_id}.jsonl",
+                    f"~/.cursor/projects/*/agent-transcripts/{session_id}/{session_id}.jsonl",
+                    f"~/.cursor/projects/*/agent-transcripts/{session_id}.jsonl"):
+        paths = glob.glob(os.path.expanduser(pattern))
+        if paths:
+            return paths[0]
+    return ""
+
+
+def unwrap_user_query(text: str) -> str:
+    """Cursor wraps the typed prompt: <timestamp>…</timestamp>\n<user_query>\n…\n</user_query>."""
+    import re
+    m = re.search(r"<user_query>\s*(.*?)\s*</user_query>", text, re.S)
+    return m.group(1) if m else text
+
+
+def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
+    """整理版进度:把本地会话记录(Claude Code 或 Cursor)压成 markdown —— 你的每条提示、
+    模型的每段回复、工具调用一行一个。给手机的「进展」视图用,内容和终端
+    画面对应,只是排好了版。只保留末尾 max_bytes,按块截断。"""
+    paths = [find_transcript(session_id)]
+    if not paths[0]:
         return ""
     blocks: list = []
     tools: list = []
@@ -1878,7 +1900,8 @@ def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
                     continue
                 if obj.get("isSidechain"):
                     continue
-                kind = obj.get("type")
+                # Claude: {"type":"user"|"assistant"}; Cursor: {"role":"user"|"assistant"}
+                kind = obj.get("type") or obj.get("role")
                 content = (obj.get("message") or {}).get("content")
                 if kind == "user":
                     if isinstance(content, str):
@@ -1888,7 +1911,7 @@ def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
                                  if isinstance(c, dict) and c.get("type") == "text"]
                     else:
                         texts = []
-                    prompt = "\n".join(t for t in texts if t).strip()
+                    prompt = unwrap_user_query("\n".join(t for t in texts if t).strip())
                     # hook / 系统注入的内容都是 <xml> 开头,不是人打的
                     if not prompt or prompt.startswith("<"):
                         continue
@@ -4312,6 +4335,11 @@ def main():
     if kind == "stop":
         title_key, title_args = "✅ %@ · 任务完成", [project]
         raw_md = (hook.get("last_assistant_message") or "") if engine == "codex" else last_assistant_text(hook.get("transcript_path", ""))
+        for _ in range(6):
+            if raw_md or engine != "cursor":
+                break
+            time.sleep(0.5)   # transcript may still be flushing when stop fires
+            raw_md = last_assistant_text(hook.get("transcript_path", ""))
         body = strip_markdown(raw_md)
         if not body:
             body = f"{AGENT_NAMES.get(engine, 'Claude')} 已完成本轮任务"
