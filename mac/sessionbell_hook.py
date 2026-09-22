@@ -3091,6 +3091,10 @@ def run_watcher(cfg: dict) -> None:
             if time.time() - last_usage > 600:
                 last_usage = time.time()
                 self_update(cfg)
+                try:
+                    ensure_cursor_hooks(cfg, quiet=True)   # Cursor installed later? pick it up
+                except Exception as exc:
+                    log(f"cursor: ensure failed: {exc}")
                 usage_summary(cfg)
                 refresh_codex_usage()
                 state = load_sessions()
@@ -3218,6 +3222,10 @@ def run_relay(cfg: dict) -> None:
     if use_backend(cfg):
         import threading
         global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
+        try:
+            ensure_cursor_hooks(cfg, quiet=True)
+        except Exception as exc:
+            log(f"cursor: ensure failed: {exc}")
         if cfg.get("codex_enabled") and not IS_WIN:
             _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
             threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
@@ -3991,30 +3999,53 @@ def is_cursor_event(hook: dict) -> bool:
 AGENT_NAMES = {"codex": "Codex", "cursor": "Cursor"}
 
 
-def cmd_cursor_enable():
-    """Register SessionBell in ~/.cursor/hooks.json (Cursor's native hook format).
+def cursor_installed() -> bool:
+    return sys.platform == "darwin" and (
+        os.path.isdir("/Applications/Cursor.app")
+        or os.path.isdir(os.path.expanduser("~/Applications/Cursor.app")))
 
-    Cursor already imports our Claude hooks, but that path has no permission
-    event and its timeouts are Cursor's own; native hooks give lock-screen
-    approvals (beforeShellExecution) and a stop window long enough for a phone
-    reply. Once enabled, the imported Claude hooks step aside for Cursor
-    payloads (see is_cursor_event in main) so nothing is delivered twice."""
+
+def cursor_hooks_wanted(cfg: dict) -> dict:
     import shlex
-    import shutil
-    import tempfile
     me = os.path.abspath(__file__)
-    py = sys.executable or "/usr/bin/python3"
+    # /usr/bin/python3 on every Mac: the relay (launchd) and a manual run must
+    # agree on the command string, or each would rewrite the other's file.
+    py = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else (sys.executable or "python3")
 
     def cmd(kind):
         return "SESSIONBELL_CURSOR_NATIVE=1 " + " ".join(shlex.quote(x) for x in (py, me, kind))
-
-    cfg = load_config("test")
-    wanted = {
+    return {
         "beforeSubmitPrompt": {"command": cmd("prompt"), "timeout": 30},
         "stop": {"command": cmd("stop"), "timeout": int(cfg.get("reply_wait_seconds", 900)) + 60},
         "sessionEnd": {"command": cmd("session-end"), "timeout": 30},
         "beforeShellExecution": {"command": cmd("permission"), "timeout": 900},
     }
+
+
+def ensure_cursor_hooks(cfg: dict, quiet: bool = False) -> bool:
+    """Register SessionBell in ~/.cursor/hooks.json (Cursor's native hook format).
+
+    Runs automatically (relay start, 10-min tick, installer's `test`) whenever
+    Cursor is installed, so users never have to opt in. Idempotent: rewrites
+    the file only when our entries are missing or stale, keeps every other
+    handler, backs up before writing. Cursor reloads the file on its own.
+
+    Why native hooks when Cursor already imports our Claude hooks: that path
+    has no permission event and its timeouts are Cursor's, so no Lock Screen
+    approvals and no reply window. Once enabled, the imported Claude hooks
+    step aside for Cursor payloads (is_cursor_event in main) — nothing is
+    delivered twice. Returns True when the file was (re)written."""
+    import shutil
+    import tempfile
+    if not cursor_installed():
+        return False
+    if quiet:
+        # Automatic mode only for hosted installs (~/.sessionbell/…): a git
+        # checkout or the test suite must never rewrite the user's Cursor config.
+        me = os.path.normcase(os.path.abspath(__file__))
+        if not me.startswith(os.path.normcase(os.path.abspath(CONFIG_DIR))):
+            return False
+    wanted = cursor_hooks_wanted(cfg)
     path = os.path.expanduser("~/.cursor/hooks.json")
     try:
         with open(path) as f:
@@ -4022,33 +4053,62 @@ def cmd_cursor_enable():
     except FileNotFoundError:
         data = {}
     except (OSError, ValueError):
-        raise SystemExit("Cannot read ~/.cursor/hooks.json; no changes made.")
+        log("cursor: cannot read ~/.cursor/hooks.json; leaving it alone")
+        return False
     if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
-        raise SystemExit("Invalid ~/.cursor/hooks.json; no changes made.")
-    data["version"] = 1
-    hooks = data.setdefault("hooks", {})
-    for ev in set(hooks) | set(wanted):
-        arr = hooks.setdefault(ev, [])
-        if not isinstance(arr, list):
-            raise SystemExit("Invalid hook group; no changes made: " + ev)
-        arr[:] = [h for h in arr if "sessionbell_hook.py" not in str(h.get("command", ""))]
-        if ev in wanted:
-            arr.append(wanted[ev])
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    if os.path.exists(path):
-        backup = path + ".sessionbell-backup-" + str(time.time_ns())
-        shutil.copy2(path, backup)
-        print("Backup: " + backup)
-    fd, tmp = tempfile.mkstemp(prefix="hooks-", suffix=".json", dir=os.path.dirname(path))
-    with os.fdopen(fd, "w") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, path)
-    cfg["cursor_enabled"] = True
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-    print(f"✓ 已注册 SessionBell → {path}(Cursor 无需重启)")
-    print("  本机 Cursor Agent 会话会出现在手机上;shell 命令可在锁屏批准;任务完成后 15 分钟内手机回复会作为下一条消息发给 Cursor。")
-    print("  Cloud Agent 不经过本机 hook,手机上看不到。")
+        log("cursor: ~/.cursor/hooks.json has an unexpected shape; leaving it alone")
+        return False
+    hooks = data.get("hooks", {})
+    current = all(
+        isinstance(hooks.get(ev), list) and any(
+            isinstance(h, dict) and h.get("command") == w["command"] and h.get("timeout") == w["timeout"]
+            for h in hooks[ev])
+        for ev, w in wanted.items())
+    if current and cfg.get("cursor_enabled"):
+        return False
+    if not current:
+        data["version"] = 1
+        hooks = data.setdefault("hooks", {})
+        for ev in set(hooks) | set(wanted):
+            arr = hooks.setdefault(ev, [])
+            if not isinstance(arr, list):
+                log("cursor: invalid hook group in ~/.cursor/hooks.json: " + ev)
+                return False
+            arr[:] = [h for h in arr if "sessionbell_hook.py" not in str((h or {}).get("command", ""))]
+            if ev in wanted:
+                arr.append(wanted[ev])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.exists(path):
+            backup = path + ".sessionbell-backup-" + str(time.time_ns())
+            shutil.copy2(path, backup)
+            if not quiet:
+                print("Backup: " + backup)
+        fd, tmp = tempfile.mkstemp(prefix="hooks-", suffix=".json", dir=os.path.dirname(path))
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    if not cfg.get("cursor_enabled"):
+        fresh = load_config("test")
+        fresh["cursor_enabled"] = True
+        cfg["cursor_enabled"] = True
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(fresh, f, indent=2, ensure_ascii=False)
+    log("cursor: hooks registered in ~/.cursor/hooks.json")
+    if not quiet:
+        print(f"✓ 已注册 SessionBell → {path}(Cursor 无需重启)")
+        print("  本机 Cursor Agent 会话会出现在手机上;shell 命令可在锁屏批准;任务完成后 15 分钟内手机回复会作为下一条消息发给 Cursor。")
+        print("  Cloud Agent 不经过本机 hook,手机上看不到。")
+    return True
+
+
+def cmd_cursor_enable():
+    """Manual entry point; the relay does this on its own when Cursor is installed."""
+    if sys.platform != "darwin":
+        raise SystemExit("Cursor integration currently requires macOS.")
+    if not cursor_installed():
+        raise SystemExit("Cursor.app not found in /Applications; install Cursor first.")
+    if not ensure_cursor_hooks(load_config("test")):
+        print("✓ SessionBell 已经在 ~/.cursor/hooks.json 里了,无需改动。")
 
 
 def main():
@@ -4416,6 +4476,11 @@ def main():
     # instead of waiting for the relay's first watcher tick.
     if kind == "test" and use_backend(cfg):
         sync_peers(cfg, load_sessions(), host)
+        try:
+            if ensure_cursor_hooks(cfg, quiet=True):
+                print("✓ 检测到 Cursor,已自动接入(任务、锁屏批准、手机回复)。")
+        except Exception as exc:
+            log(f"cursor: ensure failed: {exc}")
 
     ok = True
     for device_token in resolve_device_tokens(cfg):

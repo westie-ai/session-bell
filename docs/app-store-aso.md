@@ -39,8 +39,9 @@ Screenshots reused from 1.5 (`SKIP_SHOTS=1`). Title/subtitle unchanged. What cha
 - **Cursor on macOS.** Cursor imports `~/.claude/settings.json` hooks by
   default, so its Agent turns were already calling our hooks and landing on
   the phone as project ".claude". The hook now recognises Cursor's payload
-  (engine `cursor`, cwd from `workspace_roots`), `sessionbell cursor-enable`
-  registers native `~/.cursor/hooks.json` handlers (prompt, stop with a
+  (engine `cursor`, cwd from `workspace_roots`); the relay registers native
+  `~/.cursor/hooks.json` handlers automatically whenever Cursor.app is
+  installed (idempotent, backs up, no opt-in step) (prompt, stop with a
   reply-window timeout, session end, `beforeShellExecution` for Lock Screen
   approvals), Progress reads Cursor's transcript, and a phone reply in the
   stop window is returned as `followup_message`, which Cursor submits as the

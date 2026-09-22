@@ -90,8 +90,8 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "新增 Cursor 支持(macOS):Cursor 编辑器里的 Agent 任务和 Claude Code、Codex 一起出现在任务列表和锁屏面板上——开始、完成、需要批准时都会提醒;进展视图显示完整对话;shell 命令可在锁屏一键批准;任务完成后从手机回一句,会作为下一条消息直接发给 Cursor。Mac 上运行 sessionbell cursor-enable 即可开启。\n每个任务显示正在使用的模型,如「Cursor · grok-4.6」「Claude · fable-5-1」。\n任务列表和锁屏卡片新增 Cursor 图标。",
- "en-US": "Cursor support (macOS): Agent tasks in the Cursor editor show up next to Claude Code and Codex on the Tasks tab and the Lock Screen panel — you're pinged when a task starts, finishes, or needs approval; Progress shows the whole conversation; shell commands can be approved from the Lock Screen; and a reply from the phone after a task finishes is sent to Cursor as the next message. Run sessionbell cursor-enable on the Mac to turn it on.\nEach task now shows the model it is running on, e.g. \"Cursor · grok-4.6\" or \"Claude · fable-5-1\".\nNew Cursor icon on task rows and Lock Screen cards.",
+ "zh-Hans": "新增 Cursor 支持(macOS):Cursor 编辑器里的 Agent 任务和 Claude Code、Codex 一起出现在任务列表和锁屏面板上——开始、完成、需要批准时都会提醒;进展视图显示完整对话;shell 命令可在锁屏一键批准;任务完成后从手机回一句,会作为下一条消息直接发给 Cursor。Mac 端自动接入,无需设置。\n每个任务显示正在使用的模型,如「Cursor · grok-4.6」「Claude · fable-5-1」。\n任务列表和锁屏卡片新增 Cursor 图标。",
+ "en-US": "Cursor support (macOS): Agent tasks in the Cursor editor show up next to Claude Code and Codex on the Tasks tab and the Lock Screen panel — you're pinged when a task starts, finishes, or needs approval; Progress shows the whole conversation; shell commands can be approved from the Lock Screen; and a reply from the phone after a task finishes is sent to Cursor as the next message. Nothing to set up on the Mac.\nEach task now shows the model it is running on, e.g. \"Cursor · grok-4.6\" or \"Claude · fable-5-1\".\nNew Cursor icon on task rows and Lock Screen cards.",
 }
 # Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
 # so a locale whose description already changed upstream is left alone.

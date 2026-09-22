@@ -10,6 +10,7 @@ struct MarkdownText: View {
         case bullet([String])
         case code(String)
         case paragraph(String)
+        case table(header: [String]?, rows: [[String]])
 
         var id: String {
             switch self {
@@ -17,6 +18,7 @@ struct MarkdownText: View {
             case .bullet(let items): return "b-" + items.joined(separator: "|")
             case .code(let s): return "c-\(s.hashValue)"
             case .paragraph(let s): return "p-\(s.hashValue)"
+            case .table(let h, let r): return "t-\((h ?? []).hashValue)-\(r.hashValue)"
             }
         }
     }
@@ -48,9 +50,44 @@ struct MarkdownText: View {
                                 in: RoundedRectangle(cornerRadius: 8))
                 case .paragraph(let text):
                     Text(inline(text)).font(.subheadline)
+                case .table(let header, let rows):
+                    table(header: header, rows: rows)
                 }
             }
         }
+    }
+
+    /// Pipe tables: header row tinted, hairline between rows, cells wrap at a
+    /// sane width, whole thing scrolls sideways when it is wider than the phone.
+    @ViewBuilder
+    private func table(header: [String]?, rows: [[String]]) -> some View {
+        let all = (header.map { [$0] } ?? []) + rows
+        let columns = all.map(\.count).max() ?? 0
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
+                ForEach(Array(all.enumerated()), id: \.offset) { index, row in
+                    let isHeader = header != nil && index == 0
+                    GridRow {
+                        ForEach(0..<columns, id: \.self) { c in
+                            Text(inline(c < row.count ? row[c] : ""))
+                                .font(.caption)
+                                .fontWeight(isHeader ? .semibold : .regular)
+                                .foregroundStyle(isHeader ? Color.sbInk2 : Color.sbInk)
+                                .frame(maxWidth: 220, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.vertical, 7)
+                                .padding(.horizontal, 10)
+                        }
+                    }
+                    .background(isHeader ? Color(.tertiarySystemFill) : Color.clear)
+                    if index < all.count - 1 {
+                        Divider().gridCellUnsizedAxes(.horizontal)
+                    }
+                }
+            }
+        }
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func inline(_ s: String) -> AttributedString {
@@ -65,6 +102,27 @@ struct MarkdownText: View {
         var codeLines: [String]? = nil
         var bullets: [String] = []
         var paragraph: [String] = []
+        var tableRows: [[String]] = []
+        var tableHeader: [String]? = nil
+        var tableSawSeparator = false
+
+        func cells(_ line: String) -> [String] {
+            var body = Substring(line)
+            if body.hasPrefix("|") { body = body.dropFirst() }
+            if body.hasSuffix("|") { body = body.dropLast() }
+            return body.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        func isSeparator(_ cells: [String]) -> Bool {
+            !cells.isEmpty && cells.allSatisfy {
+                $0.range(of: #"^:?-{2,}:?$"#, options: .regularExpression) != nil
+            }
+        }
+        func flushTable() {
+            if !tableRows.isEmpty || tableHeader != nil {
+                blocks.append(.table(header: tableHeader, rows: tableRows))
+            }
+            tableRows = []; tableHeader = nil; tableSawSeparator = false
+        }
 
         func flushBullets() {
             if !bullets.isEmpty { blocks.append(.bullet(bullets)); bullets = [] }
@@ -92,6 +150,20 @@ struct MarkdownText: View {
                 codeLines?.append(rawLine)
                 continue
             }
+            if line.hasPrefix("|") && line.count > 1 {
+                flushBullets(); flushParagraph()
+                let row = cells(line)
+                if isSeparator(row) {
+                    if !tableSawSeparator, tableHeader == nil, let first = tableRows.first, tableRows.count == 1 {
+                        tableHeader = first; tableRows = []
+                    }
+                    tableSawSeparator = true
+                } else {
+                    tableRows.append(row)
+                }
+                continue
+            }
+            flushTable()
             if let match = line.range(of: #"^#{1,3}\s+"#, options: .regularExpression) {
                 flushBullets(); flushParagraph()
                 let level = line.prefix(while: { $0 == "#" }).count
@@ -107,7 +179,7 @@ struct MarkdownText: View {
             }
         }
         if let lines = codeLines { blocks.append(.code(lines.joined(separator: "\n"))) }
-        flushBullets(); flushParagraph()
+        flushTable(); flushBullets(); flushParagraph()
         return blocks
     }
 }
