@@ -113,35 +113,39 @@ route to the Cursor path instead of ignoring); (3) follow-up via `stop` hold
 once the timeout ceiling is measured; (4) editor terminal view from
 `terminals/*.txt`; (5) CLI spawn.
 
-## Open items to verify on a real machine
+## Verified on this Mac (Cursor 3.21.16, 2026-09-22 16:11, local Agent, grok-4.6)
 
-- Max `timeout` Cursor allows on a `stop` hook and whether a long-held `stop`
-  blocks the UI (docs say it does not wait, but the follow-up is submitted).
-- Whether `beforeShellExecution` `ask` re-opens Cursor's approval dialog after
-  our hook has already alerted the phone, or is treated as deny.
-- Whether `~/.cursor/hooks.json` changes need a Cursor restart.
-- Exact `transcript_path` contents (JSONL, updated live?).
+Probe hook (log-only, `stop` held 30 s with `timeout: 120`) captured, in order:
+`sessionStart` → `beforeSubmitPrompt` → `preToolUse` (tool `Shell`) →
+`beforeShellExecution` → `afterShellExecution` → `afterAgentResponse` → `stop`.
 
-A log-only probe to answer the first three: put this in `~/.cursor/hooks.json`,
-run one agent turn that executes a shell command, read
-`~/.sessionbell/cursor-hooks.log`.
+- `~/.cursor/hooks.json` is picked up **without restarting Cursor**
+  (hooks log: "Loaded 8 user hook(s)"). The same log line "Loaded Claude user
+  hooks" confirms `~/.claude/settings.json` is imported.
+- Every payload carries **both `conversation_id` and `session_id`** (same
+  value), `workspace_roots`, `model`; from the first tool call on,
+  `transcript_path` points at
+  `~/.cursor/projects/<sanitized-root>/agent-transcripts/<id>/<id>.jsonl`
+  (null on `sessionStart`/`beforeSubmitPrompt`).
+- The transcript is JSONL in Claude-transcript shape: `{"role":"user"|"assistant","message":{"content":[{type:text|tool_use,…}]}}`
+  and a final `{"type":"turn_ended","status":"success"}`. Our Progress-view
+  parser can read it with a small adapter.
+- `afterAgentResponse` and `stop` carry `input_tokens`, `output_tokens`,
+  `cache_read_tokens`, `cache_write_tokens` per turn, plus `status` and
+  `loop_count` on `stop`. Per-session token totals for free.
+- `afterShellExecution` includes the full command `output` and `duration`:
+  editor sessions get a terminal view from hooks alone.
+- The `stop` script was allowed to run the full 30 s (`timeout: 120`
+  honoured, no kill). Whether the UI showed the turn as finished during the
+  hold was not observed; the follow-up path is viable.
+- **Trap:** the two earlier attempts silently went to Cloud Agents
+  (`background-composer` VMs, hooks resolved under `/home/ubuntu`), where user
+  hooks never load and nothing lands in the local DB. Detection: no
+  `sessionStart` locally; the phone should not expect those.
 
-```json
-{"version":1,"hooks":{
- "sessionStart":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}],
- "beforeSubmitPrompt":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}],
- "beforeShellExecution":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}],
- "afterAgentResponse":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}],
- "stop":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}],
- "sessionEnd":[{"command":"~/.sessionbell/cursor_probe.sh","timeout":5}]}}
-```
-
-```bash
-#!/bin/bash
-# ~/.sessionbell/cursor_probe.sh — log the payload, never block
-d=$(cat); printf '%s %s\n' "$(date '+%F %T')" "$d" >> "$HOME/.sessionbell/cursor-hooks.log"
-echo '{}'
-```
+Still open: does `beforeShellExecution` `ask` reopen Cursor's own dialog after
+our hook alerted the phone; maximum `stop` timeout Cursor accepts; CLI
+(`agent`) behaviour, not installed here.
 
 Sources: cursor.com/docs/agent/hooks, cursor.com/docs/reference/third-party-hooks,
 cursor.com/docs/cli/headless, cursor.com/docs/cli/reference/output-format,
