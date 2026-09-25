@@ -255,6 +255,9 @@ async function handleCapture(req, env, n, url) {
   if (!SID.test(sid || '')) return json({ error: 'bad id' }, 400);
   const prefix = url.searchParams.get('kind') === 'md' ? 'md' : 'capture';
   const row = await kvGet(env, n, `${prefix}/${sid}`);
+  // 手机每秒轮询:帧没比 since 新就只回 ts,不重复下发 24 KB 正文。
+  const since = Number(url.searchParams.get('since')) || 0;
+  if (row && since && row.ts <= since) return json({ capture: { ts: row.ts } });
   return json({ capture: row ? { ts: row.ts, text: row.v } : null });
 }
 

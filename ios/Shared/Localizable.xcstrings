@@ -1,6 +1,36 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "New content": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "新内容"}}}
+    },
+    "Live": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "实时"}}}
+    },
+    "Mac not responding": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Mac 未响应"}}}
+    },
+    "Mac not responding · as of %@ ago": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Mac 未响应 · 停在 %@前"}}}
+    },
+    "Text Size": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "字号"}}}
+    },
+    "Smaller": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "缩小"}}}
+    },
+    "Larger": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "放大"}}}
+    },
+    "Reset": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "恢复默认"}}}
+    },
+    "Copy": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "复制"}}}
+    },
+    "Copy Section": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "复制整段"}}}
+    },
     "Session tokens: %lld": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "会话 token：%lld"}}}
     },

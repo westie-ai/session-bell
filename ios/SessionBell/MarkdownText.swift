@@ -1,59 +1,107 @@
 import SwiftUI
+import UIKit
 
 /// Lightweight block-level markdown renderer: headers, lists, fenced code,
-/// and inline styles (bold/italic/code/links) via AttributedString.
+/// pipe tables, rules, and inline styles (bold/italic/code/links) via
+/// AttributedString. Your prompts (`### ❯ …` + `> ` continuation lines from
+/// the Mac) render as a tinted card so they stand apart from the agent's reply.
+/// Long-press a block to copy it, or the whole section it sits in — a run of
+/// reply text bounded by prompts, tool-call lines and `---` rules (e.g. a
+/// drafted announcement fenced with rules), copied as plain text.
 struct MarkdownText: View {
     let text: String
 
-    private enum Block: Identifiable {
+    private enum Block {
         case heading(String, Int)
         case bullet([String])
         case code(String)
         case paragraph(String)
         case table(header: [String]?, rows: [[String]])
+        case rule
+        /// Your prompt: `### ❯ first line` plus `> ` continuation lines.
+        case prompt(String)
 
-        var id: String {
+        /// Prompts, tool-call lists and rules split sections.
+        var isSeparator: Bool {
             switch self {
-            case .heading(let s, let l): return "h\(l)-\(s)"
-            case .bullet(let items): return "b-" + items.joined(separator: "|")
-            case .code(let s): return "c-\(s.hashValue)"
-            case .paragraph(let s): return "p-\(s.hashValue)"
-            case .table(let h, let r): return "t-\((h ?? []).hashValue)-\(r.hashValue)"
+            case .rule, .prompt: return true
+            case .bullet(let items): return items.allSatisfy { $0.hasPrefix("🔧") }
+            default: return false
             }
         }
     }
 
     var body: some View {
+        let blocks = parse()
+        let sections = sectionIndex(blocks)
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(parse()) { block in
-                switch block {
-                case .heading(let text, let level):
-                    Text(inline(text))
-                        .font(level == 1 ? .title3.bold()
-                              : level == 2 ? .headline : .subheadline.bold())
-                case .bullet(let items):
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(items, id: \.self) { item in
-                            HStack(alignment: .top, spacing: 6) {
-                                Text("•").foregroundStyle(.secondary)
-                                Text(inline(item)).font(.subheadline)
-                            }
+            ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
+                view(for: block)
+                    .contextMenu {
+                        if case .rule = block {} else {
+                            Button {
+                                UIPasteboard.general.string = plain(block)
+                            } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        }
+                        if let s = sections[i],
+                           sections.filter({ $0 == s }).count > 1 {
+                            Button {
+                                UIPasteboard.general.string = blocks.indices
+                                    .filter { sections[$0] == s }
+                                    .map { plain(blocks[$0]) }
+                                    .joined(separator: "\n\n")
+                            } label: { Label("Copy Section", systemImage: "doc.on.clipboard") }
                         }
                     }
-                case .code(let code):
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        Text(code)
-                            .font(.system(.caption, design: .monospaced))
-                            .padding(8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func view(for block: Block) -> some View {
+        switch block {
+        case .prompt(let text):
+            // Chat-style bubble on the right, tail corner bottom-right; the
+            // agent's reply stays full-width on the left.
+            HStack {
+                Spacer(minLength: 44)
+                Text(inline(text))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.sbInk)
+                    .padding(.vertical, 9)
+                    .padding(.horizontal, 13)
+                    .background(Color.sbApprovalSoft,
+                                in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18,
+                                                           bottomTrailingRadius: 5, topTrailingRadius: 18))
+            }
+            .padding(.top, 6)
+        case .heading(let text, let level):
+            Text(inline(text))
+                .font(level == 1 ? .title3.bold()
+                      : level == 2 ? .headline : .subheadline.bold())
+        case .bullet(let items):
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("•").foregroundStyle(.secondary)
+                        Text(inline(item)).font(.subheadline)
                     }
-                    .background(Color(.secondarySystemBackground),
-                                in: RoundedRectangle(cornerRadius: 8))
-                case .paragraph(let text):
-                    Text(inline(text)).font(.subheadline)
-                case .table(let header, let rows):
-                    table(header: header, rows: rows)
                 }
             }
+        case .code(let code):
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(.system(.caption, design: .monospaced))
+                    .padding(8)
+            }
+            .background(Color(.secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: 8))
+        case .paragraph(let text):
+            Text(inline(text)).font(.subheadline)
+        case .table(let header, let rows):
+            table(header: header, rows: rows)
+        case .rule:
+            Divider().padding(.vertical, 4)
         }
     }
 
@@ -90,6 +138,37 @@ struct MarkdownText: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    /// Section number per block; separators belong to none.
+    private func sectionIndex(_ blocks: [Block]) -> [Int?] {
+        var n = 0
+        var open = false
+        return blocks.map { b in
+            if b.isSeparator {
+                if open { n += 1; open = false }
+                return nil
+            }
+            open = true
+            return n
+        }
+    }
+
+    /// What lands on the pasteboard: inline markup stripped, list dashes kept.
+    private func plain(_ block: Block) -> String {
+        func strip(_ s: String) -> String { String(inline(s).characters) }
+        switch block {
+        case .heading(let s, _): return strip(s)
+        case .bullet(let items): return items.map { "- " + strip($0) }.joined(separator: "\n")
+        case .code(let s): return s
+        case .paragraph(let s): return strip(s)
+        case .prompt(let s): return strip(s)
+        case .table(let header, let rows):
+            return ((header.map { [$0] } ?? []) + rows)
+                .map { $0.map(strip).joined(separator: "\t") }
+                .joined(separator: "\n")
+        case .rule: return ""
+        }
+    }
+
     private func inline(_ s: String) -> AttributedString {
         (try? AttributedString(
             markdown: s,
@@ -102,6 +181,7 @@ struct MarkdownText: View {
         var codeLines: [String]? = nil
         var bullets: [String] = []
         var paragraph: [String] = []
+        var prompt: [String]? = nil
         var tableRows: [[String]] = []
         var tableHeader: [String]? = nil
         var tableSawSeparator = false
@@ -123,7 +203,10 @@ struct MarkdownText: View {
             }
             tableRows = []; tableHeader = nil; tableSawSeparator = false
         }
-
+        func flushPrompt() {
+            if let lines = prompt { blocks.append(.prompt(lines.joined(separator: "\n"))) }
+            prompt = nil
+        }
         func flushBullets() {
             if !bullets.isEmpty { blocks.append(.bullet(bullets)); bullets = [] }
         }
@@ -136,12 +219,17 @@ struct MarkdownText: View {
 
         for rawLine in text.components(separatedBy: "\n") {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if prompt != nil, line.hasPrefix(">") {
+                prompt?.append(String(line.dropFirst(line.hasPrefix("> ") ? 2 : 1)))
+                continue
+            }
+            flushPrompt()
             if line.hasPrefix("```") {
                 if let lines = codeLines {
                     blocks.append(.code(lines.joined(separator: "\n")))
                     codeLines = nil
                 } else {
-                    flushBullets(); flushParagraph()
+                    flushTable(); flushBullets(); flushParagraph()
                     codeLines = []
                 }
                 continue
@@ -164,7 +252,13 @@ struct MarkdownText: View {
                 continue
             }
             flushTable()
-            if let match = line.range(of: #"^#{1,3}\s+"#, options: .regularExpression) {
+            if line.hasPrefix("### ❯") {
+                flushBullets(); flushParagraph()
+                prompt = [String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)]
+            } else if line.range(of: #"^(-{3,}|\*{3,}|_{3,})$"#, options: .regularExpression) != nil {
+                flushBullets(); flushParagraph()
+                blocks.append(.rule)
+            } else if let match = line.range(of: #"^#{1,3}\s+"#, options: .regularExpression) {
                 flushBullets(); flushParagraph()
                 let level = line.prefix(while: { $0 == "#" }).count
                 blocks.append(.heading(String(line[match.upperBound...]), level))
@@ -179,7 +273,7 @@ struct MarkdownText: View {
             }
         }
         if let lines = codeLines { blocks.append(.code(lines.joined(separator: "\n"))) }
-        flushTable(); flushBullets(); flushParagraph()
+        flushPrompt(); flushTable(); flushBullets(); flushParagraph()
         return blocks
     }
 }

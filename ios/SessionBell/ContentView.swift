@@ -1214,6 +1214,62 @@ struct EventHistoryView: View {
     }
 }
 
+private struct BottomOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// 详情页阅读字号(类似微信读书的 Aa):进展视图 / 通知历史按档位覆盖
+/// Dynamic Type,终端用对应的等宽字号。档位存本机,所有 session 共用。
+enum ReadingSize {
+    static let key = "sb.readingSize"
+    static let defaultLevel = 3
+    private static let types: [DynamicTypeSize] = [
+        .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+        .accessibility1, .accessibility2, .accessibility3,
+    ]
+    private static let terminal: [CGFloat] = [10, 11, 11.5, 12, 13, 14, 15, 17, 19, 21]
+    static let maxLevel = types.count - 1
+
+    static func clamp(_ level: Int) -> Int { min(max(level, 0), maxLevel) }
+    static func type(_ level: Int) -> DynamicTypeSize { types[clamp(level)] }
+    static func terminalPoints(_ level: Int) -> CGFloat { terminal[clamp(level)] }
+}
+
+struct ReadingSizePanel: View {
+    @Binding var level: Int
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                Button { level = ReadingSize.clamp(level - 1) } label: {
+                    Text("A").font(.system(size: 14))
+                        .frame(width: 32, height: 32)
+                }
+                .disabled(level <= 0)
+                .accessibilityLabel(Text("Smaller"))
+                Slider(value: Binding(
+                    get: { Double(ReadingSize.clamp(level)) },
+                    set: { level = Int($0.rounded()) }),
+                       in: 0...Double(ReadingSize.maxLevel), step: 1)
+                Button { level = ReadingSize.clamp(level + 1) } label: {
+                    Text("A").font(.system(size: 24))
+                        .frame(width: 32, height: 32)
+                }
+                .disabled(level >= ReadingSize.maxLevel)
+                .accessibilityLabel(Text("Larger"))
+            }
+            if level != ReadingSize.defaultLevel {
+                Button("Reset") { level = ReadingSize.defaultLevel }
+                    .font(.footnote)
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
+        .sensoryFeedback(.selection, trigger: level)
+    }
+}
+
 /// 统一详情页 — 通知点进来、任务卡点进来都是它。
 /// 只回答两个问题:最新发生了什么(Claude 最新回复 + 终端画面),
 /// 你要发什么(底部输入框,自动选通道)。其余收进角落。
@@ -1228,6 +1284,8 @@ struct SessionPage: View {
     @State private var sendNoteOK = true
     @State private var noteTask: Task<Void, Never>?
     @FocusState private var inputFocused: Bool
+    @AppStorage(ReadingSize.key) private var readingSize = ReadingSize.defaultLevel
+    @State private var showTextSize = false
 
     private var liveTask: EventStore.LiveTask? {
         store.liveTasks.first { $0.sessionId == sessionId }
@@ -1277,6 +1335,12 @@ struct SessionPage: View {
     @State private var mdDate: Date?
     @State private var mdLastTs: Double = 0
     @State private var mdRefreshing = false
+    /// Mac 是否在接跟随请求:nil = 还在连,true = 在线,false = 请求没人取。
+    @State private var mdResponding: Bool?
+    /// 进展视图是否停在底部;不在底部时新内容不抢滚动,改亮「新内容」。
+    @State private var atBottom = true
+    @State private var newBelow = false
+    @State private var framePulse = 0
 
     private var hasTerminal: Bool { !isCodex && peekTask != nil }
 
@@ -1308,6 +1372,15 @@ struct SessionPage: View {
         .navigationTitle(project)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showTextSize = true } label: {
+                    Label("Text Size", systemImage: "textformat.size")
+                }
+                .popover(isPresented: $showTextSize) {
+                    ReadingSizePanel(level: $readingSize)
+                        .presentationCompactAdaptation(.popover)
+                }
+            }
             if let g = group, g.events.count > 1 {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showHistory = true } label: {
@@ -1323,6 +1396,7 @@ struct SessionPage: View {
         .sheet(isPresented: $showHistory) {
             if let g = group {
                 NavigationStack { EventHistoryView(group: g) }
+                    .dynamicTypeSize(ReadingSize.type(readingSize))
             }
         }
         .task(id: "\(peekTask?.sessionId ?? "")/\(tab == .terminal)") {
@@ -1338,48 +1412,117 @@ struct SessionPage: View {
     /// 内容和终端画面一一对应,只是排好了版。Mac 不在线时退回最近一条推送的回复。
     private var progressPane: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    headerCard
-                    if isCodex, let host = resolvedHost {
-                        ForEach(liveTask?.requests ?? []) { request in
-                            CodexRequestCard(request: request, sessionId: sessionId, host: host)
+            GeometryReader { viewport in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        headerCard
+                        if isCodex, let host = resolvedHost {
+                            ForEach(liveTask?.requests ?? []) { request in
+                                CodexRequestCard(request: request, sessionId: sessionId, host: host)
+                            }
                         }
+                        if !mdText.isEmpty {
+                            MarkdownText(text: mdText)
+                                .padding(.horizontal, 2)
+                        } else if hasTerminal, mdRefreshing {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.mini)
+                                Text("Fetching the full conversation from the Mac…")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        // 底部哨兵:它的位置决定「是否停在底部」
+                        Color.clear.frame(height: 1).id("pbottom")
+                            .background(GeometryReader { g in
+                                Color.clear.preference(key: BottomOffsetKey.self,
+                                                       value: g.frame(in: .named("pscroll")).minY)
+                            })
                     }
-                    if !mdText.isEmpty {
-                        MarkdownText(text: mdText)
-                            .padding(.horizontal, 2)
-                        HStack(spacing: 4) {
-                            if mdRefreshing { ProgressView().controlSize(.mini) }
-                            if let mdDate { Text("\(Text(mdDate, style: .relative)) ago") }
-                            Spacer()
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    } else if hasTerminal, mdRefreshing {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.mini)
-                            Text("Fetching the full conversation from the Mac…")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    Color.clear.frame(height: 1).id("pbottom")
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 44)   // 给悬浮状态胶囊留位置
+                    .dynamicTypeSize(ReadingSize.type(readingSize))
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .coordinateSpace(name: "pscroll")
+                .onPreferenceChange(BottomOffsetKey.self) { y in
+                    let bottom = y <= viewport.size.height + 60
+                    if bottom != atBottom { atBottom = bottom }
+                    if bottom { newBelow = false }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture { inputFocused = false }
             .onChange(of: mdText) { _, _ in
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("pbottom", anchor: .bottom)
+                framePulse += 1
+                if atBottom {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("pbottom", anchor: .bottom)
+                    }
+                } else {
+                    newBelow = true
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if hasTerminal {
+                    syncPill {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            proxy.scrollTo("pbottom", anchor: .bottom)
+                        }
+                        newBelow = false
+                    }
+                    .padding(.bottom, 8)
                 }
             }
         }
     }
 
-    /// 进展帧循环:先亮后端缓存的整理版,再让 Mac 重新整理;4 秒一轮。
+    /// 悬浮同步状态:有新内容且你在往上翻 → 「↓ 新内容」;否则是连接状态。
+    /// 取代原来底部一直跳的「x 秒前」。
+    @ViewBuilder
+    private func syncPill(jump: @escaping () -> Void) -> some View {
+        if newBelow {
+            Button(action: jump) {
+                Label("New content", systemImage: "arrow.down")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .foregroundStyle(Color.sbInkOnAccent)
+                    .background(Color.sbAccent, in: Capsule())
+                    .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+            }
+            .buttonStyle(.plain)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            HStack(spacing: 5) {
+                switch mdResponding {
+                case .some(true):
+                    Circle().fill(Color.sbDone).frame(width: 6, height: 6)
+                        .phaseAnimator([1.0, 1.8, 1.0], trigger: framePulse) { dot, scale in
+                            dot.scaleEffect(scale)
+                        }
+                    Text("Live")
+                case .some(false):
+                    Circle().fill(Color.sbWaiting).frame(width: 6, height: 6)
+                    if let mdDate {
+                        Text("Mac not responding · as of \(Text(mdDate, style: .relative)) ago")
+                    } else {
+                        Text("Mac not responding")
+                    }
+                case .none:
+                    ProgressView().controlSize(.mini)
+                    Text("Connecting…")
+                }
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(Color.sbInk2)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(.ultraThinMaterial, in: Capsule())
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 进展帧循环:先亮后端缓存的整理版,再让 Mac 跟随这个 session —
+    /// Mac 在会话记录一变就推帧,这边每秒看一眼;每 8 秒续一次跟随
+    /// (旧版 Mac 不会跟随,续期请求本身也会让它回一帧)。
     private func progressLoop() async {
         guard hasTerminal, let task = peekTask else { return }
         if mdText.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId, kind: "md") {
@@ -1387,23 +1530,52 @@ struct SessionPage: View {
             mdDate = cap.date
             mdText = cap.text
         }
+        await followLoop(command: "_md-\(EventStore.canonicalHost(task.host))",
+                         sessionId: task.sessionId, kind: "md",
+                         lastTs: mdLastTs, refreshing: $mdRefreshing,
+                         responding: $mdResponding) { cap in
+            mdLastTs = cap.date.timeIntervalSince1970
+            mdDate = cap.date
+            mdText = cap.text
+        }
+    }
+
+    /// 两个视图共用:发跟随请求 → 每秒取新帧 → 每 8 秒续期。
+    /// refreshing 只在「请求已发、这一轮还没拿到新帧」时亮,拿到就灭。
+    /// responding:每轮发出 4 秒后看请求有没有被 Mac 取走(取走即删),
+    /// 内容没变 Mac 不推帧时也能知道它还在线。
+    private func followLoop(command: String, sessionId: String, kind: String,
+                            lastTs: Double, refreshing: Binding<Bool>,
+                            responding: Binding<Bool?>,
+                            onFrame: (_ cap: (date: Date, text: String)) -> Void) async {
+        var lastTs = (lastTs * 1000).rounded()
+        var lastSent = Date.distantPast
+        var checked = true
+        responding.wrappedValue = nil
         while !Task.isCancelled {
-            mdRefreshing = true
-            await store.sendMachineCommand(
-                "_md-\(EventStore.canonicalHost(task.host))", text: task.sessionId)
-            for _ in 0..<5 {
-                try? await Task.sleep(for: .seconds(2))
-                if Task.isCancelled { return }
-                if let cap = await fetchCapture(sessionId: task.sessionId, kind: "md"),
-                   cap.date.timeIntervalSince1970 > mdLastTs {
-                    mdLastTs = cap.date.timeIntervalSince1970
-                    mdDate = cap.date
-                    mdText = cap.text
-                    break
+            if Date().timeIntervalSince(lastSent) >= 8 {
+                lastSent = Date()
+                checked = false
+                refreshing.wrappedValue = true
+                await store.sendMachineCommand(command, text: sessionId)
+            }
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return }
+            if let cap = await fetchCapture(sessionId: sessionId, kind: kind, since: lastTs) {
+                lastTs = (cap.date.timeIntervalSince1970 * 1000).rounded()
+                refreshing.wrappedValue = false
+                responding.wrappedValue = true
+                onFrame(cap)
+            } else if Date().timeIntervalSince(lastSent) >= 3 {
+                // Mac 在跟随时内容没变就不重推 — 过几秒还没新帧就别一直转圈
+                refreshing.wrappedValue = false
+            }
+            if !checked, Date().timeIntervalSince(lastSent) >= 4 {
+                checked = true
+                if let obj = await SBBackend.getJSON("/api/command?id=\(command)") as? [String: Any] {
+                    responding.wrappedValue = !(obj["command"] is [String: Any])
                 }
             }
-            mdRefreshing = false
-            try? await Task.sleep(for: .seconds(4))
         }
     }
 
@@ -1438,7 +1610,8 @@ struct SessionPage: View {
                             Text(terminalPrettify(termOutput))
                         }
                     }
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(.system(size: ReadingSize.terminalPoints(readingSize),
+                                  weight: .regular, design: .monospaced))
                     .lineSpacing(3)
                     .foregroundStyle(termOutput.isEmpty ? termFG.opacity(0.55) : termFG)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1469,23 +1642,13 @@ struct SessionPage: View {
             termDate = cap.date
             termOutput = cap.text
         }
-        while !Task.isCancelled {
-            termRefreshing = true
-            await store.sendMachineCommand(
-                "_tail-\(EventStore.canonicalHost(task.host))", text: task.sessionId)
-            for _ in 0..<5 {
-                try? await Task.sleep(for: .seconds(2))
-                if Task.isCancelled { return }
-                if let cap = await fetchCapture(sessionId: task.sessionId),
-                   cap.date.timeIntervalSince1970 > termLastTs {
-                    termLastTs = cap.date.timeIntervalSince1970
-                    termDate = cap.date
-                    termOutput = cap.text
-                    break
-                }
-            }
-            termRefreshing = false
-            try? await Task.sleep(for: .seconds(2))
+        await followLoop(command: "_tail-\(EventStore.canonicalHost(task.host))",
+                         sessionId: task.sessionId, kind: "capture",
+                         lastTs: termLastTs, refreshing: $termRefreshing,
+                         responding: .constant(nil)) { cap in
+            termLastTs = cap.date.timeIntervalSince1970
+            termDate = cap.date
+            termOutput = cap.text
         }
     }
 
@@ -1776,10 +1939,11 @@ func terminalPrettify(_ raw: String) -> String {
 }
 
 /// 后端缓存的最后一帧抓屏(worker /api/capture,ts 为毫秒)
-func fetchCapture(sessionId: String, kind: String = "capture") async -> (date: Date, text: String)? {
-    guard let obj = await SBBackend.getJSON("/api/capture?id=\(sessionId)&kind=\(kind)") as? [String: Any],
+/// since:只要比这个时间戳(ms)新的帧;后端对旧帧只回 ts 不回正文,这里返回 nil。
+func fetchCapture(sessionId: String, kind: String = "capture", since: Double = 0) async -> (date: Date, text: String)? {
+    guard let obj = await SBBackend.getJSON("/api/capture?id=\(sessionId)&kind=\(kind)&since=\(Int64(since))") as? [String: Any],
           let cap = obj["capture"] as? [String: Any],
-          let ts = cap["ts"] as? Double,
+          let ts = cap["ts"] as? Double, ts > since,
           let text = cap["text"] as? String else { return nil }
     return (Date(timeIntervalSince1970: ts / 1000), text)
 }

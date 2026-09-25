@@ -1819,7 +1819,7 @@ def capture_pane(entry: dict):
     return None
 
 
-def handle_tail(cfg: dict, target_sid: str) -> None:
+def tail_text(target_sid: str) -> str:
     state = load_sessions()
     # The pane outlives the session: fall back to the terminal registry so
     # the phone terminal stays connected after the session record is gone.
@@ -1831,10 +1831,11 @@ def handle_tail(cfg: dict, target_sid: str) -> None:
         if text is None:
             text = "(终端已关闭,或该终端不支持远程捕获)"
     lines = text.rstrip().splitlines()[-100:]
-    backend_call(cfg, "POST", "/api/capture",
-                 {"session_id": target_sid,
-                  "text": clip_bytes("\n".join(lines), 12000)})
-    log(f"tail: captured {target_sid[:8]} ({len(lines)} lines)")
+    return clip_bytes("\n".join(lines), 12000)
+
+
+def handle_tail(cfg: dict, target_sid: str) -> None:
+    push_frame(cfg, "tail", target_sid, force=not follow_frames(cfg, "tail", target_sid))
 
 
 def tool_line(c: dict) -> str:
@@ -1851,6 +1852,26 @@ def tool_line(c: dict) -> str:
                 what = os.path.basename(v.rstrip("/")) if k in ("file_path", "path", "notebook_path") else v
                 break
     return clip_bytes(" ".join(f"{name} {what}".split()), 120)
+
+
+def prompt_block(prompt: str, max_bytes: int = 2000) -> str:
+    """你的一条提示:首行 `### ❯ `,后续行 `> ` 续接,保留换行(连续空行并成一个)。
+    手机把整块渲染成一张「你说的」卡片;旧版 app 也能读(续行显示成引用前缀)。"""
+    import re
+    # 粘贴进来的大段文字外面包着 <pasted_content id=…> 标签,手机上不需要
+    prompt = re.sub(r"</?pasted_content[^>]*>", "", prompt)
+    lines = [l.rstrip() for l in clip_bytes(prompt, max_bytes).splitlines()]
+    out: list = []
+    for l in lines:
+        if not l.strip() and (not out or not out[-1].strip()):
+            continue
+        out.append(l)
+    while out and not out[-1].strip():
+        out.pop()
+    if not out:
+        return "### ❯"
+    return "\n".join(["### ❯ " + out[0].strip()]
+                     + [("> " + l) if l.strip() else ">" for l in out[1:]])
 
 
 def find_transcript(session_id: str) -> str:
@@ -1916,7 +1937,7 @@ def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
                     if not prompt or prompt.startswith("<"):
                         continue
                     flush_tools()
-                    blocks.append("### ❯ " + clip_bytes(" ".join(prompt.split()), 300))
+                    blocks.append(prompt_block(prompt))
                 elif kind == "assistant" and isinstance(content, list):
                     for c in content:
                         if not isinstance(c, dict):
@@ -1942,14 +1963,116 @@ def session_markdown(session_id: str, max_bytes: int = 24000) -> str:
     return "\n\n".join(reversed(out))
 
 
-def handle_md(cfg: dict, target_sid: str) -> None:
-    """手机「进展」视图:回传整理版会话记录(见 session_markdown)。"""
+def md_text(target_sid: str) -> str:
     text = session_markdown(target_sid)
     if not text:
         text = "(没有这个 session 的本地会话记录 — 可能在另一台电脑上,或已被清理)"
-    backend_call(cfg, "POST", "/api/capture",
-                 {"session_id": target_sid, "kind": "md", "text": clip_bytes(text, 24000)})
-    log(f"md: sent {target_sid[:8]} ({len(text)} chars)")
+    return clip_bytes(text, 24000)
+
+
+def handle_md(cfg: dict, target_sid: str) -> None:
+    """手机「进展」视图:回传整理版会话记录(见 session_markdown)。"""
+    push_frame(cfg, "md", target_sid, force=not follow_frames(cfg, "md", target_sid))
+
+
+# 手机开着进展/终端视图时,每条 _md/_tail 请求会让 Mac 盯住这个 session
+# FOLLOW_SECONDS 秒:内容一变就主动推帧,不用等下一轮请求。手机每 ~8 秒续一次。
+# 请求只负责「开始/续期」;续期期间内容没变就不重复上传。
+FOLLOW_SECONDS = 30
+_FOLLOW: dict = {}        # (kind, sid) -> 到期时间
+_FOLLOW_SIG: dict = {}    # (kind, sid) -> 上次推送的内容签名
+_FOLLOW_NEXT: dict = {}   # (kind, sid) -> 下次允许抓取的时间
+_FOLLOW_RUNNING = [False]
+_FOLLOW_LOCK = None
+
+
+def _follow_lock():
+    global _FOLLOW_LOCK
+    if _FOLLOW_LOCK is None:
+        import threading
+        _FOLLOW_LOCK = threading.Lock()
+    return _FOLLOW_LOCK
+
+
+def follow_frames(cfg: dict, kind: str, sid: str) -> bool:
+    """开始/续期跟随;返回调用前是否已在跟随(已在跟随 = 这次请求只是续期)。"""
+    import threading
+    key = (kind, sid)
+    with _follow_lock():
+        active = _FOLLOW.get(key, 0) > time.time()
+        _FOLLOW[key] = time.time() + FOLLOW_SECONDS
+        if not active:
+            # 这一帧由请求方强制推;跟随线程下一秒再开始比对
+            _FOLLOW_NEXT[key] = time.time() + 1
+        if _FOLLOW_RUNNING[0]:
+            return active
+        _FOLLOW_RUNNING[0] = True
+    threading.Thread(target=_follow_loop, args=(cfg,), daemon=True).start()
+    return active
+
+
+def _md_signature(sid: str):
+    path = find_transcript(sid)
+    try:
+        st = os.stat(path) if path else None
+        return (st.st_mtime_ns, st.st_size) if st else None
+    except OSError:
+        return None
+
+
+def push_frame(cfg: dict, kind: str, sid: str, force: bool = False) -> None:
+    """重新生成一帧;内容没变且非强制就不上传。md 先比会话记录的 mtime,
+    没动过就连 markdown 都不重排。"""
+    key = (kind, sid)
+    if kind == "md":
+        sig = _md_signature(sid)
+        if not force and sig is not None and _FOLLOW_SIG.get(key, (None,))[0] == sig:
+            return
+        text = md_text(sid)
+    else:
+        sig = None
+        text = tail_text(sid)
+    digest = hash(text)
+    if not force and _FOLLOW_SIG.get(key, (None, None))[1] == digest:
+        _FOLLOW_SIG[key] = (sig, digest)
+        return
+    body = {"session_id": sid, "text": text}
+    if kind == "md":
+        body["kind"] = "md"
+    if backend_call(cfg, "POST", "/api/capture", body) is not None:
+        _FOLLOW_SIG[key] = (sig, digest)
+    if force:
+        log(f"{kind}: sent {sid[:8]} ({len(text)} chars)")
+
+
+def _follow_loop(cfg: dict) -> None:
+    while True:
+        now = time.time()
+        with _follow_lock():
+            for key in [k for k, exp in _FOLLOW.items() if exp <= now]:
+                _FOLLOW.pop(key, None)
+                _FOLLOW_SIG.pop(key, None)
+                _FOLLOW_NEXT.pop(key, None)
+            keys = list(_FOLLOW)
+            if not keys:
+                _FOLLOW_RUNNING[0] = False
+                return
+        for kind, sid in keys:
+            if _FOLLOW_NEXT.get((kind, sid), 0) > now:
+                continue
+            gap = 1.0
+            if kind == "tail":
+                # 抓屏走 osascript 的终端比较重,放慢一点
+                st = load_sessions()
+                entry = st["local"].get(sid) or st.get("terms", {}).get(sid) or {}
+                if entry.get("term_type") in ("iterm", "terminal"):
+                    gap = 2.5
+            _FOLLOW_NEXT[(kind, sid)] = now + gap
+            try:
+                push_frame(cfg, kind, sid)
+            except Exception as e:  # 跟随线程不能死
+                log(f"follow {kind} {sid[:8]}: {e}")
+        time.sleep(0.5)
 
 
 def handle_type(cfg: dict, state: dict, payload: str) -> None:
