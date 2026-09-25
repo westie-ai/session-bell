@@ -1,6 +1,6 @@
 # App Store & ASO Notes
 
-_Last updated: 2026-09-22_
+_Last updated: 2026-09-25_
 
 Working notes for SessionBell's App Store listing and App Store Optimization
 (ASO). This is not build config — the source of truth for version/build numbers
@@ -31,6 +31,25 @@ at the demo button. Build 7 (replacing 6 before review started) adds
 localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
+
+## 1.8 — build 13 (2026-09-25)
+
+Screenshots reused (`SKIP_SHOTS=1`). Title/subtitle unchanged. What changed:
+
+- **Progress as a chat.** The hook now emits each prompt as `### ❯ first line`
+  + `> ` continuation lines (line breaks kept, 2000-byte cap, `<pasted_content>`
+  tags stripped); the app renders it as a right-aligned bubble. 1.7 shows the
+  continuation lines with a literal `>` prefix — readable, not pretty.
+- **Live follow.** A `_md`/`_tail` request makes the relay follow that session
+  for 30 s and push a frame as soon as the transcript (mtime) or pane changes;
+  the phone polls `/api/capture?since=` every second (Worker returns only `ts`
+  for unchanged frames — deployed 2026-09-25, version ff6f95d9) and renews
+  every 8 s. Old relays still answer each renewal, so 1.8 + old relay ≈ 8 s.
+- **Sync pill** replaces the "x ago" footer: Live (dot pulses per frame) /
+  Mac not responding (renewal left unclaimed after 4 s) / New content (you
+  scrolled up; no more yank to bottom).
+- **Aa text size** (10 steps, Dynamic Type override + terminal points).
+- **Copy**: long-press a block → Copy / Copy Section; `---` renders as a rule.
 
 ## 1.7 — submitted 2026-09-22 (build 12)
 
@@ -240,14 +259,14 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 ## Version / build facts
 
 - Last shipped: **1.6**, build **11** (approved 2026-09-22). In review: **1.7**, build **12** (submitted 2026-09-22).
-- Next build number: **≥ 13**.
+- Next build number: **≥ 14** (1.8 = build 13).
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> `ios/project.yml` on `main` is at 1.7 / build 12.
+> `ios/project.yml` on `main` is at 1.8 / build 13.
 
 ## Context (not App Store)
 

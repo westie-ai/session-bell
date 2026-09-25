@@ -7,9 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A81000000000000000000001 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A81000000000000000000003 /* AgentAssets.xcassets */; };
-		A81000000000000000000002 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A81000000000000000000003 /* AgentAssets.xcassets */; };
 		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
+		12D58BF5AA618959993B2B52 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E43F3A4C07D2170A63B7B115 /* AgentAssets.xcassets */; };
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		2CDC8B1D229E7B1CDFD540F3 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */; };
 		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
@@ -26,6 +25,7 @@
 		855FE8483C735CA18034CCFC /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5FA62C8EEDDEB72EC6F0C07 /* ScreenshotTests.swift */; };
 		97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */; };
 		9E14F41520BDB4100D6C26F0 /* SBPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04728A4EDC1F6FE46294F21C /* SBPairing.swift */; };
+		9F6513F98AF7D8511DBE02ED /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E43F3A4C07D2170A63B7B115 /* AgentAssets.xcassets */; };
 		A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30D020BC225547233474D41 /* SessionBellWidgets.swift */; };
 		AF30E4ADFF8CEDE3FE091F5B /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		B69C92A0F01B60AC263AEF27 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BC1D51A694A376ECB53C09 /* OnboardingView.swift */; };
@@ -70,7 +70,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A81000000000000000000003 /* AgentAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = AgentAssets.xcassets; sourceTree = "<group>"; };
 		04728A4EDC1F6FE46294F21C /* SBPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBPairing.swift; sourceTree = "<group>"; };
 		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
@@ -95,6 +94,7 @@
 		DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		DC51BEBD97B629F3CE9CEF00 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		E30D020BC225547233474D41 /* SessionBellWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellWidgets.swift; sourceTree = "<group>"; };
+		E43F3A4C07D2170A63B7B115 /* AgentAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = AgentAssets.xcassets; sourceTree = "<group>"; };
 		E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EE8E293B3D1F00243A36E9EF /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -145,7 +145,7 @@
 		C5BDA1F4F64A4AC6B865937B /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				A81000000000000000000003 /* AgentAssets.xcassets */,
+				E43F3A4C07D2170A63B7B115 /* AgentAssets.xcassets */,
 				17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */,
 				39DF9CF186A28179A81D6783 /* Localizable.xcstrings */,
 				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
@@ -283,7 +283,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A81000000000000000000001 /* AgentAssets.xcassets in Resources */,
+				12D58BF5AA618959993B2B52 /* AgentAssets.xcassets in Resources */,
 				D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */,
 				7D25FDF327B92F1D4EA80CB5 /* InfoPlist.xcstrings in Resources */,
 				49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */,
@@ -294,7 +294,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A81000000000000000000002 /* AgentAssets.xcassets in Resources */,
+				9F6513F98AF7D8511DBE02ED /* AgentAssets.xcassets in Resources */,
 				7245D196AF0B8C6835D5408F /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -388,7 +388,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -397,7 +397,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -531,7 +531,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -540,7 +540,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -552,7 +552,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -560,7 +560,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -573,7 +573,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -581,7 +581,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;

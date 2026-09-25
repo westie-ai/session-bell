@@ -90,8 +90,8 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "新增 Cursor 支持(macOS):Cursor 编辑器里的 Agent 任务和 Claude Code、Codex 一起出现在任务列表和锁屏面板上——开始、完成、需要批准时都会提醒;进展视图显示完整对话;shell 命令可在锁屏一键批准;任务完成后从手机回一句,会作为下一条消息直接发给 Cursor。Mac 端自动接入,无需设置。\n每个任务显示正在使用的模型,如「Cursor · grok-4.6」「Claude · fable-5-1」。\n任务列表和锁屏卡片新增 Cursor 图标。",
- "en-US": "Cursor support (macOS): Agent tasks in the Cursor editor show up next to Claude Code and Codex on the Tasks tab and the Lock Screen panel — you're pinged when a task starts, finishes, or needs approval; Progress shows the whole conversation; shell commands can be approved from the Lock Screen; and a reply from the phone after a task finishes is sent to Cursor as the next message. Nothing to set up on the Mac.\nEach task now shows the model it is running on, e.g. \"Cursor · grok-4.6\" or \"Claude · fable-5-1\".\nNew Cursor icon on task rows and Lock Screen cards.",
+ "zh-Hans": "进展视图更像聊天了:你发的消息显示为右侧气泡,保留换行,长消息也完整显示,和 Agent 的回复一眼分开。\n刷新更快:Claude 一有新输出,手机 1–2 秒内就跟上(原来约 10 秒)。底部的实时状态会告诉你 Mac 是否在线;往上翻看时新内容不会把你拉走,点「新内容」再回到底部。\n右上角「Aa」可调字号,进展、终端和通知历史一起放大缩小。\n长按任意段落可复制,或一次复制整段回复;分隔线正常显示。",
+ "en-US": "Progress reads like a chat: your messages appear as bubbles on the right, with line breaks and long messages kept intact, clearly apart from the agent's replies.\nFaster updates: new output from Claude reaches the phone within 1–2 seconds (was about 10). A live indicator shows whether your Mac is connected; scrolling up to read no longer gets interrupted — tap \"New content\" to jump back down.\nAdjust text size with the Aa button — Progress, Terminal and notification history all scale.\nLong-press any paragraph to copy it, or copy the whole reply section at once; horizontal rules now render.",
 }
 # Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
 # so a locale whose description already changed upstream is left alone.
@@ -107,8 +107,8 @@ REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors
   "Codex- and Cursor-specific screens only appear once a Mac running those tools is paired; the UI is otherwise identical to Claude tasks. "
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
-VERSION = "1.7"
-BUILD = "12"
+VERSION = "1.8"
+BUILD = "13"
 SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
 SKIP_SHOTS = os.environ.get("SKIP_SHOTS") == "1"   # reuse the screenshots already on the previous version
