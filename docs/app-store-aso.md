@@ -32,7 +32,7 @@ localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
 
-## 1.8 — submitted 2026-09-25 (build 13)
+## 1.8 — submitted 2026-09-25 (build 13); approved, hook published 2026-09-28
 
 Screenshots reused (`SKIP_SHOTS=1`). Title/subtitle unchanged. What changed:
 
@@ -258,7 +258,7 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 
 ## Version / build facts
 
-- Last shipped: **1.7**, build **12**. In review: **1.8**, build **13** (submitted 2026-09-25, version dc139514). Publish the 1.8 hook to backend-cf/public only after approval — 1.7 shows its multi-line prompts with a literal `>`.
+- Last shipped: **1.8**, build **13** (approved by 2026-09-28). The 1.8 hook (prompt bubbles + live follow) was published to backend-cf/public and deployed on 2026-09-28, after approval — 1.7 shows multi-line prompts with a literal `>`.
 - Next build number: **≥ 14** (1.8 = build 13).
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
