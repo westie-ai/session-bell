@@ -349,37 +349,49 @@ function b64url(bytes) {
   return btoa(s).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
+/// The shared row, or null when there is none. A row whose JSON is damaged
+/// comes back as {ts} so the next mint overwrites it (UPDATE) instead of
+/// INSERT OR IGNORE leaving it broken forever.
 async function storedJwt(env) {
   const row = await kvGet(env, 'sys', JWT_KEY);
   if (!row) return null;
-  try { return { ...JSON.parse(row.v), ts: row.ts }; } catch { return null; }
+  try { return { ...JSON.parse(row.v), ts: row.ts }; } catch { return { ts: row.ts }; }
 }
 
 const jwtFresh = (j, env, now) =>
   !!j && !!j.token && j.kid === env.APNS_KEY_ID && now - j.iat < JWT_MAX_AGE;
 
 /// `force` skips this isolate's memory and re-reads D1 (used after a 429).
+/// D1 trouble never costs a push: with no readable shared token we sign
+/// our own and use it (one extra token change beats a dropped alert).
 async function apnsJwt(env, force = false) {
   const now = Math.floor(Date.now() / 1000);
   if (!force && jwtFresh(jwtCache, env, now)) return jwtCache.token;
-  const stored = await storedJwt(env);
+  let stored = null;
+  try { stored = await storedJwt(env); } catch (e) { console.log('apns jwt: D1 read failed', String(e)); }
   if (jwtFresh(stored, env, now)) {
     jwtCache = { token: stored.token, iat: stored.iat, kid: stored.kid };
     return jwtCache.token;
   }
   const minted = await signJwt(env, now);
-  const v = JSON.stringify({ token: minted, iat: now, kid: env.APNS_KEY_ID });
-  // Compare-and-swap on the row's ts: of several isolates minting at once,
-  // exactly one write lands and everyone adopts that token.
-  if (stored) {
-    await env.DB.prepare('UPDATE kv SET v=?, ts=? WHERE ns=? AND k=? AND ts=?')
-      .bind(v, now, 'sys', JWT_KEY, stored.ts).run();
-  } else {
-    await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
-      .bind('sys', JWT_KEY, v, now).run();
+  let use = { token: minted, iat: now, kid: env.APNS_KEY_ID };
+  try {
+    // iat (seconds) lives in v; the row's ts is milliseconds like every other
+    // row, and doubles as the compare-and-swap version: of several isolates
+    // minting at once exactly one write lands and everyone adopts it.
+    const v = JSON.stringify(use);
+    if (stored) {
+      await env.DB.prepare('UPDATE kv SET v=?, ts=? WHERE ns=? AND k=? AND ts=?')
+        .bind(v, Date.now(), 'sys', JWT_KEY, stored.ts).run();
+    } else {
+      await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+        .bind('sys', JWT_KEY, v, Date.now()).run();
+    }
+    const winner = await storedJwt(env);
+    if (jwtFresh(winner, env, now)) use = winner;
+  } catch (e) {
+    console.log('apns jwt: D1 write failed, using own token', String(e));
   }
-  const winner = await storedJwt(env);
-  const use = jwtFresh(winner, env, now) ? winner : { token: minted, iat: now, kid: env.APNS_KEY_ID };
   jwtCache = { token: use.token, iat: use.iat, kid: use.kid };
   return jwtCache.token;
 }
@@ -433,7 +445,8 @@ async function handlePush(req, env, n) {
     let resp = await send(envName);
     let text = await resp.text();
     if (resp.status === 429 && text.includes('TooManyProviderTokenUpdates')) {
-      // Another isolate refreshed the shared token meanwhile; retry with it.
+      // Retry once with whatever D1 holds now. Usually that is the same token
+      // (then this changes nothing); it helps when another isolate rotated it.
       forceJwt = true;
       resp = await send(envName);
       text = await resp.text();

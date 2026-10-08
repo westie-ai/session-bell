@@ -58,3 +58,38 @@ test('429 TooManyProviderTokenUpdates retries once with the shared token', async
     assert.equal(apns.calls.length, 2);
   } finally { apns.restore(); }
 });
+
+function failingDb(db, pattern) {
+  return { ...db, prepare(sql) {
+    const st = db.prepare(sql);
+    if (!pattern.test(sql)) return st;
+    return { bind() { return { async first() { throw new Error('D1 down'); }, async run() { throw new Error('D1 down'); }, async all() { throw new Error('D1 down'); } }; } };
+  } };
+}
+
+test('D1 trouble while rotating never drops the push', async () => {
+  for (const pattern of [/^SELECT v, ts FROM kv/, /^(UPDATE|INSERT OR IGNORE)/]) {
+    const env = await setup();
+    const apns = stubApns();
+    try {
+      const broken = { ...env, DB: failingDb(env.DB, pattern) };
+      const r = await (await push(await coldIsolate(), broken)).json();
+      assert.equal(r.status, 200, `push must survive ${pattern}`);
+      assert.equal(apns.calls.length, 1);
+    } finally { apns.restore(); }
+  }
+});
+
+test('a damaged shared row is overwritten instead of disabling sharing forever', async () => {
+  const env = await setup();
+  env.DB.rows.set('sys|apns/jwt', { ns: 'sys', k: 'apns/jwt', v: '{not json', ts: 1 });
+  const apns = stubApns();
+  try {
+    await push(await coldIsolate(), env);
+    await push(await coldIsolate(), env);
+    const row = env.DB.rows.get('sys|apns/jwt');
+    assert.ok(JSON.parse(row.v).token, 'row healed');
+    assert.ok(row.ts > 1e12, 'row ts is milliseconds like every other row');
+    assert.equal(new Set(apns.calls.map((c) => c.headers.authorization)).size, 1);
+  } finally { apns.restore(); }
+});
