@@ -81,6 +81,7 @@ want = {
     "UserPromptSubmit": (f"{hook} prompt", 30, True, None),
     "Notification": (f"{hook} notification", 30, True, None),
     "Stop": (f"{hook} stop", 960, False, None),
+    "StopFailure": (f"{hook} stop-failure", 30, True, None),
     "SessionEnd": (f"{hook} session-end", 30, True, None),
     "PermissionRequest": (f"{hook} permission", 900, False, None),
     "PreToolUse": (f"{hook} subagent-start", 30, True, "Task|Agent"),
