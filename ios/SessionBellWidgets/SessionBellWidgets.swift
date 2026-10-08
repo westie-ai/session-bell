@@ -42,7 +42,7 @@ struct SessionLiveActivity: Widget {
                         .foregroundStyle(context.state.waitingCount > 0 ? coral : .secondary)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if context.state.hasApproval {
+                    if context.state.hasApproval && !context.isStale {
                         ApprovalButtons(state: context.state, attrs: context.attributes)
                     }
                 }
@@ -288,7 +288,8 @@ private struct LockScreenView: View {
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            if state.hasApproval {
+            // 过期的卡上,这个授权可能早就被终端接管或超时了,不再给按钮
+            if state.hasApproval && !stale {
                 ApprovalButtons(state: state, attrs: attrs)
             }
         }

@@ -37,20 +37,30 @@ class LiveActivityTests(unittest.TestCase):
         jwt, host, token, bundle, aps, *rest = sent[0]
         return aps, (rest[0] if rest else 10)
 
-    def test_dead_process_is_failed_not_removed(self):
+    def test_dead_process_mid_turn_is_failed_not_removed(self):
         state = self.state("running", "waiting")
         for e in state["local"].values():
             e["pid"] = 4242
         with patch.object(sb, "pid_alive", return_value=False):
             sb.prune_sessions(state, 10_000)
-        self.assertEqual({e["status"] for e in state["local"].values()}, {"failed"})
+        # running → failed; waiting (turn already over) → a normal exit, removed
+        self.assertEqual({k: e["status"] for k, e in state["local"].items()}, {"s0": "failed"})
         tasks = sb.merged_tasks(state, "mac", 10_000)
-        self.assertEqual([t["status"] for t in tasks], ["failed", "failed"])
+        self.assertEqual([t["status"] for t in tasks], ["failed"])
 
-    def test_running_update_is_routine_and_goes_stale_in_15_minutes(self):
+    def test_keepalive_refresh_never_starts_a_card(self):
+        sb.save_activity_tokens({})
+        sent = []
+        with patch.object(sb.time, "time", return_value=10_000), \
+             patch.object(sb, "send_la_push", side_effect=lambda *a: sent.append(a) or (200, "")):
+            sb.push_dashboard(dict(CFG, live_activity_start_tokens=["cd" * 32]), "jwt", "host",
+                              self.state("running"), "mac", refresh_only=True)
+        self.assertEqual(sent, [])
+
+    def test_running_update_is_routine_and_goes_stale_in_20_minutes(self):
         aps, priority = self.push(self.state("running"))
         self.assertEqual(aps["event"], "update")
-        self.assertEqual(aps["stale-date"], 10_000 + 15 * 60)
+        self.assertEqual(aps["stale-date"], 10_000 + 20 * 60)
         self.assertEqual(priority, 5)
 
     def test_waiting_update_is_urgent(self):

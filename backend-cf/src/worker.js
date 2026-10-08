@@ -362,18 +362,20 @@ async function apnsJwt(env) {
 }
 
 // The lock-screen card (and its Apple Watch Smart Stack copy) only knows
-// these task states (`unknown` comes from the Codex Desktop observer and
-// renders as "status unavailable"). Anything else is rejected here instead
-// of shipping a card nobody can read. Updates must carry a stale-date and
-// ends a dismissal-date: a card without either can sit on the Lock Screen
-// showing a state that is no longer true.
+// these task states (`unknown` renders as "status unavailable"). A state the
+// card doesn't know — say a hook released before this Worker — is rewritten
+// to `unknown` rather than rejected, so one odd task never freezes the whole
+// card. Updates must carry a stale-date and ends a dismissal-date: a card
+// without either can sit on the Lock Screen showing a state that is no
+// longer true.
 const TASK_STATES = new Set(['running', 'waiting', 'done', 'failed', 'unknown']);
 
 function validActivityPayload(payload) {
   const aps = payload && payload.aps;
   if (!aps || !['start', 'update', 'end'].includes(aps.event)) return false;
   const tasks = aps['content-state'] && aps['content-state'].tasks;
-  if (!Array.isArray(tasks) || !tasks.every((t) => t && TASK_STATES.has(t.status))) return false;
+  if (!Array.isArray(tasks) || !tasks.every((t) => t && typeof t === 'object')) return false;
+  for (const t of tasks) if (!TASK_STATES.has(t.status)) t.status = 'unknown';
   if (aps.event === 'end') return Number.isFinite(aps['dismissal-date']);
   return Number.isFinite(aps['stale-date']);
 }

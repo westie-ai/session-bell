@@ -2441,8 +2441,10 @@ def event_model(hook: dict, engine) -> str:
 # update — never an inferred completion. The relay re-sends the dashboard
 # every LA_REFRESH_SECONDS while tasks are active, so stale means the Mac
 # stopped reporting (lid closed, offline), not merely a long quiet turn.
-LA_STALE_SECONDS = 15 * 60
-LA_REFRESH_SECONDS = 10 * 60
+# Refreshes go out at priority 5, which iOS may hold back for a while, so
+# the stale window leaves room for a few of them.
+LA_STALE_SECONDS = 20 * 60
+LA_REFRESH_SECONDS = 5 * 60
 LA_DONE_DISMISS_SECONDS = 60     # ended card leaves the Lock Screen / Smart Stack
 # APNs priority: 10 is budgeted by iOS for Live Activities; spend it only on
 # changes the user must see now (needs input, approval, end).
@@ -2842,11 +2844,16 @@ def prune_sessions(state: dict, now: int) -> None:
         elif (entry.get("status") in ("running", "waiting")
               and entry.get("pid") and not pid_alive(entry["pid"])):
             # The claude process is gone — the session ended without a
-            # stop/session-end event (closed terminal, crash, kill). That is
-            # not a completion: show it as failed so the card never turns
-            # into a green checkmark for work that didn't finish.
-            entry.update(status="failed", since=now)
-            entry.pop("approval_id", None)
+            # stop/session-end event (closed terminal, crash, kill).
+            if entry["status"] == "running":
+                # Mid-turn: that is not a completion. Show it as failed so
+                # the card never turns into a checkmark for unfinished work.
+                entry.update(status="failed", since=now)
+                entry.pop("approval_id", None)
+            else:
+                # Waiting = the turn already ended (Stop, then an idle
+                # prompt, or Esc); closing the terminal now is a normal exit.
+                del local[sid]
     terms = state.get("terms", {})
     for sid in list(terms):
         if now - terms[sid].get("ts", 0) > TERM_REGISTRY_MAX_AGE:
@@ -2955,7 +2962,9 @@ def relays_list(cfg: dict) -> list:
     return out
 
 
-def push_dashboard(cfg, jwt, apns_host, state, my_label):
+def push_dashboard(cfg, jwt, apns_host, state, my_label, refresh_only=False):
+    """refresh_only: a keep-alive from the relay. It may update a card that
+    exists but never starts one (a start rings the phone and can stack cards)."""
     """Send the merged cross-Mac task list as one Live Activity dashboard."""
     now = int(time.time())
     tasks = merged_tasks(state, my_label, now)
@@ -3031,7 +3040,7 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
         tokens.pop("_dashboard", None)
         save_activity_tokens(tokens)
 
-    if not active:
+    if not active or refresh_only:
         return
 
     # No update token yet (app hasn't phoned home). Give it a short grace
@@ -3265,7 +3274,7 @@ def run_watcher(cfg: dict) -> None:
                         sync_peers(cfg, state, lbl)
                     push_dashboard(cfg, make_jwt(cfg),
                                    HOSTS[cfg.get("environment", "sandbox")],
-                                   state, lbl)
+                                   state, lbl, refresh_only=not changed_state)
             resp = backend_poll(cfg, "/api/command",
                                 0 if legacy_poll else LP_WAIT, seen_ts)
             backend_down = resp is None

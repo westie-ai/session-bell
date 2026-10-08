@@ -30,16 +30,26 @@ test('known states with stale/dismissal dates are forwarded', async () => {
   } finally { apns.restore(); }
 });
 
-test('unknown state, missing stale-date or missing dismissal-date is rejected', async () => {
+test('missing stale-date or dismissal-date, or a malformed task list, is rejected', async () => {
   const call = await setup();
   const apns = stubApns();
   try {
     for (const aps of [
-      { event: 'update', 'content-state': { tasks: [task('finished-probably')] }, 'stale-date': 2 },
       { event: 'update', 'content-state': { tasks: [task('running')] } },
       { event: 'end', 'content-state': { tasks: [task('done')] } },
       { event: 'update', 'content-state': {}, 'stale-date': 2 },
     ]) assert.equal((await la(call, aps)).status, 400);
     assert.equal(apns.calls.length, 0);
+  } finally { apns.restore(); }
+});
+
+test('a task state the card does not know becomes unknown instead of freezing the card', async () => {
+  const call = await setup();
+  const apns = stubApns();
+  try {
+    const r = await la(call, { event: 'update', 'content-state': { tasks: [task('running'), task('paused-v2')] }, 'stale-date': 2 });
+    assert.equal(r.status, 200);
+    const sent = JSON.parse(apns.calls[0].body);
+    assert.deepEqual(sent.aps['content-state'].tasks.map((t) => t.status), ['running', 'unknown']);
   } finally { apns.restore(); }
 });
