@@ -69,7 +69,7 @@ class CodexTests(unittest.TestCase):
             self.assertEqual(events[0], "sync", "Initial heartbeat must precede any sleep")
             self.assertEqual(sync.call_count, 2 if suspend_during_poll else 1)
             self.assertEqual(backend.call_count, 1 if suspend_during_poll else 0)
-            self.assertEqual(polls[0][2:], (sb.LP_WAIT, 0))
+            self.assertEqual(polls[0][2:4], (sb.LP_WAIT, 0))   # wait, since
 
     def test_merged_watcher_publishes_immediate_heartbeat(self):
         self.check_watcher_sync(suspend_during_poll=False)
