@@ -1,69 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "❌ %@ · 任务失败": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "❌ %@ · Task failed"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "❌ %@ · 任务失败"}}}
-    },
-    "❌ %@ · 失败「%@」": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "❌ %@ · Failed “%@”"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "❌ %@ · 失败「%@」"}}}
-    },
-    "%@ 因 API 错误中断了本轮": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ stopped this turn on an API error"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 因 API 错误中断了本轮"}}}
-    },
-    "触发了用量限制,稍后再试": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Hit a usage limit — try again later"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "触发了用量限制,稍后再试"}}}
-    },
-    "服务繁忙,本轮被中断": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The service is overloaded; this turn was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "服务繁忙,本轮被中断"}}}
-    },
-    "服务端出错,本轮被中断": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Server error; this turn was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "服务端出错,本轮被中断"}}}
-    },
-    "登录已失效,需要回到电脑上重新登录": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Signed out — log in again on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录已失效,需要回到电脑上重新登录"}}}
-    },
-    "当前组织不允许使用,需要回到电脑上处理": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your organization doesn't allow this — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "当前组织不允许使用,需要回到电脑上处理"}}}
-    },
-    "需要回到电脑上完成验证": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Verification needed on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "需要回到电脑上完成验证"}}}
-    },
-    "账单出了问题,需要回到电脑上处理": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Billing problem — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账单出了问题,需要回到电脑上处理"}}}
-    },
-    "账号被暂停,需要回到电脑上处理": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Account on hold — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账号被暂停,需要回到电脑上处理"}}}
-    },
-    "请求被拒绝,本轮没有完成": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The request was rejected; this turn didn't finish"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请求被拒绝,本轮没有完成"}}}
-    },
-    "模型不可用,本轮没有完成": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Model unavailable; this turn didn't finish"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "模型不可用,本轮没有完成"}}}
-    },
-    "回复超出长度上限,被截断": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The reply hit the length limit and was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "回复超出长度上限,被截断"}}}
-    },
-    "云端凭据出错,需要回到电脑上处理": {
-      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Cloud credential error — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "云端凭据出错,需要回到电脑上处理"}}}
-    },
-    "Task Failed": {
-      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "任务失败"}}}
-    },
     "New content": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "新内容"}}}
     },
@@ -3228,6 +3165,69 @@
           }
         }
       }
+    },
+    "❌ %@ · 任务失败": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "❌ %@ · Task failed"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "❌ %@ · 任务失败"}}}
+    },
+    "❌ %@ · 失败「%@」": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "❌ %@ · Failed “%@”"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "❌ %@ · 失败「%@」"}}}
+    },
+    "%@ 因 API 错误中断了本轮": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ stopped this turn on an API error"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 因 API 错误中断了本轮"}}}
+    },
+    "触发了用量限制,稍后再试": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Hit a usage limit — try again later"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "触发了用量限制,稍后再试"}}}
+    },
+    "服务繁忙,本轮被中断": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The service is overloaded; this turn was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "服务繁忙,本轮被中断"}}}
+    },
+    "服务端出错,本轮被中断": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Server error; this turn was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "服务端出错,本轮被中断"}}}
+    },
+    "登录已失效,需要回到电脑上重新登录": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Signed out — log in again on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录已失效,需要回到电脑上重新登录"}}}
+    },
+    "当前组织不允许使用,需要回到电脑上处理": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your organization doesn't allow this — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "当前组织不允许使用,需要回到电脑上处理"}}}
+    },
+    "需要回到电脑上完成验证": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Verification needed on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "需要回到电脑上完成验证"}}}
+    },
+    "账单出了问题,需要回到电脑上处理": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Billing problem — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账单出了问题,需要回到电脑上处理"}}}
+    },
+    "账号被暂停,需要回到电脑上处理": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Account on hold — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账号被暂停,需要回到电脑上处理"}}}
+    },
+    "请求被拒绝,本轮没有完成": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The request was rejected; this turn didn't finish"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请求被拒绝,本轮没有完成"}}}
+    },
+    "模型不可用,本轮没有完成": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Model unavailable; this turn didn't finish"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "模型不可用,本轮没有完成"}}}
+    },
+    "回复超出长度上限,被截断": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The reply hit the length limit and was cut off"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "回复超出长度上限,被截断"}}}
+    },
+    "云端凭据出错,需要回到电脑上处理": {
+      "comment": "APNs loc-key sent by the Mac hook; key is the Chinese source text.",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Cloud credential error — fix it on your computer"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "云端凭据出错,需要回到电脑上处理"}}}
+    },
+    "Task Failed": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "任务失败"}}}
     }
   },
   "version": "1.0"
