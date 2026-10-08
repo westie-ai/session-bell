@@ -582,6 +582,18 @@
     "Take back": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "撤回"}}}
     },
+    "Not sent — the reply is too long or empty": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "没发出去:回复太长或是空的"}}}
+    },
+    "Not sent — re-pair this phone with your Mac (error %lld)": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "没发出去:请重新把这台手机和 Mac 配对(错误 %lld)"}}}
+    },
+    "Reply not sent": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "回复没发出去"}}}
+    },
+    "“%@” — open SessionBell to send it again.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "「%@」——打开 SessionBell 再发一次。"}}}
+    },
     "All done": {
       "localizations": {
         "zh-Hans": {

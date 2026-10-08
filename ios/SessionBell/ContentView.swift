@@ -1302,6 +1302,7 @@ struct SessionPage: View {
     }
     private var isLive: Bool { liveTask != nil }
     private var usesReplyQueue: Bool { liveTask?.replyQueue == true && !isCodex }
+    private var hasOpenReplies: Bool { (store.replies[sessionId] ?? []).contains { $0.isOpen } }
     /// 最近的手机回复:没走完的全显示,走完的只留 10 分钟,最多 3 条。
     private var recentReplies: [EventStore.ReplyItem] {
         let list = (store.replies[sessionId] ?? []).filter {
@@ -1414,13 +1415,14 @@ struct SessionPage: View {
         .task(id: "\(peekTask?.sessionId ?? "")/\(tab == .terminal)") {
             if tab == .terminal { await terminalLoop() } else { await progressLoop() }
         }
-        .task(id: "replies-\(sessionId)-\(usesReplyQueue)") {
+        .task(id: "replies-\(sessionId)-\(usesReplyQueue)-\(hasOpenReplies)") {
             guard usesReplyQueue else { return }
-            // 有没走完的回复时 3 秒刷一次状态,否则 15 秒。
-            while !Task.isCancelled {
+            // 进页面读一次;只在有没走完的回复时每 3 秒问一次「有变化吗」,
+            // 全部走完就停(发出新回复会让这里重新开始)。
+            await store.refreshReplies(sessionId: sessionId)
+            while !Task.isCancelled && hasOpenReplies {
+                try? await Task.sleep(for: .seconds(3))
                 await store.refreshReplies(sessionId: sessionId)
-                let open = (store.replies[sessionId] ?? []).contains { $0.isOpen }
-                try? await Task.sleep(for: .seconds(open ? 3 : 15))
             }
         }
         .onChange(of: tab) { _, t in UIApplication.shared.isIdleTimerDisabled = (t == .terminal) }
@@ -1858,6 +1860,13 @@ struct SessionPage: View {
                     unconfirmedReplyId = ""
                     unconfirmedReplyText = ""
                     store.noteReply(reply, sessionId: sessionId)
+                } else if let code = result.rejectedStatus {
+                    // 服务端没收下这条(没存),改完重发用新 id 就行。
+                    unconfirmedReplyId = ""
+                    unconfirmedReplyText = ""
+                    input = text
+                    showNote(code == 400 ? String(localized: "Not sent — the reply is too long or empty")
+                             : String(localized: "Not sent — re-pair this phone with your Mac (error \(code))"), ok: false)
                 } else {
                     // 没确认进队列:把字还给输入框,原样再发会沿用同一个 id。
                     unconfirmedReplyId = result.id
@@ -1905,7 +1914,8 @@ struct ReplyStatusRow: View {
     let hostSeenAt: Date
     let onCancel: () -> Void
 
-    private var macLooksOffline: Bool { Date().timeIntervalSince(hostSeenAt) > 12 * 60 }
+    /// relay 每 10 分钟上报一次;留出一次漏报的余量。
+    private var macLooksOffline: Bool { Date().timeIntervalSince(hostSeenAt) > 20 * 60 }
 
     private var label: (text: LocalizedStringKey, symbol: String, color: Color) {
         switch reply.status {

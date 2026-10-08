@@ -146,13 +146,21 @@ enum SBBackend {
         _ = try? await URLSession.shared.data(for: req)
     }
 
-    /// POST 并取回 JSON;网络失败或非 2xx 返回 nil。
-    static func postJSON(_ path: String, body: [String: String],
-                         to backend: String, secret: String) async -> [String: Any]? {
+    enum PostResult {
+        case ok([String: Any])
+        /// 服务端明确拒绝(4xx):重试也没用,要告诉用户原因
+        case rejected(Int)
+        /// 没连上、超时或 5xx:可以用同一个 id 再试
+        case unreachable
+    }
+
+    /// POST 并取回 JSON,把「网络问题」和「服务端拒绝」分开。
+    static func postResult(_ path: String, body: [String: String],
+                           to backend: String, secret: String) async -> PostResult {
         guard !backend.isEmpty,
               let url = URL(string: backend + path),
               let data = try? JSONSerialization.data(withJSONObject: body)
-        else { return nil }
+        else { return .rejected(0) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 10
@@ -160,9 +168,12 @@ enum SBBackend {
         req.setValue(secret, forHTTPHeaderField: "x-sb-secret")
         req.httpBody = data
         guard let (out, resp) = try? await URLSession.shared.data(for: req),
-              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode)
-        else { return nil }
-        return try? JSONSerialization.jsonObject(with: out) as? [String: Any]
+              let http = resp as? HTTPURLResponse else { return .unreachable }
+        if (400..<500).contains(http.statusCode) { return .rejected(http.statusCode) }
+        guard (200..<300).contains(http.statusCode),
+              let obj = try? JSONSerialization.jsonObject(with: out) as? [String: Any]
+        else { return .unreachable }
+        return .ok(obj)
     }
 
     /// 与 post 相同,但用当前保存的后端,并返回是否 2xx(反馈等需要知道结果的场景)。

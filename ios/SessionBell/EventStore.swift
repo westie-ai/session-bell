@@ -139,24 +139,38 @@ final class EventStore: ObservableObject {
 
     /// 新回复队列:id 由手机生成,失败时用同一个 id 重发——服务端按 id 去重,
     /// 网络抖动最多让这条晚到,不会变成两条。`id` 传入时沿用(用户点「重发」)。
+    /// rejectedStatus 非 nil = 服务端拒收(比如太长、配对失效),重发也一样;
+    /// reply 为 nil 且 rejectedStatus 为 nil = 没连上,可以原样再发。
     static func sendReply(sessionId: String, text: String, id: String? = nil,
-                          url: String, secret: String, attempts: Int = 3) async -> (id: String, reply: ReplyItem?) {
+                          url: String, secret: String, attempts: Int = 3)
+        async -> (id: String, reply: ReplyItem?, rejectedStatus: Int?) {
         let rid = id ?? UUID().uuidString.lowercased()
         for attempt in 0..<attempts {
-            if let resp = await SBBackend.postJSON(
+            switch await SBBackend.postResult(
                 "/api/reply", body: ["id": rid, "session_id": sessionId, "text": text],
-                to: url, secret: secret),
-               let obj = resp["reply"] as? [String: Any], let reply = ReplyItem(obj) {
-                return (rid, reply)
+                to: url, secret: secret) {
+            case .ok(let resp):
+                if let obj = resp["reply"] as? [String: Any], let reply = ReplyItem(obj) {
+                    return (rid, reply, nil)
+                }
+            case .rejected(let code):
+                return (rid, nil, code)
+            case .unreachable:
+                break
             }
             if attempt < attempts - 1 { try? await Task.sleep(for: .seconds(Double(1 << attempt))) }
         }
-        return (rid, nil)
+        return (rid, nil, nil)
     }
 
+    /// 带 rev 的条件读:服务端那边没变化就只回一句 unchanged,不下发列表。
     func refreshReplies(sessionId: String) async {
-        guard let obj = await SBBackend.getJSON("/api/reply?sid=\(sessionId)") as? [String: Any],
-              let list = obj["replies"] as? [[String: Any]] else { return }
+        let since = replyRev[sessionId] ?? 0
+        guard let obj = await SBBackend.getJSON("/api/reply?sid=\(sessionId)&since=\(since)") as? [String: Any]
+        else { return }
+        if let rev = obj["rev"] as? Int { replyRev[sessionId] = rev }
+        if obj["unchanged"] as? Bool == true { return }
+        guard let list = obj["replies"] as? [[String: Any]] else { return }
         replies[sessionId] = list.compactMap(ReplyItem.init)
     }
 
@@ -170,8 +184,8 @@ final class EventStore: ObservableObject {
     /// 撤回一条还在排队的回复;已经开始送达的撤不回,服务端会如实返回当前状态。
     func cancelReply(_ id: String, sessionId: String) async -> Bool {
         guard let backend = SBBackend.saved,
-              let resp = await SBBackend.postJSON("/api/reply/cancel", body: ["id": id],
-                                                  to: backend.url, secret: backend.secret)
+              case .ok(let resp) = await SBBackend.postResult("/api/reply/cancel", body: ["id": id],
+                                                              to: backend.url, secret: backend.secret)
         else { return false }
         if let obj = resp["reply"] as? [String: Any], let reply = ReplyItem(obj) {
             noteReply(reply, sessionId: sessionId)
@@ -216,6 +230,8 @@ final class EventStore: ObservableObject {
     @Published var liveTasks: [LiveTask] = []
     /// session id → 最近的手机回复(服务端 /api/reply?sid= 的镜像)
     @Published var replies: [String: [ReplyItem]] = [:]
+    /// 每个 session 上次读到的回复队列 rev,用于条件读
+    var replyRev: [String: Int] = [:]
     @Published var liveGroups: [HostGroup] = []
 
     /// Same source of truth as the lock-screen card: the backend state table.

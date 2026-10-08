@@ -138,8 +138,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         if (sb["caps"] as? [String] ?? []).contains(EventStore.replyQueueCap) {
             // 后台动作只有几十秒:两次尝试,同一个 id,服务端去重。
-            _ = await EventStore.sendReply(sessionId: sessionId, text: text,
-                                           url: url, secret: secret, attempts: 2)
+            let result = await EventStore.sendReply(sessionId: sessionId, text: text,
+                                                    url: url, secret: secret, attempts: 2)
+            if result.reply == nil {
+                // 别让这句话悄悄丢掉:本地通知告诉用户没发出去。
+                let content = UNMutableNotificationContent()
+                content.title = String(localized: "Reply not sent")
+                content.body = String(localized: "“\(text)” — open SessionBell to send it again.")
+                content.userInfo = userInfo
+                try? await UNUserNotificationCenter.current().add(
+                    UNNotificationRequest(identifier: "sb.reply-failed.\(result.id)", content: content, trigger: nil))
+            }
             return
         }
         await SBBackend.post(
