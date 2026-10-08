@@ -89,14 +89,58 @@ async function readBody(req) {
 
 // ---------- endpoints ----------
 
+// Phones that send `device_id` (identifierForVendor) own their registrations:
+// a new alert or push-to-start token from the same phone atomically replaces
+// the previous one, so a rotated token can't fan out duplicate notifications
+// or duplicate Live Activities. Row value = device id; legacy rows hold '1'.
+const DEVICE_ID = /^[A-Za-z0-9-]{8,64}$/;
+
+async function registerToken(env, n, prefix, token, deviceId, now, replaces) {
+  // The phone names the token it registered last time: drop it right away
+  // (this also clears duplicates left from before device ids existed).
+  const drop = HEX.test(replaces || '') && replaces !== token
+    ? [env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, prefix + replaces)] : [];
+  if (!DEVICE_ID.test(deviceId || '')) {
+    // Older clients send no id. Never let them downgrade a row a newer
+    // client already tied to a device back to '1' (it would escape the
+    // per-device replacement on the next rotation).
+    return env.DB.batch([...drop, env.DB.prepare(
+      "INSERT INTO kv (ns,k,v,ts) VALUES (?,?,'1',?) " +
+      "ON CONFLICT(ns,k) DO UPDATE SET ts=excluded.ts, v=CASE WHEN kv.v='1' THEN excluded.v ELSE kv.v END")
+      .bind(n, prefix + token, now)]);
+  }
+  await env.DB.batch([...drop,
+    env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND v=? AND k<>?')
+      .bind(n, prefix, prefix + '￿', deviceId, prefix + token),
+    env.DB.prepare(
+      'INSERT INTO kv (ns,k,v,ts) VALUES (?,?,?,?) ' +
+      'ON CONFLICT(ns,k) DO UPDATE SET v=excluded.v, ts=excluded.ts')
+      .bind(n, prefix + token, deviceId, now),
+  ]);
+}
+
+/// Newest token per device id; legacy rows (no id) pass through untouched.
+function latestPerDevice(rows, prefix) {
+  const best = new Map();
+  const out = [];
+  for (const r of rows) {
+    const t = r.k.slice(prefix.length);
+    if (!HEX.test(t)) continue;
+    if (r.v === '1' || !r.v) { out.push(t); continue; }
+    const cur = best.get(r.v);
+    if (!cur || r.ts > cur.ts) best.set(r.v, { ts: r.ts, t });
+  }
+  return out.concat([...best.values()].map((x) => x.t));
+}
+
 async function handleToken(req, env, n) {
   if (req.method === 'POST') {
     const b = await readBody(req);
     const now = Date.now();
-    if (b.pts_token && HEX.test(b.pts_token)) await kvPut(env, n, `pts/${b.pts_token}`, '1', now);
+    if (b.pts_token && HEX.test(b.pts_token)) await registerToken(env, n, 'pts/', b.pts_token, b.device_id, now, b.replaces_pts_token);
     if (b.update_token && HEX.test(b.update_token)) await kvPut(env, n, `dash/${b.update_token}`, '1', now);
     if (b.ended_token && HEX.test(b.ended_token)) await kvPut(env, n, `dashended/${b.ended_token}`, '1', now);
-    if (b.device_token && HEX.test(b.device_token)) await kvPut(env, n, `devices/${b.device_token}`, '1', now);
+    if (b.device_token && HEX.test(b.device_token)) await registerToken(env, n, 'devices/', b.device_token, b.device_id, now, b.replaces_device_token);
     if (b.reset_dashboard) {
       for (const row of await kvList(env, n, 'dash/')) {
         await kvPut(env, n, 'dashended/' + row.k.slice(5), '1', now);
@@ -117,8 +161,8 @@ async function handleToken(req, env, n) {
     }
   }
   return json({
-    pts: pts.map((r) => r.k.slice(4)).filter((t) => HEX.test(t)),
-    devices: devices.map((r) => r.k.slice(8)).filter((t) => HEX.test(t)),
+    pts: latestPerDevice(pts, 'pts/'),
+    devices: latestPerDevice(devices, 'devices/'),
     dashboard,
   });
 }

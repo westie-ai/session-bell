@@ -553,8 +553,7 @@ struct ContentView: View {
                     Task { pingResult = await SBBackend.ping() }
                     let token = EventStore.shared.deviceToken
                     if !token.isEmpty {
-                        Task { await SBBackend.post("/api/token", body: ["device_token": token],
-                                                    to: u, secret: s) }
+                        Task { await SBBackend.registerToken(.alert, token, url: u, secret: s) }
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { backendSaved = false }
                 }
