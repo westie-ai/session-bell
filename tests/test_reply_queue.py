@@ -152,5 +152,23 @@ class ReplyQueueTests(unittest.TestCase):
         self.assertEqual(backend.paths("/api/state")[0]["caps"], ["reply-queue"])
 
 
+    def test_alert_payload_tells_the_app_about_the_queue(self):
+        sent = []
+        hook = {"session_id": "s1", "cwd": "/tmp/p", "transcript_path": ""}
+        with patch.object(sys, "argv", ["hook", "notification"]), \
+             patch.object(sys, "stdin", io.StringIO(json.dumps(hook))), \
+             patch.object(sb, "load_config", return_value=dict(CFG)), \
+             patch.object(sb, "mac_idle_seconds", return_value=9999), \
+             patch.object(sb, "pid_alive", return_value=True), \
+             patch.object(sb, "engine_pids", return_value=(None, None)), \
+             patch.object(sb, "host_label", return_value="mac"), \
+             patch.object(sb, "sync_peers"), patch.object(sb, "push_dashboard"), \
+             patch.object(sb, "make_jwt"), \
+             patch.object(sb, "resolve_device_tokens", return_value=["t"]), \
+             patch.object(sb, "send_push", side_effect=lambda *a: sent.append(a[3]) or (200, "")):
+            sb.main()
+        self.assertEqual(sent[0]["sb"]["caps"], ["reply-queue"])
+
+
 if __name__ == "__main__":
     unittest.main()

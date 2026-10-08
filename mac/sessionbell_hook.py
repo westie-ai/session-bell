@@ -4774,6 +4774,8 @@ def main():
                          "secret": cfg["backend_secret"]}
                         if use_backend(cfg) else None),
             "md": raw_md or None,
+            # Tells the app this Mac reads /api/reply (quick replies use it).
+            "caps": REPLY_CAPS,
         },
     }
 
