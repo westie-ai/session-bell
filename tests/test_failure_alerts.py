@@ -54,6 +54,7 @@ class ClaudeStopFailureTests(unittest.TestCase):
         self.assertIn("429 from API", payload["sb"]["md"])
         entry = sb.load_sessions()["local"]["s1"]
         self.assertEqual((entry["status"], entry["error"]), ("failed", "rate_limit"))
+        self.assertNotIn("category", payload["aps"], "no reply action on a failure")
 
     def test_unknown_error_still_says_failed(self):
         payload = self.run_hook({"error": "something_new"})
@@ -104,6 +105,7 @@ class CodexFailureTests(unittest.TestCase):
             sb.codex_alert(dict(CFG), "c1", "failure", "boom")
         self.assertEqual(len(sent), 1, "failure rings even at the keyboard, like completion")
         self.assertTrue(sent[0]["aps"]["alert"]["title"].startswith("❌ Codex · "))
+        self.assertNotIn("category", sent[0]["aps"])
 
 
 class FailureHookRegistrationTests(unittest.TestCase):
@@ -129,6 +131,18 @@ class FailureHookRegistrationTests(unittest.TestCase):
         self.assertEqual(len(h), 1)
         self.assertEqual(h[0]["hooks"][0], {"type": "command", "command": "/x/sessionbell_hook.py stop-failure",
                                             "timeout": 30, "async": True})
+
+    def test_symlinked_settings_stay_a_symlink_with_their_mode(self):
+        real = self.home / "dotfiles-settings.json"
+        real.write_text(json.dumps({"hooks": {"Stop": [{"hooks": [
+            {"type": "command", "command": "/x/sessionbell_hook.py stop"}]}]}}))
+        os.chmod(real, 0o644)
+        self.settings.symlink_to(real)
+        self.assertTrue(sb.ensure_claude_failure_hook(quiet=False))
+        self.assertTrue(self.settings.is_symlink())
+        self.assertIn("StopFailure", json.loads(real.read_text())["hooks"])
+        self.assertEqual(os.stat(real).st_mode & 0o777, 0o644)
+        self.assertEqual([p.name for p in real.parent.iterdir() if p.name.startswith("settings-")], [])
 
     def test_leaves_settings_alone_without_our_stop_hook(self):
         self.write({"Stop": [{"hooks": [{"type": "command", "command": "other stop"}]}]})

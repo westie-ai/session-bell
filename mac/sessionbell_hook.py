@@ -402,10 +402,15 @@ class CodexDesktopObserver:
             elif event_type in ("task_complete", "turn_aborted"):
                 if not isinstance(turn, str) or (entry.get("desktop_turn") and entry["desktop_turn"] != turn):
                     return None
-                failed = event_type == "turn_aborted" or bool(payload.get("error"))
-                entry.update(status="waiting" if failed else "done", since=ts,
+                # An error is a failure; an abort (someone stopped the turn)
+                # waits for input — the same split as the app-server path.
+                error = payload.get("error")
+                aborted = event_type == "turn_aborted" and not error
+                message = (error.get("message") if isinstance(error, dict) else error) or ""
+                entry.update(status="failed" if error else "waiting" if aborted else "done", since=ts,
                              desktop_turn=turn, desktop_terminal=turn,
-                             delivery_error="Codex turn interrupted or failed." if failed else "")
+                             delivery_error=(str(message)[:300] or "Codex turn failed.") if error
+                             else "Codex turn interrupted." if aborted else "")
                 if isinstance(payload.get("last_agent_message"), str):
                     entry["latest_reply"] = clip_bytes(payload["last_agent_message"], 8000)
                 return turn
@@ -548,8 +553,10 @@ class CodexDesktopObserver:
         for sid, turn in set(alerts):
             entry = state["local"].get(sid, {})
             if entry.get("desktop_terminal") == turn:
-                codex_alert(self.cfg, sid, "stop" if entry["status"] == "done" else "notification",
-                            entry.get("latest_reply") or entry.get("delivery_error") or "Codex completed this turn.")
+                kind = {"done": "stop", "failed": "failure"}.get(entry["status"], "notification")
+                text = (entry.get("delivery_error") if kind == "failure" else None) or entry.get("latest_reply") \
+                    or entry.get("delivery_error") or "Codex completed this turn."
+                codex_alert(self.cfg, sid, kind, text)
         self.bootstrapped = True
         return changed
 
@@ -1163,10 +1170,13 @@ def codex_alert(cfg, sid, kind, text, request_id=None):
           "backend": {"url": cfg["backend_url"], "secret": cfg["backend_secret"]}}
     if request_id:
         sb["request_id"] = request_id
-    payload = {"aps": {"alert": {"title": title, "body": clip_bytes(strip_markdown(text), 700)},
-                       "sound": "default", "thread-id": sid,
-                       "category": "SB_DECIDE" if request_id else "SB_REPLY",
-                       "interruption-level": "time-sensitive"}, "sb": sb}
+    aps = {"alert": {"title": title, "body": clip_bytes(strip_markdown(text), 700)},
+           "sound": "default", "thread-id": sid, "interruption-level": "time-sensitive"}
+    # A failure has no live turn to continue: no reply action, or the text
+    # would surface hours later as a stale instruction.
+    if kind != "failure":
+        aps["category"] = "SB_DECIDE" if request_id else "SB_REPLY"
+    payload = {"aps": aps, "sb": sb}
     jwt = make_jwt(cfg)
     tokens = resolve_device_tokens(cfg)
     if not tokens:
@@ -4188,11 +4198,18 @@ def ensure_claude_failure_hook(quiet: bool = True) -> bool:
         return False
     group.append({"hooks": [{"type": "command", "command": stop_cmd[:-len(" stop")] + " stop-failure",
                              "timeout": 30, "async": True}]})
+    import stat
     import tempfile
-    fd, tmp = tempfile.mkstemp(prefix="settings-", suffix=".json", dir=os.path.dirname(path))
-    with os.fdopen(fd, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, path)
+    real = os.path.realpath(path)   # keep a stow/chezmoi symlink a symlink
+    fd, tmp = tempfile.mkstemp(prefix="settings-", suffix=".json", dir=os.path.dirname(real))
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.chmod(tmp, stat.S_IMODE(os.stat(real).st_mode))
+        os.replace(tmp, real)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
     log("claude: StopFailure hook registered")
     return True
 
@@ -4674,8 +4691,6 @@ def main():
             "sound": "default",
             "thread-id": session_id,
             "interruption-level": "time-sensitive",
-            # 长按可直接打字回复下一步指令(stop 时注入,见下)
-            "category": "SB_REPLY",
         },
         "sb": {
             "event": "failure" if kind == "stop-failure" else kind,
@@ -4691,6 +4706,11 @@ def main():
             "md": raw_md or None,
         },
     }
+
+    if kind != "stop-failure":
+        # 长按可直接打字回复下一步指令(stop 时注入,见下)。失败没有可接着跑的
+        # 回合,不给回复入口,否则那句话会在下一次 Stop 时才迟到地注入。
+        payload["aps"]["category"] = "SB_REPLY"
 
     jwt = make_jwt(cfg)
     other_env = "production" if env == "sandbox" else "sandbox"
