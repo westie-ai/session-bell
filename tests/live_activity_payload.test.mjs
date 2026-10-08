@@ -23,8 +23,10 @@ test('known states with stale/dismissal dates are forwarded', async () => {
       { event: 'update', 'content-state': { tasks: [task('running'), task('failed')] }, 'stale-date': 2 },
       { event: 'end', 'content-state': { tasks: [task('done')] }, 'dismissal-date': 2 },
       { event: 'end', 'content-state': { tasks: [] }, 'dismissal-date': 2 },
+      // Codex Desktop observer writes `unknown`; older hooks ship it on the card.
+      { event: 'update', 'content-state': { tasks: [task('unknown')] }, 'stale-date': 2 },
     ]) assert.equal((await la(call, aps)).status, 200);
-    assert.equal(apns.calls.length, 3);
+    assert.equal(apns.calls.length, 4);
   } finally { apns.restore(); }
 });
 

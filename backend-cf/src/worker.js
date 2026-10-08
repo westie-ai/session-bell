@@ -362,11 +362,12 @@ async function apnsJwt(env) {
 }
 
 // The lock-screen card (and its Apple Watch Smart Stack copy) only knows
-// these task states. Anything else would render as "status unavailable", so
-// reject it here instead of shipping a card nobody can read. Updates must
-// carry a stale-date and ends a dismissal-date: a card without either can
-// sit on the Lock Screen showing a state that is no longer true.
-const TASK_STATES = new Set(['running', 'waiting', 'done', 'failed']);
+// these task states (`unknown` comes from the Codex Desktop observer and
+// renders as "status unavailable"). Anything else is rejected here instead
+// of shipping a card nobody can read. Updates must carry a stale-date and
+// ends a dismissal-date: a card without either can sit on the Lock Screen
+// showing a state that is no longer true.
+const TASK_STATES = new Set(['running', 'waiting', 'done', 'failed', 'unknown']);
 
 function validActivityPayload(payload) {
   const aps = payload && payload.aps;
