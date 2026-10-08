@@ -1283,6 +1283,10 @@ struct SessionPage: View {
     @State private var isSending = false
     @State private var sendNoteOK = true
     @State private var noteTask: Task<Void, Never>?
+    /// 上一条没确认送进队列的回复:用户原样再发时沿用它的 id,
+    /// 万一第一次其实已经到了服务端,也不会变成两条。
+    @State private var unconfirmedReplyId = ""
+    @State private var unconfirmedReplyText = ""
     @FocusState private var inputFocused: Bool
     @AppStorage(ReadingSize.key) private var readingSize = ReadingSize.defaultLevel
     @State private var showTextSize = false
@@ -1297,6 +1301,15 @@ struct SessionPage: View {
         liveTask?.host ?? host ?? group?.events.compactMap(\.host).first
     }
     private var isLive: Bool { liveTask != nil }
+    private var usesReplyQueue: Bool { liveTask?.replyQueue == true && !isCodex }
+    private var hasOpenReplies: Bool { (store.replies[sessionId] ?? []).contains { $0.isOpen } }
+    /// 最近的手机回复:没走完的全显示,走完的只留 10 分钟,最多 3 条。
+    private var recentReplies: [EventStore.ReplyItem] {
+        let list = (store.replies[sessionId] ?? []).filter {
+            $0.isOpen || Date().timeIntervalSince($0.createdAt) < 600
+        }
+        return Array(list.suffix(3))
+    }
     private var isCodex: Bool { (liveTask?.engine ?? group?.latest.engine) == "codex" }
     private var isDesktopObserver: Bool { (liveTask?.source ?? group?.latest.source) == "desktop" }
     private var desktopCanSend: Bool {
@@ -1402,6 +1415,16 @@ struct SessionPage: View {
         }
         .task(id: "\(peekTask?.sessionId ?? "")/\(tab == .terminal)") {
             if tab == .terminal { await terminalLoop() } else { await progressLoop() }
+        }
+        .task(id: "replies-\(sessionId)-\(usesReplyQueue)-\(hasOpenReplies)") {
+            guard usesReplyQueue else { return }
+            // 进页面读一次;只在有没走完的回复时每 3 秒问一次「有变化吗」,
+            // 全部走完就停(发出新回复会让这里重新开始)。
+            await store.refreshReplies(sessionId: sessionId)
+            while !Task.isCancelled && hasOpenReplies {
+                try? await Task.sleep(for: .seconds(3))
+                await store.refreshReplies(sessionId: sessionId)
+            }
         }
         .onChange(of: tab) { _, t in UIApplication.shared.isIdleTimerDisabled = (t == .terminal) }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -1744,6 +1767,19 @@ struct SessionPage: View {
                     .font(.caption2).foregroundStyle(.secondary)
                     .padding(.horizontal, 16).padding(.top, 8)
             }
+            if usesReplyQueue && !recentReplies.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(recentReplies) { reply in
+                        ReplyStatusRow(reply: reply, hostSeenAt: liveTask?.hostSeenAt ?? .distantPast) {
+                            Task {
+                                let ok = await store.cancelReply(reply.id, sessionId: sessionId)
+                                showNote(ok ? String(localized: "Taken back") : String(localized: "Too late — it's already on its way"), ok: ok)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 8)
+            }
             // 发送回执:彩色药丸,出现 3 秒自动淡出,不常驻占地方。
             if !sendNote.isEmpty {
                 HStack(spacing: 5) {
@@ -1813,6 +1849,32 @@ struct SessionPage: View {
                 showNote(String(localized: "Sending to Codex…"))
                 let result = await store.sendCodexCommand(host: host, action: "send", sessionId: sessionId, text: text)
                 showNote(result.message, ok: result.ok)
+            } else if isLive && usesReplyQueue {
+                guard let backend = SBBackend.saved else {
+                    showNote(String(localized: "Backend not configured"), ok: false)
+                    return
+                }
+                let reuse = text == unconfirmedReplyText ? unconfirmedReplyId : nil
+                let result = await EventStore.sendReply(sessionId: sessionId, text: text, id: reuse,
+                                                        url: backend.url, secret: backend.secret)
+                if let reply = result.reply {
+                    unconfirmedReplyId = ""
+                    unconfirmedReplyText = ""
+                    store.noteReply(reply, sessionId: sessionId)
+                } else if let code = result.rejectedStatus {
+                    // 服务端没收下这条(没存),改完重发用新 id 就行。
+                    unconfirmedReplyId = ""
+                    unconfirmedReplyText = ""
+                    input = text
+                    showNote(code == 400 ? String(localized: "Not sent — the reply is too long or empty")
+                             : String(localized: "Not sent — re-pair this phone with your Mac (error \(code))"), ok: false)
+                } else {
+                    // 没确认进队列:把字还给输入框,原样再发会沿用同一个 id。
+                    unconfirmedReplyId = result.id
+                    unconfirmedReplyText = text
+                    input = text
+                    showNote(String(localized: "Not sent — check your connection and send again"), ok: false)
+                }
             } else if isLive {
                 guard let backend = SBBackend.saved else {
                     showNote(String(localized: "Backend not configured"), ok: false)
@@ -1843,6 +1905,55 @@ struct SessionPage: View {
             try? await Task.sleep(for: .seconds(3))
             if !Task.isCancelled { sendNote = "" }
         }
+    }
+}
+
+/// 一条手机回复的送达状态。状态由服务端决定,这里只负责说人话;
+/// 排队太久且 Mac 十几分钟没上报,就明说在等电脑上线。
+struct ReplyStatusRow: View {
+    let reply: EventStore.ReplyItem
+    let hostSeenAt: Date
+    let onCancel: () -> Void
+
+    /// relay 每 10 分钟上报一次;留出一次漏报的余量。
+    private var macLooksOffline: Bool { Date().timeIntervalSince(hostSeenAt) > 20 * 60 }
+
+    private var label: (text: LocalizedStringKey, symbol: String, color: Color) {
+        switch reply.status {
+        case "queued":
+            return macLooksOffline
+                ? ("Waiting for your computer to come online", "desktopcomputer", .orange)
+                : ("Queued · delivered when this turn is idle", "clock", .secondary)
+        case "delivering": return ("Delivering…", "arrow.up.circle", .blue)
+        case "delivered": return ("Delivered", "checkmark.circle.fill", .green)
+        case "failed": return ("Not delivered", "exclamationmark.triangle.fill", .red)
+        case "expired": return ("Expired · never delivered", "clock.badge.xmark", .red)
+        case "cancelled":
+            return reply.message.hasPrefix("superseded")
+                ? ("Replaced by what you typed on the computer", "keyboard", .secondary)
+                : ("Taken back", "arrow.uturn.backward", .secondary)
+        default: return ("Status unavailable", "questionmark.circle", .secondary)
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: label.symbol).foregroundStyle(label.color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(reply.text).lineLimit(1).truncationMode(.tail)
+                    .foregroundStyle(.primary)
+                Text(label.text).foregroundStyle(label.color)
+                if reply.status == "failed", !reply.message.isEmpty {
+                    Text(reply.message).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+            Spacer(minLength: 4)
+            if reply.status == "queued" {
+                Button("Take back", action: onCancel)
+                    .buttonStyle(.bordered).controlSize(.mini)
+            }
+        }
+        .font(.caption)
     }
 }
 
