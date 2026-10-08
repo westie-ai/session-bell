@@ -108,7 +108,7 @@ final class LiveActivityManager {
             let attrs = SessionActivityAttributes(backend: backend.url, secret: backend.secret)
             let activity = try Activity.request(
                 attributes: attrs,
-                content: .init(state: state, staleDate: Date().addingTimeInterval(900)),
+                content: .init(state: state, staleDate: Date().addingTimeInterval(1200)),
                 pushType: .token)
             Task {
                 for await tokenData in activity.pushTokenUpdates {
