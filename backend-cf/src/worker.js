@@ -76,6 +76,8 @@ async function gc(env) {
       .bind('codex-command/', 'codex-command/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('decision/', 'decision/\uffff', now - 7 * day),
+    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
+      .bind('reply/', 'reply/\uffff', now - 2 * day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
       .bind('sys', 'rl/', 'rl/\uffff', now - day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
@@ -136,6 +138,7 @@ async function handleState(req, env, n) {
       codex: b.codex || null,
       projects: Array.isArray(b.projects) ? b.projects.slice(0, 12) : [],
       hook_v: b.hook_v || null,
+      caps: Array.isArray(b.caps) ? b.caps.filter((c) => typeof c === 'string').slice(0, 16) : [],
     };
     await kvPut(env, n, 'state/' + encodeURIComponent(b.host), JSON.stringify(doc));
     return json({ ok: true });
@@ -149,7 +152,7 @@ async function handleState(req, env, n) {
                         codex_usage: d.codex_usage || null,
                         codex: d.codex || null,
                         awake: d.awake === true, projects: d.projects || [],
-                        hook_v: d.hook_v || null };
+                        hook_v: d.hook_v || null, caps: d.caps || [] };
       }
     } catch {}
   }
@@ -195,19 +198,28 @@ async function handleCommand(req, env, n, url) {
     return json({ ok: true });
   }
   const sid = url.searchParams.get('id');
+  // Newer hooks also follow the reply queue in the same held request:
+  // `reply_since=<rev>` adds {reply_rev, replies} and wakes on either source.
+  // Without it the response is exactly what older hooks expect.
+  const rs = url.searchParams.get('reply_since');
+  const replySince = rs == null ? null : Math.max(0, Number(rs) || 0);
+  if (sid && !SID.test(sid)) return json({ error: 'bad id' }, 400);
+  const readLegacy = () => (sid ? kvGet(env, n, `command/${sid}`) : kvList(env, n, 'command/'));
+  const legacyFresh = (r, since) => (sid ? !!r && r.ts > since : r.some((x) => x.ts > since));
+  const got = await longPoll(url,
+    async () => ({ legacy: await readLegacy(),
+                   q: replySince == null ? null : await replyChanges(env, n, replySince, sid) }),
+    (g, since) => legacyFresh(g.legacy, since) || (g.q && g.q.replies.length > 0));
+  const extra = got.q ? { reply_rev: got.q.rev, replies: got.q.replies } : {};
   if (sid) {
-    if (!SID.test(sid)) return json({ error: 'bad id' }, 400);
-    const row = await longPoll(url, () => kvGet(env, n, `command/${sid}`),
-                               (r, since) => !!r && r.ts > since);
-    return json({ command: row ? { ts: row.ts, text: row.v } : null });
+    const row = got.legacy;
+    return json({ command: row ? { ts: row.ts, text: row.v } : null, ...extra });
   }
-  const rows = await longPoll(url, () => kvList(env, n, 'command/'),
-                              (rs, since) => rs.some((r) => r.ts > since));
   const out = {};
-  for (const r of rows) {
+  for (const r of got.legacy) {
     out[r.k.slice('command/'.length)] = { ts: r.ts, text: r.v };
   }
-  return json({ commands: out });
+  return json({ commands: out, ...extra });
 }
 
 // Preserve the existing production claim API, including timestamp-guarded deletion.
@@ -236,6 +248,149 @@ async function handleCommandRestore(req, env, n) {
   const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
     .bind(n, `command/${b.session_id}`, b.text, b.ts).run();
   return json({ restored: (r.meta?.changes || 0) > 0 });
+}
+
+// ---------- reply queue (v1) ----------
+//
+// Phone → session replies with a client-generated id (the nonce): resending
+// the same id never creates a second reply. Unlike the one-slot legacy
+// mailbox, two quick replies are both kept, in order. Each reply moves
+//   queued → delivering → delivered | failed      (Mac claims, then acks)
+//   queued → cancelled                            (phone takes it back)
+//   queued → expired                              (TTL passed, never claimed)
+// and every change bumps the namespace's `rev`, so a consumer that remembers
+// the last rev it saw catches up on exactly what it missed (no timestamp
+// cursors). A Mac that dies between claim and ack loses the claim after
+// REPLY_CLAIM_MS; the Mac keeps a local record of delivered ids, so a
+// re-claimed reply is acknowledged, not typed twice.
+
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const REPLY_TTL_MS = 4 * 3600e3;      // same window the hook used for legacy commands
+const REPLY_CLAIM_MS = 2 * 60e3;
+const REPLY_TERMINAL = new Set(['delivered', 'failed', 'expired', 'cancelled']);
+
+async function bumpRev(env, n) {
+  const row = await env.DB.prepare(
+    "INSERT INTO kv (ns,k,v,ts) VALUES (?,'meta/rev','1',?) " +
+    'ON CONFLICT(ns,k) DO UPDATE SET v=CAST(kv.v AS INTEGER)+1, ts=excluded.ts RETURNING v')
+    .bind(n, Date.now()).first();
+  return Number(row.v);
+}
+
+async function currentRev(env, n) {
+  const row = await kvGet(env, n, 'meta/rev');
+  return row ? Number(row.v) : 0;
+}
+
+/// Lazily resolve time-based transitions so every reader sees the same truth.
+function replyView(entry, now = Date.now()) {
+  if (entry.status === 'queued' && now > entry.expires_at) return { ...entry, status: 'expired' };
+  if (entry.status === 'delivering' && now - entry.claimed_at > REPLY_CLAIM_MS) {
+    return { ...entry, status: now > entry.expires_at ? 'expired' : 'queued' };
+  }
+  return entry;
+}
+
+async function readReply(env, n, id) {
+  const row = await kvGet(env, n, `reply/${id}`);
+  if (!row) return null;
+  try { return { entry: JSON.parse(row.v), ts: row.ts }; } catch { return null; }
+}
+
+/// Compare-and-swap on the stored JSON: of two racing writers only one wins.
+async function swapReply(env, n, before, after) {
+  after.rev = await bumpRev(env, n);
+  const r = await env.DB.prepare('UPDATE kv SET v=? WHERE ns=? AND k=? AND v=?')
+    .bind(JSON.stringify(after), n, `reply/${after.id}`, JSON.stringify(before)).run();
+  return (r.meta?.changes || 0) > 0;
+}
+
+/// All replies, oldest first. Time-based transitions (a lapsed claim, an
+/// expiry) are written back here so they bump `rev` like any other change;
+/// otherwise a Mac whose cursor is past the claim would never see the
+/// reply come back.
+async function listReplies(env, n) {
+  const now = Date.now();
+  const out = [];
+  for (const r of await kvList(env, n, 'reply/')) {
+    let entry;
+    try { entry = JSON.parse(r.v); } catch { continue; }
+    const view = replyView(entry, now);
+    if (view.status !== entry.status) {
+      const next = { ...entry, status: view.status, claimed_at: view.status === 'queued' ? 0 : entry.claimed_at };
+      if (await swapReply(env, n, entry, next)) entry = next;
+      else entry = replyView(JSON.parse((await kvGet(env, n, r.k)).v), now);
+    }
+    out.push(entry);
+  }
+  return out.sort((a, b) => a.created_at - b.created_at);
+}
+
+/// What a consumer at cursor `since` has not seen yet (optionally one session).
+async function replyChanges(env, n, since, sid) {
+  const all = await listReplies(env, n);
+  return { rev: await currentRev(env, n),
+           replies: all.filter((e) => e.rev > since && (!sid || e.session_id === sid)).slice(0, 50) };
+}
+
+async function handleReply(req, env, n, url, sub) {
+  if (req.method === 'GET') {
+    const id = url.searchParams.get('id');
+    if (id) {
+      if (!UUID.test(id)) return json({ error: 'bad id' }, 400);
+      const r = await readReply(env, n, id);
+      return json({ reply: r ? replyView(r.entry) : null });
+    }
+    const sid = url.searchParams.get('sid');
+    if (!SID.test(sid || '')) return json({ error: 'bad sid' }, 400);
+    return json({ rev: await currentRev(env, n),
+                  replies: (await listReplies(env, n)).filter((e) => e.session_id === sid).slice(-20) });
+  }
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (!UUID.test(b.id || '')) return json({ error: 'bad id' }, 400);
+  const id = b.id.toLowerCase();
+
+  if (!sub) {
+    if (!SID.test(b.session_id || '') || typeof b.text !== 'string' || !b.text.trim()
+        || b.text.length > 4000) {
+      return json({ error: 'bad request' }, 400);
+    }
+    const now = Date.now();
+    const entry = { id, session_id: b.session_id, text: b.text.trim(), status: 'queued',
+      created_at: now, expires_at: now + REPLY_TTL_MS, claimed_at: 0, message: '', rev: 0 };
+    entry.rev = await bumpRev(env, n);
+    const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+      .bind(n, `reply/${id}`, JSON.stringify(entry), now).run();
+    const stored = (r.meta?.changes || 0) > 0 ? entry : (await readReply(env, n, id)).entry;
+    return json({ ok: true, duplicate: stored !== entry, reply: replyView(stored) });
+  }
+
+  const cur = await readReply(env, n, id);
+  if (!cur) return json({ error: 'missing reply' }, 404);
+  const view = replyView(cur.entry);
+  if (sub === 'claim') {
+    if (view.status !== 'queued') return json({ claimed: false, reply: view });
+    const next = { ...cur.entry, status: 'delivering', claimed_at: Date.now() };
+    const ok = await swapReply(env, n, cur.entry, next);
+    return json({ claimed: ok, reply: ok ? next : replyView((await readReply(env, n, id)).entry) });
+  }
+  if (sub === 'ack') {
+    // delivered/failed end a claim; queued hands a failed injection back.
+    if (!['delivered', 'failed', 'queued'].includes(b.status)) return json({ error: 'bad status' }, 400);
+    if (REPLY_TERMINAL.has(cur.entry.status)) return json({ ok: true, reply: cur.entry });
+    const next = { ...cur.entry, status: b.status, message: String(b.message || '').slice(0, 300) };
+    if (b.status === 'queued') next.claimed_at = 0;
+    const ok = await swapReply(env, n, cur.entry, next);
+    return json({ ok, reply: ok ? next : (await readReply(env, n, id)).entry });
+  }
+  if (sub === 'cancel') {
+    if (view.status !== 'queued') return json({ cancelled: false, reply: view });
+    const next = { ...cur.entry, status: 'cancelled', message: String(b.message || '').slice(0, 300) };
+    const ok = await swapReply(env, n, cur.entry, next);
+    return json({ cancelled: ok, reply: ok ? next : replyView((await readReply(env, n, id)).entry) });
+  }
+  return json({ error: 'not found' }, 404);
 }
 
 // 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
@@ -952,6 +1107,11 @@ export default {
       if (path === '/api/command') return handleCommand(req, env, n, url);
       if (path === '/api/command/claim') return handleCommandClaim(req, env, n);
       if (path === '/api/command/restore') return handleCommandRestore(req, env, n);
+      if (path === '/api/reply') return handleReply(req, env, n, url, null);
+      {
+        const m = path.match(/^\/api\/reply\/(claim|ack|cancel)$/);
+        if (m) return handleReply(req, env, n, url, m[1]);
+      }
       if (path === '/api/codex') return handleCodex(req, env, n, url);
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);
