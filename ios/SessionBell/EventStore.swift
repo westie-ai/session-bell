@@ -152,7 +152,7 @@ final class EventStore: ObservableObject {
         guard let obj = await SBBackend.getJSON("/api/state") as? [String: [String: Any]]
         else { return }
         let now = Date().timeIntervalSince1970
-        let limits: [String: Double] = ["done": 600, "waiting": 1800, "running": 21600]
+        let limits: [String: Double] = ["done": 600, "failed": 600, "waiting": 1800, "running": 21600]
 
         // "Piper的 MacBook Pro (2)" and "Piper-MacBook-Pro-2" are the same
         // machine under two spellings — canonicalize for grouping, and show
@@ -296,7 +296,7 @@ final class EventStore: ObservableObject {
         }
 
         // 电脑 → 任务 → 子 agent: group by canonical host, nest children.
-        let order = ["waiting": 0, "running": 1, "done": 2]
+        let order = ["waiting": 0, "failed": 1, "running": 2, "done": 3]
         var groups: [HostGroup] = []
         let byHost = Dictionary(grouping: bySession.values) { canonical($0.host) }
         // 一小时内有心跳的每台 Mac 都有一组,哪怕它此刻一个任务都没有 —

@@ -1050,6 +1050,7 @@ struct LiveTaskRow: View {
         case "waiting": return "Waiting for you"
         case "running": return "Running"
         case "done": return "Done"
+        case "failed": return "Failed"
         default: return "Status unavailable"
         }
     }
@@ -1316,6 +1317,7 @@ struct SessionPage: View {
         case "waiting": return ("Waiting for you", .orange)
         case "running": return ("Running", .blue)
         case "done": return ("Done", .green)
+        case "failed": return ("Failed", .red)
         case "unknown": return ("Status unavailable", .gray)
         default: return ("Ended", .gray)
         }

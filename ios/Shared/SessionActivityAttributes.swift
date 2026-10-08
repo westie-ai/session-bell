@@ -6,7 +6,7 @@ struct SessionActivityAttributes: ActivityAttributes {
     public struct TaskItem: Codable, Hashable {
         var project: String
         var host: String
-        var status: String       // "running" | "waiting" | "done"
+        var status: String       // "running" | "waiting" | "done" | "failed"
         var since: TimeInterval  // unix seconds
         var detail: String?      // prompt excerpt / waiting reason
         var agents: Int?         // running subagent count
@@ -32,6 +32,7 @@ struct SessionActivityAttributes: ActivityAttributes {
 
         var waitingCount: Int { tasks.filter { $0.status == "waiting" }.count }
         var runningCount: Int { tasks.filter { $0.status == "running" }.count }
+        var failedCount: Int { tasks.filter { $0.status == "failed" }.count }
         var activeCount: Int { waitingCount + runningCount }
         var hasApproval: Bool { !(approvalId ?? "").isEmpty }
     }
