@@ -57,6 +57,12 @@ export function fakeD1({ jitter = false } = {}) {
       rows.set(key(ns, k), { ...r, v });
       return { changes: 1 };
     }
+    if (sql.includes("CASE WHEN kv.v='1'")) {
+      const [ns, k, ts] = args;
+      const r = rows.get(key(ns, k));
+      rows.set(key(ns, k), { ns, k, v: r && r.v !== '1' ? r.v : '1', ts });
+      return { changes: 1 };
+    }
     if (sql.startsWith('INSERT INTO kv') && sql.includes('ON CONFLICT')) {
       const [ns, k, v, ts] = args;
       rows.set(key(ns, k), { ns, k, v, ts });
@@ -77,6 +83,12 @@ export function fakeD1({ jitter = false } = {}) {
     }
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=?') {
       return { changes: rows.delete(key(args[0], args[1])) ? 1 : 0 };
+    }
+    if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts<=?') {
+      const r = rows.get(key(args[0], args[1]));
+      if (!r || r.ts > args[2]) return { changes: 0 };
+      rows.delete(key(args[0], args[1]));
+      return { changes: 1 };
     }
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts=?') {
       const r = rows.get(key(args[0], args[1]));
