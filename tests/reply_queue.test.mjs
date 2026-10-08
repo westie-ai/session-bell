@@ -180,3 +180,40 @@ test('listings never leak the claim id', async () => {
   assert.equal('claim_id' in r.replies[0], false);
   assert.equal('claim_id' in (await j(call(`/api/reply?id=${ID(1)}`))).reply, false);
 });
+
+test('a reply created while a listing settles a lapsed claim is not skipped', async () => {
+  const { env, call } = await setup();
+  await call('/api/reply', { id: ID(1), session_id: 's1', text: 'a' });
+  await call('/api/reply/claim', { id: ID(1) });
+  const seen = await j(call('/api/command?wait=0&since=0&reply_since=0'));
+  const row = [...env.DB.rows.values()].find((r) => r.k === `reply/${ID(1)}`);
+  const e = JSON.parse(row.v); e.claimed_at -= 3 * 60e3; row.v = JSON.stringify(e);
+  await call('/api/reply', { id: ID(2), session_id: 's1', text: 'b' });
+  // Reply c commits right after the next listing's snapshot, before that
+  // listing settles a's lapsed claim (which takes the rev above c's).
+  const prepare = env.DB.prepare.bind(env.DB);
+  let raced = false;
+  env.DB.prepare = (sql) => {
+    const stmt = prepare(sql);
+    if (raced || !sql.startsWith('SELECT k, v, ts FROM kv WHERE ns=? AND k>=? AND k<?')) return stmt;
+    return { bind: (...args) => {
+      const bound = stmt.bind(...args);
+      if (args[1] !== 'reply/') return bound;
+      return { ...bound, all: async () => {
+        const snap = await bound.all();
+        raced = true;
+        await call('/api/reply', { id: ID(3), session_id: 's1', text: 'c' });
+        return snap;
+      } };
+    } };
+  };
+  const got = [];
+  let rev = seen.reply_rev;
+  for (let i = 0; i < 3; i++) {
+    const r = await j(call(`/api/command?wait=0&since=0&reply_since=${rev}`));
+    got.push(...r.replies.map((x) => x.text));
+    rev = r.reply_rev;
+  }
+  assert.ok(raced, 'the race was staged');
+  assert.ok(got.includes('c'), `c reached the consumer (got ${got})`);
+});

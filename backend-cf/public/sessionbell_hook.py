@@ -2594,13 +2594,15 @@ def _update_ledger(change) -> None:
         pass
 
 
-def record_reply_delivered(reply: dict) -> None:
+def record_reply_delivered(reply: dict, claim_id: str = "") -> None:
     """Call BEFORE injecting: the prompt hook that our own typing triggers
     must already find it here (see is_injected_reply). Undo with
-    forget_reply if the injection fails."""
+    forget_reply if the injection fails. The entry stays `unacked` until the
+    backend confirms the delivered ack (see retry_unacked_replies)."""
     def add(ledger, now):
         ledger[reply["id"]] = {"ts": now, "sid": reply.get("session_id", ""),
-                               "h": _reply_hash(reply.get("text", ""))}
+                               "h": _reply_hash(reply.get("text", "")),
+                               "claim": claim_id, "unacked": True}
     _update_ledger(add)
 
 
@@ -2623,9 +2625,46 @@ def is_injected_reply(sid: str, prompt: str, window: int = 600) -> bool:
                for v in load_reply_ledger().values())
 
 
-def reply_ack(cfg: dict, reply_id: str, claim_id: str, status: str, message: str = "") -> None:
-    backend_call(cfg, "POST", "/api/reply/ack",
-                 {"id": reply_id, "claim_id": claim_id, "status": status, "message": message[:300]})
+def reply_ack(cfg: dict, reply_id: str, claim_id: str, status: str, message: str = ""):
+    """The backend's answer (None if unreachable)."""
+    return backend_call(cfg, "POST", "/api/reply/ack",
+                        {"id": reply_id, "claim_id": claim_id, "status": status,
+                         "message": message[:300]})
+
+
+def ack_delivered(cfg: dict, reply_id: str, claim_id: str) -> bool:
+    """Ack a typed reply; on success the ledger stops retrying it."""
+    resp = reply_ack(cfg, reply_id, claim_id, "delivered")
+    if isinstance(resp, dict) and resp.get("ok") is True:
+        def done(ledger, now):
+            if reply_id in ledger:
+                ledger[reply_id].pop("unacked", None)
+        _update_ledger(done)
+        return True
+    return False
+
+
+REPLY_ACK_RETRY_AFTER = 20      # leave the typing process time to ack itself
+REPLY_ACK_RETRY_EVERY = 30
+_ACK_TRIED: dict = {}
+
+
+def retry_unacked_replies(cfg: dict) -> None:
+    """A delivered ack that never landed (network blip, Mac asleep, process
+    killed after typing) leaves the reply 'delivering' on the phone; the
+    backend only lapses it on its hourly sweep. The watcher re-sends the ack
+    with the claim it was typed under; if that claim already lapsed back to
+    the queue, re-claiming it acks it from the ledger (claim_reply)."""
+    now = time.time()
+    for rid, v in load_reply_ledger().items():
+        if (not v.get("unacked") or v.get("joined") or now - v.get("ts", 0) < REPLY_ACK_RETRY_AFTER
+                or now - v.get("ts", 0) > 4 * 3600 or now - _ACK_TRIED.get(rid, 0) < REPLY_ACK_RETRY_EVERY):
+            continue
+        _ACK_TRIED[rid] = now
+        if ack_delivered(cfg, rid, v.get("claim", "")):
+            log(f"reply {rid[:8]}: late delivered ack landed")
+        elif claim_reply(cfg, {"id": rid}) is None:
+            pass   # re-claimed and acked from the ledger, held by another claim, or unreachable
 
 
 def claim_reply(cfg: dict, reply: dict):
@@ -2636,7 +2675,7 @@ def claim_reply(cfg: dict, reply: dict):
     if not (isinstance(resp, dict) and resp.get("claimed") is True and resp.get("claim_id")):
         return None
     if reply["id"] in load_reply_ledger():
-        reply_ack(cfg, reply["id"], resp["claim_id"], "delivered")
+        ack_delivered(cfg, reply["id"], resp["claim_id"])
         return None
     return resp["claim_id"]
 
@@ -3348,10 +3387,10 @@ def watcher_deliver_replies(cfg: dict, replies: list) -> None:
         if not claim_id:
             _REPLY_RETRY.pop(r["id"], None)
             continue
-        record_reply_delivered(r)
+        record_reply_delivered(r, claim_id)
         ok, err = type_into_terminal(entry, _norm_reply(r["text"]))
         if ok:
-            reply_ack(cfg, r["id"], claim_id, "delivered")
+            ack_delivered(cfg, r["id"], claim_id)
             _REPLY_RETRY.pop(r["id"], None)
             log(f"watcher: reply {r['id'][:8]} typed into {sid[:8]}")
         else:
@@ -3441,6 +3480,7 @@ def run_watcher(cfg: dict) -> None:
                 continue
             if isinstance(resp.get("reply_rev"), int):
                 reply_rev = max(reply_rev, resp["reply_rev"])
+            retry_unacked_replies(cfg)
             replies = queued_replies(resp)
             if replies or any(x["at"] <= time.time() and x["fails"] < len(REPLY_RETRY_DELAYS)
                               for x in _REPLY_RETRY.values()):
@@ -3896,12 +3936,12 @@ def try_inject_command(cfg, env, session_id, project, host,
             # in between, the claim lapses and the ledger decides on re-claim.
             print_stop_continue(text)
             sys.stdout.flush()
-            for r, _ in claimed:
-                record_reply_delivered(r)
+            for r, claim_id in claimed:
+                record_reply_delivered(r, claim_id)
             if len(claimed) > 1:
                 record_joined_text(session_id, text, [r["id"] for r, _ in claimed])
             for r, claim_id in claimed:
-                reply_ack(cfg, r["id"], claim_id, "delivered")
+                ack_delivered(cfg, r["id"], claim_id)
             return True
         cmd = (resp or {}).get("command")
         fresh = cmd and cmd.get("ts", 0) > max(cursor, (time.time() - 4 * 3600) * 1000)

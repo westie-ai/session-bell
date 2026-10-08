@@ -358,9 +358,12 @@ async function replyChanges(env, n, since, sid) {
     .filter((e) => e.rev > since && (!sid || e.session_id === sid))
     .sort((a, b) => a.rev - b.rev);
   const page = changed.slice(0, 50);
+  // The cursor never passes `rev`, read before the listing: a row committed
+  // after the listing's snapshot has a rev above it, and so may the revs the
+  // listing's own settles just wrote — advancing to those would skip the
+  // former for good. Anything above `rev` is simply sent again next time.
   // A truncated page resumes after its last item, never past unseen ones.
-  const cursor = changed.length > page.length ? page[page.length - 1].rev
-    : Math.max(rev, ...page.map((e) => e.rev));
+  const cursor = changed.length > page.length ? Math.min(rev, page[page.length - 1].rev) : rev;
   return { rev: cursor, replies: page.map(publicReply) };
 }
 
@@ -393,7 +396,7 @@ async function handleReply(req, env, n, url, sub) {
     if (since && rev <= since) return json({ rev, unchanged: true });
     const mine = (await listReplies(env, n)).filter((e) => e.session_id === sid)
       .sort((a, b) => a.created_at - b.created_at).slice(-20);
-    return json({ rev: Math.max(rev, ...mine.map((e) => e.rev)), replies: mine.map(publicReply) });
+    return json({ rev, replies: mine.map(publicReply) });   // never past rev: see replyChanges
   }
   if (req.method !== 'POST') return json({ error: 'not found' }, 404);
   const b = await readBody(req);

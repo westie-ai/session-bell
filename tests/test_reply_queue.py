@@ -99,6 +99,51 @@ class ReplyQueueTests(unittest.TestCase):
         type_.assert_not_called()
         self.assertEqual(backend.acks(), [("01", "delivered", "c-01")])
 
+    def retry_acks(self, backend, now):
+        with patch.object(sb, "backend_call", backend), patch.object(sb.time, "time", return_value=now):
+            sb.retry_unacked_replies(CFG)
+
+    def type_with_lost_ack(self, r):
+        class AckLost(Backend):
+            def __call__(self, cfg, method, path, body=None, timeout=8):
+                resp = super().__call__(cfg, method, path, body, timeout)
+                return None if path == "/api/reply/ack" else resp
+        sb._ACK_TRIED.clear()
+        self.addCleanup(sb._ACK_TRIED.clear)
+        self.deliver(AckLost(claimable={r["id"]}), [r], now=1000)
+        self.assertTrue(sb.load_reply_ledger()[r["id"]].get("unacked"))
+
+    def test_lost_delivered_ack_is_resent_by_the_watcher_until_it_lands(self):
+        r = reply(1)
+        self.type_with_lost_ack(r)
+        backend = Backend()
+        self.retry_acks(backend, now=1005)
+        self.assertEqual(backend.acks(), [], "the typing process still gets its own go first")
+        self.retry_acks(backend, now=1030)
+        self.assertEqual(backend.acks(), [("01", "delivered", "c-01")], "same claim it was typed under")
+        self.assertNotIn("unacked", sb.load_reply_ledger()[r["id"]])
+        self.retry_acks(backend, now=1100)
+        self.assertEqual(len(backend.acks()), 1, "nothing left to resend")
+
+    def test_late_ack_after_the_claim_lapsed_reclaims_and_acks_without_typing(self):
+        r = reply(1)
+        self.type_with_lost_ack(r)
+
+        class Lapsed(Backend):
+            def __call__(self, cfg, method, path, body=None, timeout=8):
+                resp = super().__call__(cfg, method, path, body, timeout)
+                if path == "/api/reply/ack" and body["claim_id"] == "c-01":
+                    return {"ok": False, "error": "not the claim holder"}
+                if path == "/api/reply/claim":
+                    return {"claimed": True, "claim_id": "c-02"}
+                return resp
+        backend = Lapsed()
+        with patch.object(sb, "type_into_terminal") as type_:
+            self.retry_acks(backend, now=1030)
+            type_.assert_not_called()
+        self.assertEqual(backend.acks(), [("01", "delivered", "c-01"), ("01", "delivered", "c-02")])
+        self.assertNotIn("unacked", sb.load_reply_ledger()[r["id"]])
+
     def test_lost_claim_race_means_no_typing(self):
         type_ = self.deliver(Backend(claimable=()), [reply(1)])
         type_.assert_not_called()
