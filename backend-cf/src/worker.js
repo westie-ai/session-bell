@@ -76,8 +76,13 @@ async function gc(env) {
       .bind('codex-command/', 'codex-command/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('decision/', 'decision/\uffff', now - 7 * day),
-    env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
-      .bind('reply/', 'reply/\uffff', now - 2 * day),
+    // Reply rows keep their rev in ts, so age comes from created_at:
+    // settled replies after an hour, anything once well past the 4 h TTL.
+    env.DB.prepare("DELETE FROM kv WHERE k>=? AND k<? AND CAST(json_extract(v,'$.created_at') AS INTEGER)<? " +
+      "AND json_extract(v,'$.status') IN ('delivered','failed','expired','cancelled')")
+      .bind('reply/', 'reply/\uffff', now - 3600e3),
+    env.DB.prepare("DELETE FROM kv WHERE k>=? AND k<? AND CAST(json_extract(v,'$.created_at') AS INTEGER)<?")
+      .bind('reply/', 'reply/\uffff', now - 5 * 3600e3),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
       .bind('sys', 'rl/', 'rl/\uffff', now - day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
@@ -256,81 +261,120 @@ async function handleCommandRestore(req, env, n) {
 // the same id never creates a second reply. Unlike the one-slot legacy
 // mailbox, two quick replies are both kept, in order. Each reply moves
 //   queued → delivering → delivered | failed      (Mac claims, then acks)
-//   queued → cancelled                            (phone takes it back)
+//   queued → cancelled                            (phone takes it back, or
+//                                                  superseded by typing on the Mac)
 //   queued → expired                              (TTL passed, never claimed)
-// and every change bumps the namespace's `rev`, so a consumer that remembers
-// the last rev it saw catches up on exactly what it missed (no timestamp
-// cursors). A Mac that dies between claim and ack loses the claim after
-// REPLY_CLAIM_MS; the Mac keeps a local record of delivered ids, so a
-// re-claimed reply is acknowledged, not typed twice.
+//
+// Every change bumps the namespace's `rev`, and the reply row's ts column IS
+// its rev: the bump and the row write go out in one D1 batch (one
+// transaction), so revs become visible in commit order and a reader that
+// saw rev R has also seen every change at or below R. A consumer remembers
+// the last rev it saw and gets exactly what it missed.
+//
+// A claim not acked within REPLY_CLAIM_MS lapses back to queued (written by
+// the hourly cron, or by any listing that happens anyway). Only the holder
+// of a claim (its claim_id) may ack it. The Mac keeps a ledger of the ids
+// it typed, so a re-claimed reply it already delivered is acked, not typed
+// twice.
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const REPLY_TTL_MS = 4 * 3600e3;      // same window the hook used for legacy commands
 const REPLY_CLAIM_MS = 2 * 60e3;
 const REPLY_TERMINAL = new Set(['delivered', 'failed', 'expired', 'cancelled']);
+const REV_NOW = "(SELECT CAST(v AS INTEGER) FROM kv WHERE ns=? AND k='meta/rev')";
 
-async function bumpRev(env, n) {
-  const row = await env.DB.prepare(
-    "INSERT INTO kv (ns,k,v,ts) VALUES (?,'meta/rev','1',?) " +
-    'ON CONFLICT(ns,k) DO UPDATE SET v=CAST(kv.v AS INTEGER)+1, ts=excluded.ts RETURNING v')
-    .bind(n, Date.now()).first();
-  return Number(row.v);
-}
+const bumpRev = (env, n) => env.DB.prepare(
+  "INSERT INTO kv (ns,k,v,ts) VALUES (?,'meta/rev','1',?) " +
+  'ON CONFLICT(ns,k) DO UPDATE SET v=CAST(kv.v AS INTEGER)+1, ts=excluded.ts').bind(n, Date.now());
 
 async function currentRev(env, n) {
   const row = await kvGet(env, n, 'meta/rev');
-  return row ? Number(row.v) : 0;
+  return row ? Number(row.v) || 0 : 0;
 }
+
+/// Row → reply. `_raw` is the stored text, the compare-and-swap version.
+function rowToReply(row) {
+  if (!row) return null;
+  try { return { ...JSON.parse(row.v), rev: Number(row.ts) || 0, _raw: row.v }; } catch { return null; }
+}
+
+/// What leaves the Worker: no CAS text, and the claim id only for its holder.
+function publicReply(e) {
+  if (!e) return null;
+  const { _raw, claim_id, ...rest } = e;
+  return rest;
+}
+
+const storedText = (e) => { const { rev, _raw, ...rest } = e; return JSON.stringify(rest); };
 
 /// Lazily resolve time-based transitions so every reader sees the same truth.
 function replyView(entry, now = Date.now()) {
   if (entry.status === 'queued' && now > entry.expires_at) return { ...entry, status: 'expired' };
   if (entry.status === 'delivering' && now - entry.claimed_at > REPLY_CLAIM_MS) {
-    return { ...entry, status: now > entry.expires_at ? 'expired' : 'queued' };
+    return { ...entry, status: now > entry.expires_at ? 'expired' : 'queued', claimed_at: 0, claim_id: '' };
   }
   return entry;
 }
 
 async function readReply(env, n, id) {
-  const row = await kvGet(env, n, `reply/${id}`);
-  if (!row) return null;
-  try { return { entry: JSON.parse(row.v), ts: row.ts }; } catch { return null; }
+  return rowToReply(await kvGet(env, n, `reply/${id}`));
 }
 
-/// Compare-and-swap on the stored JSON: of two racing writers only one wins.
-async function swapReply(env, n, before, after) {
-  after.rev = await bumpRev(env, n);
-  const r = await env.DB.prepare('UPDATE kv SET v=? WHERE ns=? AND k=? AND v=?')
-    .bind(JSON.stringify(after), n, `reply/${after.id}`, JSON.stringify(before)).run();
-  return (r.meta?.changes || 0) > 0;
+/// Bump rev and write the row in one transaction. `before` is the stored
+/// text the caller read (null = create): only one of two racing writers wins.
+async function writeReply(env, n, before, entry) {
+  const k = `reply/${entry.id}`, v = storedText(entry);
+  const write = before == null
+    ? env.DB.prepare(`INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,${REV_NOW})`).bind(n, k, v, n)
+    : env.DB.prepare(`UPDATE kv SET v=?, ts=${REV_NOW} WHERE ns=? AND k=? AND v=?`).bind(v, n, n, k, before);
+  const res = await env.DB.batch([bumpRev(env, n), write]);
+  return (res[1]?.meta?.changes || 0) > 0;
 }
 
-/// All replies, oldest first. Time-based transitions (a lapsed claim, an
-/// expiry) are written back here so they bump `rev` like any other change;
-/// otherwise a Mac whose cursor is past the claim would never see the
-/// reply come back.
+/// Persist a lapsed claim or an expiry so it bumps rev like any change.
+async function settleReply(env, n, entry, now = Date.now()) {
+  const view = replyView(entry, now);
+  if (view.status === entry.status) return entry;
+  if (await writeReply(env, n, entry._raw, view)) return (await readReply(env, n, entry.id)) || view;
+  return (await readReply(env, n, entry.id)) || view;
+}
+
 async function listReplies(env, n) {
-  const now = Date.now();
   const out = [];
   for (const r of await kvList(env, n, 'reply/')) {
-    let entry;
-    try { entry = JSON.parse(r.v); } catch { continue; }
-    const view = replyView(entry, now);
-    if (view.status !== entry.status) {
-      const next = { ...entry, status: view.status, claimed_at: view.status === 'queued' ? 0 : entry.claimed_at };
-      if (await swapReply(env, n, entry, next)) entry = next;
-      else entry = replyView(JSON.parse((await kvGet(env, n, r.k)).v), now);
-    }
-    out.push(entry);
+    const e = rowToReply(r);
+    if (e) out.push(await settleReply(env, n, e));
   }
-  return out.sort((a, b) => a.created_at - b.created_at);
+  return out;
 }
 
-/// What a consumer at cursor `since` has not seen yet (optionally one session).
+/// What a consumer at cursor `since` has not seen yet (optionally one
+/// session), oldest change first. Reading rev first and skipping the listing
+/// when it hasn't moved keeps a held long-poll to one point read per step.
 async function replyChanges(env, n, since, sid) {
-  const all = await listReplies(env, n);
-  return { rev: await currentRev(env, n),
-           replies: all.filter((e) => e.rev > since && (!sid || e.session_id === sid)).slice(0, 50) };
+  const rev = await currentRev(env, n);
+  if (rev <= since) return { rev: since, replies: [] };
+  const changed = (await listReplies(env, n))
+    .filter((e) => e.rev > since && (!sid || e.session_id === sid))
+    .sort((a, b) => a.rev - b.rev);
+  const page = changed.slice(0, 50);
+  // A truncated page resumes after its last item, never past unseen ones.
+  const cursor = changed.length > page.length ? page[page.length - 1].rev
+    : Math.max(rev, ...page.map((e) => e.rev));
+  return { rev: cursor, replies: page.map(publicReply) };
+}
+
+/// Cron backstop: lapsed claims and expiries in every namespace.
+export async function settleAllReplies(env) {
+  const rows = await env.DB.prepare(
+    "SELECT ns, k, v, ts FROM kv WHERE k>=? AND k<? " +
+    "AND json_extract(v,'$.status') IN ('queued','delivering')")
+    .bind('reply/', 'reply/\uffff').all();
+  const now = Date.now();
+  for (const r of rows.results || []) {
+    const e = rowToReply(r);
+    if (e) await settleReply(env, r.ns, e, now);
+  }
 }
 
 async function handleReply(req, env, n, url, sub) {
@@ -338,13 +382,18 @@ async function handleReply(req, env, n, url, sub) {
     const id = url.searchParams.get('id');
     if (id) {
       if (!UUID.test(id)) return json({ error: 'bad id' }, 400);
-      const r = await readReply(env, n, id);
-      return json({ reply: r ? replyView(r.entry) : null });
+      const r = await readReply(env, n, id.toLowerCase());
+      return json({ reply: r ? publicReply(replyView(r)) : null });
     }
     const sid = url.searchParams.get('sid');
     if (!SID.test(sid || '')) return json({ error: 'bad sid' }, 400);
-    return json({ rev: await currentRev(env, n),
-                  replies: (await listReplies(env, n)).filter((e) => e.session_id === sid).slice(-20) });
+    // `since` makes it a conditional read: unchanged → no listing at all.
+    const since = Number(url.searchParams.get('since')) || 0;
+    const rev = await currentRev(env, n);
+    if (since && rev <= since) return json({ rev, unchanged: true });
+    const mine = (await listReplies(env, n)).filter((e) => e.session_id === sid)
+      .sort((a, b) => a.created_at - b.created_at).slice(-20);
+    return json({ rev: Math.max(rev, ...mine.map((e) => e.rev)), replies: mine.map(publicReply) });
   }
   if (req.method !== 'POST') return json({ error: 'not found' }, 404);
   const b = await readBody(req);
@@ -358,37 +407,45 @@ async function handleReply(req, env, n, url, sub) {
     }
     const now = Date.now();
     const entry = { id, session_id: b.session_id, text: b.text.trim(), status: 'queued',
-      created_at: now, expires_at: now + REPLY_TTL_MS, claimed_at: 0, message: '', rev: 0 };
-    entry.rev = await bumpRev(env, n);
-    const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
-      .bind(n, `reply/${id}`, JSON.stringify(entry), now).run();
-    const stored = (r.meta?.changes || 0) > 0 ? entry : (await readReply(env, n, id)).entry;
-    return json({ ok: true, duplicate: stored !== entry, reply: replyView(stored) });
+      created_at: now, expires_at: now + REPLY_TTL_MS, claimed_at: 0, claim_id: '', message: '' };
+    const created = await writeReply(env, n, null, entry);
+    const stored = await readReply(env, n, id);
+    if (!stored) return json({ error: 'try again' }, 503);
+    return json({ ok: true, duplicate: !created, reply: publicReply(replyView(stored)) });
   }
 
   const cur = await readReply(env, n, id);
   if (!cur) return json({ error: 'missing reply' }, 404);
-  const view = replyView(cur.entry);
+  const view = replyView(cur);
+  const reread = async () => publicReply(replyView((await readReply(env, n, id)) || cur));
+
   if (sub === 'claim') {
-    if (view.status !== 'queued') return json({ claimed: false, reply: view });
-    const next = { ...cur.entry, status: 'delivering', claimed_at: Date.now() };
-    const ok = await swapReply(env, n, cur.entry, next);
-    return json({ claimed: ok, reply: ok ? next : replyView((await readReply(env, n, id)).entry) });
+    if (view.status !== 'queued') return json({ claimed: false, reply: publicReply(view) });
+    const claimId = crypto.randomUUID();
+    const next = { ...view, status: 'delivering', claimed_at: Date.now(), claim_id: claimId };
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json(ok ? { claimed: true, claim_id: claimId, reply: publicReply(next) }
+                   : { claimed: false, reply: await reread() });
   }
   if (sub === 'ack') {
     // delivered/failed end a claim; queued hands a failed injection back.
     if (!['delivered', 'failed', 'queued'].includes(b.status)) return json({ error: 'bad status' }, 400);
-    if (REPLY_TERMINAL.has(cur.entry.status)) return json({ ok: true, reply: cur.entry });
-    const next = { ...cur.entry, status: b.status, message: String(b.message || '').slice(0, 300) };
-    if (b.status === 'queued') next.claimed_at = 0;
-    const ok = await swapReply(env, n, cur.entry, next);
-    return json({ ok, reply: ok ? next : (await readReply(env, n, id)).entry });
+    if (REPLY_TERMINAL.has(cur.status)) return json({ ok: true, reply: publicReply(cur) });
+    // Only the current claim holder may settle it: a claim that lapsed and
+    // went to someone else must not be closed by the first, late claimant.
+    if (cur.status !== 'delivering' || !b.claim_id || b.claim_id !== cur.claim_id) {
+      return json({ ok: false, error: 'not the claim holder', reply: publicReply(view) }, 409);
+    }
+    const next = { ...cur, status: b.status, message: String(b.message || '').slice(0, 300) };
+    if (b.status === 'queued') { next.claimed_at = 0; next.claim_id = ''; }
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json({ ok, reply: ok ? publicReply(next) : await reread() });
   }
   if (sub === 'cancel') {
-    if (view.status !== 'queued') return json({ cancelled: false, reply: view });
-    const next = { ...cur.entry, status: 'cancelled', message: String(b.message || '').slice(0, 300) };
-    const ok = await swapReply(env, n, cur.entry, next);
-    return json({ cancelled: ok, reply: ok ? next : replyView((await readReply(env, n, id)).entry) });
+    if (view.status !== 'queued') return json({ cancelled: false, reply: publicReply(view) });
+    const next = { ...view, status: 'cancelled', message: String(b.message || '').slice(0, 300) };
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json({ cancelled: ok, reply: ok ? publicReply(next) : await reread() });
   }
   return json({ error: 'not found' }, 404);
 }
@@ -1128,6 +1185,7 @@ export default {
   async scheduled(event, env, ctx) {
     // 演示数据每 5 分钟刷;gc 的几条 DELETE 没有 ns 前缀会全表扫,一小时一次足够。
     const hourly = new Date(event.scheduledTime).getMinutes() < 5;
-    ctx.waitUntil(Promise.all([seedDemo(env), hourly ? gc(env) : Promise.resolve()]));
+    ctx.waitUntil(Promise.all([seedDemo(env),
+      hourly ? gc(env).then(() => settleAllReplies(env)) : Promise.resolve()]));
   },
 };
