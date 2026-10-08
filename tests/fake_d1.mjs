@@ -1,6 +1,12 @@
 // In-memory stand-in for the D1 `kv` table, covering the statement shapes the
 // Worker uses. Unknown SQL throws, so a new query can't silently pass a test.
-export function fakeD1() {
+/// `jitter: true` delays every statement 1–15 ms and runs each batch as one
+/// uninterruptible unit (a D1 batch is a transaction), so tests can race
+/// concurrent requests the way production interleaves them.
+export function fakeD1({ jitter = false } = {}) {
+  let queue = Promise.resolve();
+  const locked = (fn) => { const p = queue.then(fn); queue = p.catch(() => {}); return p; };
+  const pause = () => (jitter ? new Promise((r) => setTimeout(r, 1 + Math.random() * 14)) : null);
   const rows = new Map();
   const key = (ns, k) => `${ns}|${k}`;
   const inRange = (r, ns, lo, hi) => r.ns === ns && r.k >= lo && r.k < hi;
@@ -10,6 +16,32 @@ export function fakeD1() {
     }
     if (sql.startsWith('SELECT k, v, ts FROM kv WHERE ns=? AND k>=? AND k<?')) {
       return { all: [...rows.values()].filter((r) => inRange(r, ...args)) };
+    }
+    if (sql.includes("VALUES (?,'meta/rev'")) {
+      const [ns, ts] = args;
+      const r = rows.get(key(ns, 'meta/rev'));
+      const v = String(r ? Number(r.v) + 1 : 1);
+      rows.set(key(ns, 'meta/rev'), { ns, k: 'meta/rev', v, ts });
+      return { first: { v }, changes: 1 };
+    }
+    const revOf = (ns) => Number((rows.get(key(ns, 'meta/rev')) || { v: 0 }).v);
+    if (sql.startsWith('INSERT OR IGNORE INTO kv') && sql.includes("k='meta/rev'")) {
+      const [ns, k, v, revNs] = args;
+      if (rows.has(key(ns, k))) return { changes: 0 };
+      rows.set(key(ns, k), { ns, k, v, ts: revOf(revNs) });
+      return { changes: 1 };
+    }
+    if (sql.startsWith('UPDATE kv SET v=?, ts=(SELECT')) {
+      const [v, revNs, ns, k, old] = args;
+      const r = rows.get(key(ns, k));
+      if (!r || r.v !== old) return { changes: 0 };
+      rows.set(key(ns, k), { ...r, v, ts: revOf(revNs) });
+      return { changes: 1 };
+    }
+    if (sql.startsWith('SELECT ns, k, v, ts FROM kv WHERE k>=? AND k<?')) {
+      const status = (r) => { try { return JSON.parse(r.v).status; } catch { return ''; } };
+      return { all: [...rows.values()].filter((r) => r.k >= args[0] && r.k < args[1]
+        && ['queued', 'delivering'].includes(status(r))) };
     }
     if (sql.includes("'meta/rev'") && sql.includes('RETURNING v')) {
       const [ns, ts] = args;
@@ -23,6 +55,12 @@ export function fakeD1() {
       const r = rows.get(key(ns, k));
       if (!r || r.v !== old) return { changes: 0 };
       rows.set(key(ns, k), { ...r, v });
+      return { changes: 1 };
+    }
+    if (sql.includes("CASE WHEN kv.v='1'")) {
+      const [ns, k, ts] = args;
+      const r = rows.get(key(ns, k));
+      rows.set(key(ns, k), { ns, k, v: r && r.v !== '1' ? r.v : '1', ts });
       return { changes: 1 };
     }
     if (sql.startsWith('INSERT INTO kv') && sql.includes('ON CONFLICT')) {
@@ -46,6 +84,12 @@ export function fakeD1() {
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=?') {
       return { changes: rows.delete(key(args[0], args[1])) ? 1 : 0 };
     }
+    if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts<=?') {
+      const r = rows.get(key(args[0], args[1]));
+      if (!r || r.ts > args[2]) return { changes: 0 };
+      rows.delete(key(args[0], args[1]));
+      return { changes: 1 };
+    }
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts=?') {
       const r = rows.get(key(args[0], args[1]));
       if (!r || r.ts !== args[2]) return { changes: 0 };
@@ -66,20 +110,31 @@ export function fakeD1() {
     }
     throw new Error('fakeD1: unsupported SQL: ' + sql);
   }
+  const one = async (sql, args) => { await pause(); return exec(sql, args); };
   const db = {
     rows,
     prepare(sql) {
       return {
         bind(...args) {
           return {
-            async first() { return exec(sql, args).first ?? null; },
-            async all() { return { results: exec(sql, args).all ?? [] }; },
-            async run() { return { success: true, meta: { changes: exec(sql, args).changes ?? 0 } }; },
+            sql, args,
+            async first() { return locked(() => one(sql, args)).then((r) => r.first ?? null); },
+            async all() { return locked(() => one(sql, args)).then((r) => ({ results: r.all ?? [] })); },
+            async run() { return locked(() => one(sql, args)).then((r) => ({ success: true, meta: { changes: r.changes ?? 0 } })); },
           };
         },
       };
     },
-    async batch(stmts) { return Promise.all(stmts.map((s) => s.run())); },
+    async batch(stmts) {
+      return locked(async () => {
+        const out = [];
+        for (const st of stmts) {
+          const r = await one(st.sql, st.args);
+          out.push({ success: true, meta: { changes: r.changes ?? 0 } });
+        }
+        return out;
+      });
+    },
   };
   return db;
 }
