@@ -533,8 +533,7 @@ extension OnboardingView {
         guard let backend = SBBackend.saved else { return }
         let device = await MainActor.run { EventStore.shared.deviceToken }
         if !device.isEmpty {
-            await SBBackend.post("/api/token", body: ["device_token": device],
-                                 to: backend.url, secret: backend.secret)
+            await SBBackend.registerToken(.alert, device, url: backend.url, secret: backend.secret)
         }
         if #available(iOS 17.2, *) { LiveActivityManager.shared.syncNow() }
     }
