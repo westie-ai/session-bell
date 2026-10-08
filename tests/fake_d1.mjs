@@ -11,6 +11,20 @@ export function fakeD1() {
     if (sql.startsWith('SELECT k, v, ts FROM kv WHERE ns=? AND k>=? AND k<?')) {
       return { all: [...rows.values()].filter((r) => inRange(r, ...args)) };
     }
+    if (sql.includes("'meta/rev'") && sql.includes('RETURNING v')) {
+      const [ns, ts] = args;
+      const r = rows.get(key(ns, 'meta/rev'));
+      const v = String(r ? Number(r.v) + 1 : 1);
+      rows.set(key(ns, 'meta/rev'), { ns, k: 'meta/rev', v, ts });
+      return { first: { v }, changes: 1 };
+    }
+    if (sql === 'UPDATE kv SET v=? WHERE ns=? AND k=? AND v=?') {
+      const [v, ns, k, old] = args;
+      const r = rows.get(key(ns, k));
+      if (!r || r.v !== old) return { changes: 0 };
+      rows.set(key(ns, k), { ...r, v });
+      return { changes: 1 };
+    }
     if (sql.startsWith('INSERT INTO kv') && sql.includes('ON CONFLICT')) {
       const [ns, k, v, ts] = args;
       rows.set(key(ns, k), { ns, k, v, ts });
