@@ -17,7 +17,7 @@ private typealias DashState = SessionActivityAttributes.ContentState
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
-            LockScreenView(state: context.state, attrs: context.attributes)
+            LockScreenView(state: context.state, attrs: context.attributes, stale: context.isStale)
                 // 不指定 tint:让锁屏用系统的半透明材质(和通知横幅一致)。指定 85% 的
                 // systemBackground 在锁屏上解析成白色,而锁屏文字是系统给的白字,白底白字看不清。
                 .activityBackgroundTint(nil)
@@ -25,14 +25,14 @@ struct SessionLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    SummaryIcon(state: context.state).font(.title2)
+                    SummaryIcon(state: context.state, stale: context.isStale).font(.title2)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(summaryLine(context.state))
+                        Text(summaryLine(context.state, stale: context.isStale))
                             .font(.caption.bold())
                         ForEach(Array(context.state.tasks.prefix(2)), id: \.self) { task in
-                            TaskRow(task: task, compact: true)
+                            TaskRow(task: task, compact: true, stale: context.isStale)
                         }
                     }
                 }
@@ -42,32 +42,38 @@ struct SessionLiveActivity: Widget {
                         .foregroundStyle(context.state.waitingCount > 0 ? coral : .secondary)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if context.state.hasApproval {
+                    if context.state.hasApproval && !context.isStale {
                         ApprovalButtons(state: context.state, attrs: context.attributes)
                     }
                 }
             } compactLeading: {
-                SummaryIcon(state: context.state)
+                SummaryIcon(state: context.state, stale: context.isStale)
             } compactTrailing: {
                 Text("\(context.state.activeCount)")
                     .font(.caption.monospacedDigit().bold())
                     .foregroundStyle(context.state.waitingCount > 0 ? coral : .secondary)
             } minimal: {
-                SummaryIcon(state: context.state)
+                SummaryIcon(state: context.state, stale: context.isStale)
             }
             .keylineTint(coral)
         }
     }
 }
 
-private func summaryLine(_ state: DashState) -> LocalizedStringKey {
+/// 过期(stale-date 已过、Mac 没再更新)时如实说「更新延迟」——合盖、断网都会这样,
+/// 绝不把它说成完成。没有任务也不说完成;只有确实有任务且全部完成才是 All done。
+private func summaryLine(_ state: DashState, stale: Bool) -> LocalizedStringKey {
+    if stale { return "Update delayed" }
     if state.waitingCount > 0 {
         return "\(state.waitingCount) tasks waiting for you"
     }
     if state.runningCount > 0 {
         return "\(state.runningCount) tasks running"
     }
-    return "All done"
+    if state.failedCount > 0 {
+        return "\(state.failedCount) tasks failed"
+    }
+    return state.tasks.isEmpty ? "No active tasks" : "All done"
 }
 
 /// 锁屏空间金贵:机器名去掉主人前缀、机型缩写。只影响显示,不动数据里的 host。
@@ -87,6 +93,7 @@ private func statusColor(_ status: String) -> Color {
     case "waiting": return Color(red: 0.94, green: 0.63, blue: 0.49)   // #F0A07C
     case "running": return Color(red: 0.50, green: 0.70, blue: 0.94)   // #7FB2F0
     case "done": return Color(red: 0.49, green: 0.78, blue: 0.60)     // #7CC79A
+    case "failed": return Color(red: 0.93, green: 0.42, blue: 0.42)   // #ED6B6B
     default: return .secondary
     }
 }
@@ -96,14 +103,22 @@ private func statusSymbol(_ status: String) -> String {
     case "waiting": return "ellipsis.bubble.fill"
     case "running": return "arrow.triangle.2.circlepath"
     case "done": return "checkmark.circle.fill"
+    case "failed": return "xmark.octagon.fill"
+    case "stale": return "clock.badge.exclamationmark"
+    case "idle": return "bell.fill"
     default: return "questionmark.circle"
     }
 }
 
 private struct SummaryIcon: View {
     let state: DashState
+    var stale = false
     var body: some View {
-        let status = state.waitingCount > 0 ? "waiting" : (state.runningCount > 0 ? "running" : "done")
+        let status = stale ? "stale"
+            : state.waitingCount > 0 ? "waiting"
+            : state.runningCount > 0 ? "running"
+            : state.failedCount > 0 ? "failed"
+            : state.tasks.isEmpty ? "idle" : "done"
         Image(systemName: statusSymbol(status))
             .foregroundStyle(statusColor(status))
     }
@@ -129,6 +144,8 @@ private struct TaskRow: View {
     var showDetail = true
     /// 全部任务同一台 Mac 时,host 收进标题行,行内不再重复
     var showHost = true
+    /// 卡片过期:不再走计时器,免得一个停住的数字看起来像还在跑
+    var stale = false
 
     /// 一行说清"在干嘛":有 prompt 摘录就以它为主、项目名缩成小字;没有就只剩项目名。
     private var primary: String {
@@ -180,7 +197,7 @@ private struct TaskRow: View {
                         .layoutPriority(2)
                 }
                 // 只有"等你"的任务才显示等了多久;运行中 / 已完成的时间没有决策价值。
-                if task.status == "waiting" {
+                if task.status == "waiting" && !stale {
                     ElapsedText(task: task)
                         .font((compact ? Font.caption2 : .caption).monospacedDigit())
                         .foregroundStyle(coral)
@@ -198,6 +215,7 @@ private struct TaskRow: View {
         case "running": return "Running"
         case "waiting": return "Waiting for you"
         case "done": return "Done"
+        case "failed": return "Failed"
         default: return "Status unavailable"
         }
     }
@@ -229,6 +247,7 @@ private struct UsageChip: View {
 private struct LockScreenView: View {
     let state: DashState
     let attrs: SessionActivityAttributes
+    var stale = false
 
     var body: some View {
         // 任务一多就切密集模式:行内只留一行,详情只保第一条,能多放一行任务
@@ -239,8 +258,8 @@ private struct LockScreenView: View {
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                SummaryIcon(state: state).font(.subheadline)
-                Text(summaryLine(state)).font(.headline)
+                SummaryIcon(state: state, stale: stale).font(.subheadline)
+                Text(summaryLine(state, stale: stale)).font(.headline)
                 if let sharedHost {
                     // 全在同一台 Mac:host 只在这里出现一次
                     Text(shortHost(sharedHost))
@@ -256,14 +275,21 @@ private struct LockScreenView: View {
                 ForEach(Array(state.tasks.prefix(shown).enumerated()), id: \.element) { i, task in
                     TaskRow(task: task,
                             showDetail: !dense || i == 0,
-                            showHost: sharedHost == nil)
+                            showHost: sharedHost == nil,
+                            stale: stale)
                 }
                 if state.tasks.count > shown {
                     Text("\(state.tasks.count - shown) more (see all in the app)")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
+                if stale {
+                    // 下面的状态是最后一次收到的样子,不是现在的
+                    Text("Last update \(Text(Date(timeIntervalSince1970: state.updatedAt), style: .relative)) ago · may be out of date")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
-            if state.hasApproval {
+            // 过期的卡上,这个授权可能早就被终端接管或超时了,不再给按钮
+            if state.hasApproval && !stale {
                 ApprovalButtons(state: state, attrs: attrs)
             }
         }
