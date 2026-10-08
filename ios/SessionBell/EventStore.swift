@@ -48,7 +48,34 @@ final class EventStore: ObservableObject {
         var desktopQueued: Int = 0
         var desktopDelivery: String = ""
         var desktopVerifiedAt: Date = .distantPast
+        /// 这台 Mac 读新回复队列(/api/reply);老 hook 为 false,继续走老信箱
+        var replyQueue: Bool = false
+        /// 这台 Mac 最近一次上报状态的时间,用来判断「等电脑上线」
+        var hostSeenAt: Date = .distantPast
     }
+
+    /// 手机发出的一条回复,以及它在 Mac 那边走到了哪一步(服务端是权威)。
+    struct ReplyItem: Identifiable, Equatable, Hashable {
+        let id: String
+        let text: String
+        let status: String      // queued | delivering | delivered | failed | expired | cancelled
+        let message: String
+        let createdAt: Date
+
+        init?(_ obj: [String: Any]) {
+            guard let id = obj["id"] as? String, let text = obj["text"] as? String,
+                  let status = obj["status"] as? String else { return nil }
+            self.id = id
+            self.text = text
+            self.status = status
+            self.message = obj["message"] as? String ?? ""
+            self.createdAt = Date(timeIntervalSince1970: (obj["created_at"] as? Double ?? 0) / 1000)
+        }
+
+        var isOpen: Bool { status == "queued" || status == "delivering" }
+    }
+
+    static let replyQueueCap = "reply-queue"
 
     /// 与 Claude Code 官方模式一一对应
     static func modeBadge(_ mode: String) -> (text: String, tone: String)? {
@@ -110,6 +137,62 @@ final class EventStore: ObservableObject {
         })
     }
 
+    /// 新回复队列:id 由手机生成,失败时用同一个 id 重发——服务端按 id 去重,
+    /// 网络抖动最多让这条晚到,不会变成两条。`id` 传入时沿用(用户点「重发」)。
+    /// rejectedStatus 非 nil = 服务端拒收(比如太长、配对失效),重发也一样;
+    /// reply 为 nil 且 rejectedStatus 为 nil = 没连上,可以原样再发。
+    static func sendReply(sessionId: String, text: String, id: String? = nil,
+                          url: String, secret: String, attempts: Int = 3)
+        async -> (id: String, reply: ReplyItem?, rejectedStatus: Int?) {
+        let rid = id ?? UUID().uuidString.lowercased()
+        for attempt in 0..<attempts {
+            switch await SBBackend.postResult(
+                "/api/reply", body: ["id": rid, "session_id": sessionId, "text": text],
+                to: url, secret: secret) {
+            case .ok(let resp):
+                if let obj = resp["reply"] as? [String: Any], let reply = ReplyItem(obj) {
+                    return (rid, reply, nil)
+                }
+            case .rejected(let code):
+                return (rid, nil, code)
+            case .unreachable:
+                break
+            }
+            if attempt < attempts - 1 { try? await Task.sleep(for: .seconds(Double(1 << attempt))) }
+        }
+        return (rid, nil, nil)
+    }
+
+    /// 带 rev 的条件读:服务端那边没变化就只回一句 unchanged,不下发列表。
+    func refreshReplies(sessionId: String) async {
+        let since = replyRev[sessionId] ?? 0
+        guard let obj = await SBBackend.getJSON("/api/reply?sid=\(sessionId)&since=\(since)") as? [String: Any]
+        else { return }
+        if let rev = obj["rev"] as? Int { replyRev[sessionId] = rev }
+        if obj["unchanged"] as? Bool == true { return }
+        guard let list = obj["replies"] as? [[String: Any]] else { return }
+        replies[sessionId] = list.compactMap(ReplyItem.init)
+    }
+
+    func noteReply(_ reply: ReplyItem, sessionId: String) {
+        var list = replies[sessionId] ?? []
+        list.removeAll { $0.id == reply.id }
+        list.append(reply)
+        replies[sessionId] = list
+    }
+
+    /// 撤回一条还在排队的回复;已经开始送达的撤不回,服务端会如实返回当前状态。
+    func cancelReply(_ id: String, sessionId: String) async -> Bool {
+        guard let backend = SBBackend.saved,
+              case .ok(let resp) = await SBBackend.postResult("/api/reply/cancel", body: ["id": id],
+                                                              to: backend.url, secret: backend.secret)
+        else { return false }
+        if let obj = resp["reply"] as? [String: Any], let reply = ReplyItem(obj) {
+            noteReply(reply, sessionId: sessionId)
+        }
+        return resp["cancelled"] as? Bool ?? false
+    }
+
     func sendMachineCommand(_ key: String, text: String) async {
         guard let backend = SBBackend.saved else { return }
         await SBBackend.post("/api/command",
@@ -145,6 +228,10 @@ final class EventStore: ObservableObject {
             : (false, String(localized: "Delivery could not be confirmed. Check Codex before sending again."), nil)
     }
     @Published var liveTasks: [LiveTask] = []
+    /// session id → 最近的手机回复(服务端 /api/reply?sid= 的镜像)
+    @Published var replies: [String: [ReplyItem]] = [:]
+    /// 每个 session 上次读到的回复队列 rev,用于条件读
+    var replyRev: [String: Int] = [:]
     @Published var liveGroups: [HostGroup] = []
 
     /// Same source of truth as the lock-screen card: the backend state table.
@@ -286,7 +373,9 @@ final class EventStore: ObservableObject {
                         && now - desktopVerifiedAt >= 0 && now - desktopVerifiedAt < 45,
                     desktopQueued: e["desktop_queued"] as? Int ?? 0,
                     desktopDelivery: e["desktop_delivery"] as? String ?? "",
-                    desktopVerifiedAt: Date(timeIntervalSince1970: desktopVerifiedAt))
+                    desktopVerifiedAt: Date(timeIntervalSince1970: desktopVerifiedAt),
+                    replyQueue: (blob["caps"] as? [String] ?? []).contains(Self.replyQueueCap),
+                    hostSeenAt: Date(timeIntervalSince1970: ts))
                 if let parent = e["parent_sid"] as? String { parentOf[sid] = parent }
                 if let ppid = e["parent_pid"] as? Int,
                    let parentSid = pidToSid[ppid], parentSid != sid {
