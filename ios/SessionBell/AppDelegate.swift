@@ -69,7 +69,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // has to copy-paste them anymore.
         Task {
             if let backend = SBBackend.saved {
-                await SBBackend.post("/api/token", body: ["device_token": hex],
+                await SBBackend.post("/api/token",
+                                     body: ["device_token": hex, "device_id": SBBackend.deviceId],
                                      to: backend.url, secret: backend.secret)
             }
         }
@@ -154,4 +155,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             body: ["request_id": requestId, "decision": decision],
             to: url, secret: secret)
     }
+}
+
+extension SBBackend {
+    /// 本机在 token 注册表里的身份:同一台手机重新注册时,后端用它原子替换旧 token,
+    /// 防止轮换后的旧 token 再收到一份推送或再起一张锁屏卡。
+    static var deviceId: String { UIDevice.current.identifierForVendor?.uuidString ?? "" }
 }
