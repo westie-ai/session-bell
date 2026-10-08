@@ -112,6 +112,7 @@ def install_hooks(exe: str) -> None:
         "UserPromptSubmit": ("prompt", 30, True, None),
         "Notification": ("notification", 30, True, None),
         "Stop": ("stop", 960, False, None),
+        "StopFailure": ("stop-failure", 30, True, None),
         "SessionEnd": ("session-end", 30, True, None),
         "PermissionRequest": ("permission", 900, False, None),
         "PreToolUse": ("subagent-start", 30, True, "Task|Agent"),

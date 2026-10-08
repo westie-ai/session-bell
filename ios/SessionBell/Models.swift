@@ -3,6 +3,7 @@ import SwiftUI
 
 enum EventKind: String, Codable {
     case stop
+    case failure
     case notification
     case permission
     case test
@@ -10,6 +11,7 @@ enum EventKind: String, Codable {
     var label: String {
         switch self {
         case .stop: return String(localized: "Task Finished")
+        case .failure: return String(localized: "Task Failed")
         case .notification: return String(localized: "Needs Attention")
         case .permission: return String(localized: "Permission Request")
         case .test: return String(localized: "Test")
@@ -19,6 +21,7 @@ enum EventKind: String, Codable {
     var symbol: String {
         switch self {
         case .stop: return "checkmark"
+        case .failure: return "xmark.octagon"
         case .notification: return "ellipsis.bubble"
         case .permission: return "checkmark.shield"
         case .test: return "bell"
@@ -28,6 +31,7 @@ enum EventKind: String, Codable {
     var color: Color {
         switch self {
         case .stop: return .sbDone
+        case .failure: return .red
         case .notification: return .sbWaiting
         case .permission: return .sbAccentText
         case .test: return .sbRunning

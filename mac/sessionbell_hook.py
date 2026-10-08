@@ -3,6 +3,7 @@
 
 Usage:
   sessionbell_hook.py stop          # wired to the Stop hook
+  sessionbell_hook.py stop-failure  # wired to StopFailure — the turn died on an API error
   sessionbell_hook.py notification  # wired to the Notification hook
   sessionbell_hook.py prompt        # wired to UserPromptSubmit — marks session running
   sessionbell_hook.py session-end   # wired to SessionEnd — drops session from the dashboard
@@ -401,10 +402,15 @@ class CodexDesktopObserver:
             elif event_type in ("task_complete", "turn_aborted"):
                 if not isinstance(turn, str) or (entry.get("desktop_turn") and entry["desktop_turn"] != turn):
                     return None
-                failed = event_type == "turn_aborted" or bool(payload.get("error"))
-                entry.update(status="waiting" if failed else "done", since=ts,
+                # An error is a failure; an abort (someone stopped the turn)
+                # waits for input — the same split as the app-server path.
+                error = payload.get("error")
+                aborted = event_type == "turn_aborted" and not error
+                message = (error.get("message") if isinstance(error, dict) else error) or ""
+                entry.update(status="failed" if error else "waiting" if aborted else "done", since=ts,
                              desktop_turn=turn, desktop_terminal=turn,
-                             delivery_error="Codex turn interrupted or failed." if failed else "")
+                             delivery_error=(str(message)[:300] or "Codex turn failed.") if error
+                             else "Codex turn interrupted." if aborted else "")
                 if isinstance(payload.get("last_agent_message"), str):
                     entry["latest_reply"] = clip_bytes(payload["last_agent_message"], 8000)
                 return turn
@@ -547,8 +553,10 @@ class CodexDesktopObserver:
         for sid, turn in set(alerts):
             entry = state["local"].get(sid, {})
             if entry.get("desktop_terminal") == turn:
-                codex_alert(self.cfg, sid, "stop" if entry["status"] == "done" else "notification",
-                            entry.get("latest_reply") or entry.get("delivery_error") or "Codex completed this turn.")
+                kind = {"done": "stop", "failed": "failure"}.get(entry["status"], "notification")
+                text = (entry.get("delivery_error") if kind == "failure" else None) or entry.get("latest_reply") \
+                    or entry.get("delivery_error") or "Codex completed this turn."
+                codex_alert(self.cfg, sid, kind, text)
         self.bootstrapped = True
         return changed
 
@@ -1146,15 +1154,15 @@ def codex_alert(cfg, sid, kind, text, request_id=None):
     state = load_sessions()
     entry = state["local"].get(sid, {})
     project = entry.get("project") or "Codex"
-    # Completion always rings, even while the user is working on the Mac.
+    # Completion and failure always ring, even while the user is working on the Mac.
     # Keep the existing idle policy for approvals and attention notifications.
-    idle = mac_idle_seconds() if kind != "stop" else None
+    idle = mac_idle_seconds() if kind not in ("stop", "failure") else None
     phone_owned = state.get("codex_sessions", {}).get(sid, {}).get("phone_owned")
     threshold = cfg.get("permission_min_idle_seconds", 30) if kind == "permission" else cfg.get("min_idle_seconds", 120)
     if not phone_owned and idle is not None and idle < threshold:
         log(f"codex alert {kind}: skipped at keyboard (idle {idle:.0f}s < {threshold}s)")
         return
-    title = "✅ Codex · " + project if kind == "stop" else "Codex · " + project
+    title = {"stop": "✅ Codex · ", "failure": "❌ Codex · "}.get(kind, "Codex · ") + project
     sb = {"engine": "codex", "event": kind, "session_id": sid,
           "source": entry.get("source", ""),
           "project": project, "cwd": entry.get("cwd", ""), "host": host_label(cfg),
@@ -1162,10 +1170,13 @@ def codex_alert(cfg, sid, kind, text, request_id=None):
           "backend": {"url": cfg["backend_url"], "secret": cfg["backend_secret"]}}
     if request_id:
         sb["request_id"] = request_id
-    payload = {"aps": {"alert": {"title": title, "body": clip_bytes(strip_markdown(text), 700)},
-                       "sound": "default", "thread-id": sid,
-                       "category": "SB_DECIDE" if request_id else "SB_REPLY",
-                       "interruption-level": "time-sensitive"}, "sb": sb}
+    aps = {"alert": {"title": title, "body": clip_bytes(strip_markdown(text), 700)},
+           "sound": "default", "thread-id": sid, "interruption-level": "time-sensitive"}
+    # A failure has no live turn to continue: no reply action, or the text
+    # would surface hours later as a stale instruction.
+    if kind != "failure":
+        aps["category"] = "SB_DECIDE" if request_id else "SB_REPLY"
+    payload = {"aps": aps, "sb": sb}
     jwt = make_jwt(cfg)
     tokens = resolve_device_tokens(cfg)
     if not tokens:
@@ -1342,13 +1353,26 @@ class CodexBridge:
             self.dirty = True
 
     def finish(self, sid, turn):
-        failed = turn.get("status") in ("failed", "interrupted")
+        # failed = the turn died (API/model error): a failure, never "needs you".
+        # interrupted = someone stopped it on purpose: waiting for input.
+        status = turn.get("status")
+        failed, interrupted = status == "failed", status == "interrupted"
         entry = load_sessions()["local"].get(sid, {})
         already = entry.get("notified_turn") == turn.get("id")
-        self.update(sid, status="waiting" if failed else "done", notified_turn=turn.get("id"))
-        if not already:
-            codex_alert(self.cfg, sid, "notification" if failed else "stop",
-                        entry.get("latest_reply") or ("Codex stopped before completing this turn." if failed else "Codex completed this turn."))
+        self.update(sid, status="failed" if failed else "waiting" if interrupted else "done",
+                    notified_turn=turn.get("id"))
+        if already:
+            return
+        if failed:
+            err = turn.get("error")
+            err = (err.get("message") if isinstance(err, dict) else err) or ""
+            codex_alert(self.cfg, sid, "failure",
+                        str(err) or entry.get("latest_reply") or "Codex failed before completing this turn.")
+        elif interrupted:
+            codex_alert(self.cfg, sid, "notification",
+                        entry.get("latest_reply") or "Codex stopped before completing this turn.")
+        else:
+            codex_alert(self.cfg, sid, "stop", entry.get("latest_reply") or "Codex completed this turn.")
 
     def request(self, message):
         import uuid
@@ -3247,6 +3271,10 @@ def run_watcher(cfg: dict) -> None:
                     ensure_cursor_hooks(cfg, quiet=True)   # Cursor installed later? pick it up
                 except Exception as exc:
                     log(f"cursor: ensure failed: {exc}")
+                try:
+                    ensure_claude_failure_hook()
+                except Exception as exc:
+                    log(f"claude: StopFailure ensure failed: {exc}")
                 usage_summary(cfg)
                 refresh_codex_usage()
                 state = load_sessions()
@@ -4159,6 +4187,70 @@ def is_cursor_event(hook: dict) -> bool:
 
 AGENT_NAMES = {"codex": "Codex", "cursor": "Cursor"}
 
+# StopFailure `error` values -> what the phone says. Keys are loc-keys
+# (Chinese source text) translated in the app's String Catalog.
+FAILURE_REASONS = {
+    "rate_limit": "触发了用量限制,稍后再试",
+    "overloaded": "服务繁忙,本轮被中断",
+    "server_error": "服务端出错,本轮被中断",
+    "authentication_failed": "登录已失效,需要回到电脑上重新登录",
+    "oauth_org_not_allowed": "当前组织不允许使用,需要回到电脑上处理",
+    "verification_required": "需要回到电脑上完成验证",
+    "billing_error": "账单出了问题,需要回到电脑上处理",
+    "account_on_hold": "账号被暂停,需要回到电脑上处理",
+    "invalid_request": "请求被拒绝,本轮没有完成",
+    "model_not_found": "模型不可用,本轮没有完成",
+    "max_output_tokens": "回复超出长度上限,被截断",
+    "cloud_credential_error": "云端凭据出错,需要回到电脑上处理",
+}
+FAILURE_FALLBACK = "%@ 因 API 错误中断了本轮"
+
+
+def ensure_claude_failure_hook(quiet: bool = True) -> bool:
+    """Add the StopFailure hook to ~/.claude/settings.json next to our Stop
+    hook. Installs made before it existed never re-run the installer, so the
+    relay does it (hosted installs only, like ensure_cursor_hooks; a git
+    checkout gets it from mac/setup.sh). Idempotent; True when written."""
+    me = os.path.normcase(os.path.abspath(__file__))
+    if quiet and not me.startswith(os.path.normcase(os.path.abspath(CONFIG_DIR))):
+        return False
+    path = os.path.expanduser("~/.claude/settings.json")
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return False
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return False
+    stop_cmd = next((h.get("command", "") for e in hooks.get("Stop") or []
+                     for h in (e or {}).get("hooks", [])
+                     if "sessionbell" in str(h.get("command", "")).lower()), "")
+    if not stop_cmd.endswith(" stop"):
+        return False   # not wired by us, or an unexpected shape: leave it alone
+    group = hooks.setdefault("StopFailure", [])
+    if not isinstance(group, list):
+        return False
+    if any("sessionbell" in str(h.get("command", "")).lower()
+           for e in group for h in (e or {}).get("hooks", [])):
+        return False
+    group.append({"hooks": [{"type": "command", "command": stop_cmd[:-len(" stop")] + " stop-failure",
+                             "timeout": 30, "async": True}]})
+    import stat
+    import tempfile
+    real = os.path.realpath(path)   # keep a stow/chezmoi symlink a symlink
+    fd, tmp = tempfile.mkstemp(prefix="settings-", suffix=".json", dir=os.path.dirname(real))
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.chmod(tmp, stat.S_IMODE(os.stat(real).st_mode))
+        os.replace(tmp, real)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    log("claude: StopFailure hook registered")
+    return True
+
 
 def cursor_installed() -> bool:
     return sys.platform == "darwin" and (
@@ -4423,7 +4515,7 @@ def main():
     # Dashboard bookkeeping runs for every event, idle or not — it's a status
     # board, not a ring. Alert pushes below stay idle-gated.
     dashboard_kinds = ("prompt", "session-end", "notification", "stop", "interrupt",
-                       "subagent-start", "subagent-stop")
+                       "subagent-start", "subagent-stop", "stop-failure")
     if kind in dashboard_kinds:
         state = load_sessions()
         prev = state["local"].get(session_id) or {}
@@ -4505,6 +4597,16 @@ def main():
             }
             if engine == "codex" and hook.get("last_assistant_message"):
                 state["local"][session_id]["latest_reply"] = clip_bytes(hook["last_assistant_message"], 8000)
+        elif kind == "stop-failure":
+            state["local"][session_id] = {
+                **prev,
+                "project": project, "status": "failed", "since": now,
+                "detail": clean_detail(prev.get("detail")) or last_prompt, "agents": 0,
+                "error": str(hook.get("error") or "unknown")[:40],
+                "cmd_ts": prev.get("cmd_ts", 0),
+                "engine": engine or prev.get("engine"),
+                "cwd": cwd,
+            }
         elif kind == "subagent-start":
             if not prev:
                 return  # unseen session; don't invent a row
@@ -4567,6 +4669,22 @@ def main():
             body_key, body_args = body, []
         if task_detail:
             title_key, title_args = "✅ %@ · 完成「%@」", [project, task_detail[:24]]
+    elif kind == "stop-failure":
+        error = str(hook.get("error") or "unknown")
+        agent = AGENT_NAMES.get(engine, "Claude")
+        title_key, title_args = "❌ %@ · 任务失败", [project]
+        if task_detail:
+            title_key, title_args = "❌ %@ · 失败「%@」", [project, task_detail[:24]]
+        if error in FAILURE_REASONS:
+            body_key, body_args = FAILURE_REASONS[error], []
+            body = body_key
+        else:
+            body_key, body_args = FAILURE_FALLBACK, [agent]
+            body = FAILURE_FALLBACK.replace("%@", agent)
+        details = hook.get("error_details")
+        details = details if isinstance(details, str) else json.dumps(details, ensure_ascii=False) if details else ""
+        raw_md = "\n\n".join(x for x in (f"**{error}**", details,
+                                          hook.get("last_assistant_message") or "") if x)
     elif kind == "notification":
         # Permission prompts get their own actionable push from the
         # PermissionRequest hook — while that card is still live, don't
@@ -4611,11 +4729,9 @@ def main():
             "sound": "default",
             "thread-id": session_id,
             "interruption-level": "time-sensitive",
-            # 长按可直接打字回复下一步指令(stop 时注入,见下)
-            "category": "SB_REPLY",
         },
         "sb": {
-            "event": kind,
+            "event": "failure" if kind == "stop-failure" else kind,
             "engine": engine,
             "session_id": session_id,
             "cwd": cwd,
@@ -4628,6 +4744,11 @@ def main():
             "md": raw_md or None,
         },
     }
+
+    if kind != "stop-failure":
+        # 长按可直接打字回复下一步指令(stop 时注入,见下)。失败没有可接着跑的
+        # 回合,不给回复入口,否则那句话会在下一次 Stop 时才迟到地注入。
+        payload["aps"]["category"] = "SB_REPLY"
 
     jwt = make_jwt(cfg)
     other_env = "production" if env == "sandbox" else "sandbox"
