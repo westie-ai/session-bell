@@ -335,6 +335,12 @@ async function handleDecision(req, env, n, url) {
 
 // ---------- APNs gateway ----------
 
+// APNs rejects a provider token that changes more often than every 20 min
+// (429 TooManyProviderTokenUpdates). Every Worker isolate has its own module
+// memory, so a per-isolate cache alone mints a new token on each cold start.
+// The token therefore lives in D1 and all isolates reuse the same one.
+const JWT_MAX_AGE = 50 * 60;   // Apple: refresh between 20 and 60 minutes
+const JWT_KEY = 'apns/jwt';
 let jwtCache = { token: null, iat: 0, kid: null };
 
 function b64url(bytes) {
@@ -343,11 +349,54 @@ function b64url(bytes) {
   return btoa(s).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
-async function apnsJwt(env) {
+/// The shared row, or null when there is none. A row whose JSON is damaged
+/// comes back as {ts} so the next mint overwrites it (UPDATE) instead of
+/// INSERT OR IGNORE leaving it broken forever.
+async function storedJwt(env) {
+  const row = await kvGet(env, 'sys', JWT_KEY);
+  if (!row) return null;
+  try { return { ...JSON.parse(row.v), ts: row.ts }; } catch { return { ts: row.ts }; }
+}
+
+const jwtFresh = (j, env, now) =>
+  !!j && !!j.token && j.kid === env.APNS_KEY_ID && now - j.iat < JWT_MAX_AGE;
+
+/// `force` skips this isolate's memory and re-reads D1 (used after a 429).
+/// D1 trouble never costs a push: with no readable shared token we sign
+/// our own and use it (one extra token change beats a dropped alert).
+async function apnsJwt(env, force = false) {
   const now = Math.floor(Date.now() / 1000);
-  if (jwtCache.token && jwtCache.kid === env.APNS_KEY_ID && now - jwtCache.iat < 2700) {
+  if (!force && jwtFresh(jwtCache, env, now)) return jwtCache.token;
+  let stored = null;
+  try { stored = await storedJwt(env); } catch (e) { console.log('apns jwt: D1 read failed', String(e)); }
+  if (jwtFresh(stored, env, now)) {
+    jwtCache = { token: stored.token, iat: stored.iat, kid: stored.kid };
     return jwtCache.token;
   }
+  const minted = await signJwt(env, now);
+  let use = { token: minted, iat: now, kid: env.APNS_KEY_ID };
+  try {
+    // iat (seconds) lives in v; the row's ts is milliseconds like every other
+    // row, and doubles as the compare-and-swap version: of several isolates
+    // minting at once exactly one write lands and everyone adopts it.
+    const v = JSON.stringify(use);
+    if (stored) {
+      await env.DB.prepare('UPDATE kv SET v=?, ts=? WHERE ns=? AND k=? AND ts=?')
+        .bind(v, Date.now(), 'sys', JWT_KEY, stored.ts).run();
+    } else {
+      await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
+        .bind('sys', JWT_KEY, v, Date.now()).run();
+    }
+    const winner = await storedJwt(env);
+    if (jwtFresh(winner, env, now)) use = winner;
+  } catch (e) {
+    console.log('apns jwt: D1 write failed, using own token', String(e));
+  }
+  jwtCache = { token: use.token, iat: use.iat, kid: use.kid };
+  return jwtCache.token;
+}
+
+async function signJwt(env, now) {
   const pem = env.APNS_KEY.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
   const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey(
@@ -357,8 +406,7 @@ async function apnsJwt(env) {
   const sig = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' }, key,
     new TextEncoder().encode(`${header}.${claims}`));
-  jwtCache = { token: `${header}.${claims}.${b64url(sig)}`, iat: now, kid: env.APNS_KEY_ID };
-  return jwtCache.token;
+  return `${header}.${claims}.${b64url(sig)}`;
 }
 
 async function handlePush(req, env, n) {
@@ -378,11 +426,12 @@ async function handlePush(req, env, n) {
   if (!known.has(b.device_token)) {
     return json({ error: 'device not registered in your namespace' }, 403);
   }
+  let forceJwt = false;
   const send = async (envName) =>
     fetch(`${APNS_HOSTS[envName]}/3/device/${b.device_token}`, {
       method: 'POST',
       headers: {
-        authorization: `bearer ${await apnsJwt(env)}`,
+        authorization: `bearer ${await apnsJwt(env, forceJwt)}`,
         'apns-topic': b.topic,
         'apns-push-type': b.push_type || 'alert',
         'apns-priority': String(b.priority || 10),
@@ -395,6 +444,14 @@ async function handlePush(req, env, n) {
     let envName = APNS_HOSTS[b.environment] ? b.environment : 'production';
     let resp = await send(envName);
     let text = await resp.text();
+    if (resp.status === 429 && text.includes('TooManyProviderTokenUpdates')) {
+      // Retry once with whatever D1 holds now. Usually that is the same token
+      // (then this changes nothing); it helps when another isolate rotated it.
+      forceJwt = true;
+      resp = await send(envName);
+      text = await resp.text();
+      forceJwt = false;
+    }
     if (resp.status === 400 && text.includes('BadDeviceToken')) {
       resp = await send(envName === 'production' ? 'sandbox' : 'production');
       text = await resp.text();
