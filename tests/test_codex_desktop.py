@@ -167,11 +167,20 @@ class DesktopTests(unittest.TestCase):
         self.observer.scan()
         self.assertEqual(self.entry()["status"], "running")
 
-    def test_failed_turn_waits_instead_of_success(self):
+    def test_failed_turn_is_a_failure_never_a_success(self):
         self.create()
         self.observer.scan()
         self.append("task_started")
         self.append("task_complete", error="failed")
+        self.observer.scan()
+        self.assertEqual(self.entry()["status"], "failed")
+        self.assertEqual(self.alert.call_args.args[2], "failure")
+
+    def test_aborted_turn_waits_for_input(self):
+        self.create()
+        self.observer.scan()
+        self.append("task_started")
+        self.append("turn_aborted")
         self.observer.scan()
         self.assertEqual(self.entry()["status"], "waiting")
         self.assertEqual(self.alert.call_args.args[2], "notification")

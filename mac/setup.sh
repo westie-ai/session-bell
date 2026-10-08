@@ -30,6 +30,7 @@ want = {
     "UserPromptSubmit": (f"{hook} prompt", 30, True, None),
     "Notification": (f"{hook} notification", 30, True, None),
     "Stop": (f"{hook} stop", 960, False, None),
+    "StopFailure": (f"{hook} stop-failure", 30, True, None),
     "SessionEnd": (f"{hook} session-end", 30, True, None),
     "PermissionRequest": (f"{hook} permission", 900, False, None),
     "PreToolUse": (f"{hook} subagent-start", 30, True, "Task|Agent"),
@@ -48,7 +49,7 @@ for event, (cmd, timeout, is_async, matcher) in want.items():
         entry["matcher"] = matcher
     entries.append(entry)
 json.dump(s, open(p, "w"), indent=2, ensure_ascii=False)
-print("✓ 7 个 hooks 已对齐", p)
+print("✓ 8 个 hooks 已对齐", p)
 EOF
 
 if [ "${SB_CODEX:-0}" = "1" ]; then

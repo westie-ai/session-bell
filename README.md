@@ -177,6 +177,7 @@ The Codex integration is a local pilot, not a public installer/App Store release
 "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py prompt",       "timeout": 30,  "async": true }] }],
 "Notification":     [{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py notification", "timeout": 30,  "async": true }] }],
 "Stop":             [{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py stop",         "timeout": 120 }] }],
+"StopFailure":      [{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py stop-failure", "timeout": 30,  "async": true }] }],
 "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py session-end",  "timeout": 30,  "async": true }] }],
 "PermissionRequest":[{ "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py permission",   "timeout": 120 }] }],
 "PreToolUse":       [{ "matcher": "Task|Agent", "hooks": [{ "type": "command", "command": "<repo>/mac/sessionbell_hook.py subagent-start", "timeout": 30, "async": true }] }],
