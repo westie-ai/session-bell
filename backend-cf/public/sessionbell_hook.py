@@ -4605,8 +4605,13 @@ def main():
         except Exception as exc:
             log(f"cursor: ensure failed: {exc}")
 
-    ok = True
-    for device_token in resolve_device_tokens(cfg):
+    # One dead token (an old install, a retired build) must not count as a
+    # failed alert: the phone that IS registered got it, so the reply window
+    # below still has to open. With no registered device, keep the old
+    # behaviour (window opens; the app can still reply from its task list).
+    tokens = resolve_device_tokens(cfg)
+    delivered = 0
+    for device_token in tokens:
         code, resp = send_push(jwt, HOSTS[env], device_token, payload, cfg["bundle_id"])
         if code == 400 and "BadDeviceToken" in resp:
             # Debug builds talk to sandbox, TestFlight/App Store to production —
@@ -4615,10 +4620,11 @@ def main():
             if code == 200:
                 log(f"hint: token belongs to {other_env}; set \"environment\": \"{other_env}\"")
         log(f"{kind} -> {device_token[:8]}… HTTP {code} {resp}")
-        if code != 200:
-            ok = False
-            if kind == "test":
-                sys.stderr.write(f"SessionBell: 推送失败 HTTP {code} {resp}\n")
+        if code == 200:
+            delivered += 1
+        elif kind == "test":
+            sys.stderr.write(f"SessionBell: 推送失败 HTTP {code} {resp}\n")
+    ok = delivered > 0 or not tokens
 
     if kind == "test":
         if ok:
