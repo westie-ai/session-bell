@@ -76,6 +76,13 @@ async function gc(env) {
       .bind('codex-command/', 'codex-command/\uffff', now - 7 * day),
     env.DB.prepare('DELETE FROM kv WHERE k>=? AND k<? AND ts<?')
       .bind('decision/', 'decision/\uffff', now - 7 * day),
+    // Reply rows keep their rev in ts, so age comes from created_at:
+    // settled replies after an hour, anything once well past the 4 h TTL.
+    env.DB.prepare("DELETE FROM kv WHERE k>=? AND k<? AND CAST(json_extract(v,'$.created_at') AS INTEGER)<? " +
+      "AND json_extract(v,'$.status') IN ('delivered','failed','expired','cancelled')")
+      .bind('reply/', 'reply/\uffff', now - 3600e3),
+    env.DB.prepare("DELETE FROM kv WHERE k>=? AND k<? AND CAST(json_extract(v,'$.created_at') AS INTEGER)<?")
+      .bind('reply/', 'reply/\uffff', now - 5 * 3600e3),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
       .bind('sys', 'rl/', 'rl/\uffff', now - day),
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND ts<?')
@@ -180,6 +187,7 @@ async function handleState(req, env, n) {
       codex: b.codex || null,
       projects: Array.isArray(b.projects) ? b.projects.slice(0, 12) : [],
       hook_v: b.hook_v || null,
+      caps: Array.isArray(b.caps) ? b.caps.filter((c) => typeof c === 'string').slice(0, 16) : [],
     };
     await kvPut(env, n, 'state/' + encodeURIComponent(b.host), JSON.stringify(doc));
     return json({ ok: true });
@@ -193,7 +201,7 @@ async function handleState(req, env, n) {
                         codex_usage: d.codex_usage || null,
                         codex: d.codex || null,
                         awake: d.awake === true, projects: d.projects || [],
-                        hook_v: d.hook_v || null };
+                        hook_v: d.hook_v || null, caps: d.caps || [] };
       }
     } catch {}
   }
@@ -239,19 +247,28 @@ async function handleCommand(req, env, n, url) {
     return json({ ok: true });
   }
   const sid = url.searchParams.get('id');
+  // Newer hooks also follow the reply queue in the same held request:
+  // `reply_since=<rev>` adds {reply_rev, replies} and wakes on either source.
+  // Without it the response is exactly what older hooks expect.
+  const rs = url.searchParams.get('reply_since');
+  const replySince = rs == null ? null : Math.max(0, Number(rs) || 0);
+  if (sid && !SID.test(sid)) return json({ error: 'bad id' }, 400);
+  const readLegacy = () => (sid ? kvGet(env, n, `command/${sid}`) : kvList(env, n, 'command/'));
+  const legacyFresh = (r, since) => (sid ? !!r && r.ts > since : r.some((x) => x.ts > since));
+  const got = await longPoll(url,
+    async () => ({ legacy: await readLegacy(),
+                   q: replySince == null ? null : await replyChanges(env, n, replySince, sid) }),
+    (g, since) => legacyFresh(g.legacy, since) || (g.q && g.q.replies.length > 0));
+  const extra = got.q ? { reply_rev: got.q.rev, replies: got.q.replies } : {};
   if (sid) {
-    if (!SID.test(sid)) return json({ error: 'bad id' }, 400);
-    const row = await longPoll(url, () => kvGet(env, n, `command/${sid}`),
-                               (r, since) => !!r && r.ts > since);
-    return json({ command: row ? { ts: row.ts, text: row.v } : null });
+    const row = got.legacy;
+    return json({ command: row ? { ts: row.ts, text: row.v } : null, ...extra });
   }
-  const rows = await longPoll(url, () => kvList(env, n, 'command/'),
-                              (rs, since) => rs.some((r) => r.ts > since));
   const out = {};
-  for (const r of rows) {
+  for (const r of got.legacy) {
     out[r.k.slice('command/'.length)] = { ts: r.ts, text: r.v };
   }
-  return json({ commands: out });
+  return json({ commands: out, ...extra });
 }
 
 // Preserve the existing production claim API, including timestamp-guarded deletion.
@@ -280,6 +297,201 @@ async function handleCommandRestore(req, env, n) {
   const r = await env.DB.prepare('INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,?)')
     .bind(n, `command/${b.session_id}`, b.text, b.ts).run();
   return json({ restored: (r.meta?.changes || 0) > 0 });
+}
+
+// ---------- reply queue (v1) ----------
+//
+// Phone → session replies with a client-generated id (the nonce): resending
+// the same id never creates a second reply. Unlike the one-slot legacy
+// mailbox, two quick replies are both kept, in order. Each reply moves
+//   queued → delivering → delivered | failed      (Mac claims, then acks)
+//   queued → cancelled                            (phone takes it back, or
+//                                                  superseded by typing on the Mac)
+//   queued → expired                              (TTL passed, never claimed)
+//
+// Every change bumps the namespace's `rev`, and the reply row's ts column IS
+// its rev: the bump and the row write go out in one D1 batch (one
+// transaction), so revs become visible in commit order and a reader that
+// saw rev R has also seen every change at or below R. A consumer remembers
+// the last rev it saw and gets exactly what it missed.
+//
+// A claim not acked within REPLY_CLAIM_MS lapses back to queued (written by
+// the hourly cron, or by any listing that happens anyway). Only the holder
+// of a claim (its claim_id) may ack it. The Mac keeps a ledger of the ids
+// it typed, so a re-claimed reply it already delivered is acked, not typed
+// twice.
+
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const REPLY_TTL_MS = 4 * 3600e3;      // same window the hook used for legacy commands
+const REPLY_CLAIM_MS = 2 * 60e3;
+const REPLY_TERMINAL = new Set(['delivered', 'failed', 'expired', 'cancelled']);
+const REV_NOW = "(SELECT CAST(v AS INTEGER) FROM kv WHERE ns=? AND k='meta/rev')";
+
+const bumpRev = (env, n) => env.DB.prepare(
+  "INSERT INTO kv (ns,k,v,ts) VALUES (?,'meta/rev','1',?) " +
+  'ON CONFLICT(ns,k) DO UPDATE SET v=CAST(kv.v AS INTEGER)+1, ts=excluded.ts').bind(n, Date.now());
+
+async function currentRev(env, n) {
+  const row = await kvGet(env, n, 'meta/rev');
+  return row ? Number(row.v) || 0 : 0;
+}
+
+/// Row → reply. `_raw` is the stored text, the compare-and-swap version.
+function rowToReply(row) {
+  if (!row) return null;
+  try { return { ...JSON.parse(row.v), rev: Number(row.ts) || 0, _raw: row.v }; } catch { return null; }
+}
+
+/// What leaves the Worker: no CAS text, and the claim id only for its holder.
+function publicReply(e) {
+  if (!e) return null;
+  const { _raw, claim_id, ...rest } = e;
+  return rest;
+}
+
+const storedText = (e) => { const { rev, _raw, ...rest } = e; return JSON.stringify(rest); };
+
+/// Lazily resolve time-based transitions so every reader sees the same truth.
+function replyView(entry, now = Date.now()) {
+  if (entry.status === 'queued' && now > entry.expires_at) return { ...entry, status: 'expired' };
+  if (entry.status === 'delivering' && now - entry.claimed_at > REPLY_CLAIM_MS) {
+    return { ...entry, status: now > entry.expires_at ? 'expired' : 'queued', claimed_at: 0, claim_id: '' };
+  }
+  return entry;
+}
+
+async function readReply(env, n, id) {
+  return rowToReply(await kvGet(env, n, `reply/${id}`));
+}
+
+/// Bump rev and write the row in one transaction. `before` is the stored
+/// text the caller read (null = create): only one of two racing writers wins.
+async function writeReply(env, n, before, entry) {
+  const k = `reply/${entry.id}`, v = storedText(entry);
+  const write = before == null
+    ? env.DB.prepare(`INSERT OR IGNORE INTO kv (ns,k,v,ts) VALUES (?,?,?,${REV_NOW})`).bind(n, k, v, n)
+    : env.DB.prepare(`UPDATE kv SET v=?, ts=${REV_NOW} WHERE ns=? AND k=? AND v=?`).bind(v, n, n, k, before);
+  const res = await env.DB.batch([bumpRev(env, n), write]);
+  return (res[1]?.meta?.changes || 0) > 0;
+}
+
+/// Persist a lapsed claim or an expiry so it bumps rev like any change.
+async function settleReply(env, n, entry, now = Date.now()) {
+  const view = replyView(entry, now);
+  if (view.status === entry.status) return entry;
+  if (await writeReply(env, n, entry._raw, view)) return (await readReply(env, n, entry.id)) || view;
+  return (await readReply(env, n, entry.id)) || view;
+}
+
+async function listReplies(env, n) {
+  const out = [];
+  for (const r of await kvList(env, n, 'reply/')) {
+    const e = rowToReply(r);
+    if (e) out.push(await settleReply(env, n, e));
+  }
+  return out;
+}
+
+/// What a consumer at cursor `since` has not seen yet (optionally one
+/// session), oldest change first. Reading rev first and skipping the listing
+/// when it hasn't moved keeps a held long-poll to one point read per step.
+async function replyChanges(env, n, since, sid) {
+  const rev = await currentRev(env, n);
+  if (rev <= since) return { rev: since, replies: [] };
+  const changed = (await listReplies(env, n))
+    .filter((e) => e.rev > since && (!sid || e.session_id === sid))
+    .sort((a, b) => a.rev - b.rev);
+  const page = changed.slice(0, 50);
+  // A truncated page resumes after its last item, never past unseen ones.
+  const cursor = changed.length > page.length ? page[page.length - 1].rev
+    : Math.max(rev, ...page.map((e) => e.rev));
+  return { rev: cursor, replies: page.map(publicReply) };
+}
+
+/// Cron backstop: lapsed claims and expiries in every namespace.
+export async function settleAllReplies(env) {
+  const rows = await env.DB.prepare(
+    "SELECT ns, k, v, ts FROM kv WHERE k>=? AND k<? " +
+    "AND json_extract(v,'$.status') IN ('queued','delivering')")
+    .bind('reply/', 'reply/\uffff').all();
+  const now = Date.now();
+  for (const r of rows.results || []) {
+    const e = rowToReply(r);
+    if (e) await settleReply(env, r.ns, e, now);
+  }
+}
+
+async function handleReply(req, env, n, url, sub) {
+  if (req.method === 'GET') {
+    const id = url.searchParams.get('id');
+    if (id) {
+      if (!UUID.test(id)) return json({ error: 'bad id' }, 400);
+      const r = await readReply(env, n, id.toLowerCase());
+      return json({ reply: r ? publicReply(replyView(r)) : null });
+    }
+    const sid = url.searchParams.get('sid');
+    if (!SID.test(sid || '')) return json({ error: 'bad sid' }, 400);
+    // `since` makes it a conditional read: unchanged → no listing at all.
+    const since = Number(url.searchParams.get('since')) || 0;
+    const rev = await currentRev(env, n);
+    if (since && rev <= since) return json({ rev, unchanged: true });
+    const mine = (await listReplies(env, n)).filter((e) => e.session_id === sid)
+      .sort((a, b) => a.created_at - b.created_at).slice(-20);
+    return json({ rev: Math.max(rev, ...mine.map((e) => e.rev)), replies: mine.map(publicReply) });
+  }
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+  const b = await readBody(req);
+  if (!UUID.test(b.id || '')) return json({ error: 'bad id' }, 400);
+  const id = b.id.toLowerCase();
+
+  if (!sub) {
+    if (!SID.test(b.session_id || '') || typeof b.text !== 'string' || !b.text.trim()
+        || b.text.length > 4000) {
+      return json({ error: 'bad request' }, 400);
+    }
+    const now = Date.now();
+    const entry = { id, session_id: b.session_id, text: b.text.trim(), status: 'queued',
+      created_at: now, expires_at: now + REPLY_TTL_MS, claimed_at: 0, claim_id: '', message: '' };
+    const created = await writeReply(env, n, null, entry);
+    const stored = await readReply(env, n, id);
+    if (!stored) return json({ error: 'try again' }, 503);
+    return json({ ok: true, duplicate: !created, reply: publicReply(replyView(stored)) });
+  }
+
+  const cur = await readReply(env, n, id);
+  if (!cur) return json({ error: 'missing reply' }, 404);
+  const view = replyView(cur);
+  const reread = async () => publicReply(replyView((await readReply(env, n, id)) || cur));
+
+  if (sub === 'claim') {
+    if (view.status !== 'queued') return json({ claimed: false, reply: publicReply(view) });
+    const claimId = crypto.randomUUID();
+    const next = { ...view, status: 'delivering', claimed_at: Date.now(), claim_id: claimId };
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json(ok ? { claimed: true, claim_id: claimId, reply: publicReply(next) }
+                   : { claimed: false, reply: await reread() });
+  }
+  if (sub === 'ack') {
+    // delivered/failed end a claim; queued hands a failed injection back.
+    if (!['delivered', 'failed', 'queued'].includes(b.status)) return json({ error: 'bad status' }, 400);
+    if (REPLY_TERMINAL.has(cur.status)) return json({ ok: true, reply: publicReply(cur) });
+    // Only the current claim holder may settle it: a claim that lapsed and
+    // went to someone else must not be closed by the first, late claimant.
+    if (cur.status !== 'delivering' || !b.claim_id || b.claim_id !== cur.claim_id) {
+      return json({ ok: false, error: 'not the claim holder', reply: publicReply(view) }, 409);
+    }
+    const next = { ...cur, status: b.status, message: String(b.message || '').slice(0, 300) };
+    if (b.status === 'queued') { next.claimed_at = 0; next.claim_id = ''; }
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json({ ok, reply: ok ? publicReply(next) : await reread() });
+  }
+  if (sub === 'cancel') {
+    if (view.status !== 'queued') return json({ cancelled: false, reply: publicReply(view) });
+    const next = { ...view, status: 'cancelled', message: String(b.message || '').slice(0, 300) };
+    const ok = await writeReply(env, n, cur._raw, next);
+    return json({ cancelled: ok, reply: ok ? publicReply(next) : await reread() });
+  }
+  return json({ error: 'not found' }, 404);
 }
 
 // 两种帧:capture = 终端抓屏原文(16 KB);md = Mac 从本地会话记录整理出的
@@ -1102,6 +1314,11 @@ export default {
       if (path === '/api/command') return handleCommand(req, env, n, url);
       if (path === '/api/command/claim') return handleCommandClaim(req, env, n);
       if (path === '/api/command/restore') return handleCommandRestore(req, env, n);
+      if (path === '/api/reply') return handleReply(req, env, n, url, null);
+      {
+        const m = path.match(/^\/api\/reply\/(claim|ack|cancel)$/);
+        if (m) return handleReply(req, env, n, url, m[1]);
+      }
       if (path === '/api/codex') return handleCodex(req, env, n, url);
       if (path === '/api/capture') return handleCapture(req, env, n, url);
       if (path === '/api/decision') return handleDecision(req, env, n, url);
@@ -1118,6 +1335,7 @@ export default {
   async scheduled(event, env, ctx) {
     // 演示数据每 5 分钟刷;gc 的几条 DELETE 没有 ns 前缀会全表扫,一小时一次足够。
     const hourly = new Date(event.scheduledTime).getMinutes() < 5;
-    ctx.waitUntil(Promise.all([seedDemo(env), hourly ? gc(env) : Promise.resolve()]));
+    ctx.waitUntil(Promise.all([seedDemo(env),
+      hourly ? gc(env).then(() => settleAllReplies(env)) : Promise.resolve()]));
   },
 };

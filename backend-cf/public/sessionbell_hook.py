@@ -2512,11 +2512,13 @@ LP_WAIT = 25          # backend caps at 25; curl timeout adds headroom
 LP_HTTP_TIMEOUT = LP_WAIT + 10
 
 
-def backend_poll(cfg: dict, path: str, wait: int, since: int = 0):
-    """GET with long-poll params; wait<=0 degrades to a plain GET."""
+def backend_poll(cfg: dict, path: str, wait: int, since: int = 0, query: str = ""):
+    """GET with long-poll params; wait<=0 degrades to a plain GET.
+    `query` appends extra parameters (e.g. reply_since=<rev>)."""
     wait = max(0, min(LP_WAIT, int(wait)))
     sep = "&" if "?" in path else "?"
-    return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}",
+    extra = f"&{query}" if query else ""
+    return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}{extra}",
                         timeout=(wait + 10) if wait else 8)
 
 
@@ -2535,6 +2537,153 @@ def claim_command(cfg: dict, key: str, ts=None) -> bool:
         log(f"claim {key[:12]}: backend didn't answer, leaving it queued")
         return False
     return bool(resp["claimed"])
+
+
+# ---------------- Reply queue (v1) ----------------
+# Phone replies carry a client id; the backend keeps them in order with an
+# explicit status (see handleReply in backend-cf/src/worker.js). Delivery is
+# claim → inject → ack. The ledger remembers which ids this Mac already
+# typed, so a claim that lapsed after a successful injection (ack lost,
+# process killed) is acknowledged again instead of typed twice.
+
+REPLY_CAPS = ["reply-queue"]
+REPLY_LEDGER_MAX_AGE = 2 * 86400
+
+
+def _ledger_path() -> str:
+    return os.path.join(CONFIG_DIR, "reply-ledger.json")
+
+
+def _norm_reply(text: str) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _reply_hash(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(_norm_reply(text).encode()).hexdigest()[:16]
+
+
+def load_reply_ledger() -> dict:
+    try:
+        with open(_ledger_path()) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _update_ledger(change) -> None:
+    """Read-modify-write the ledger under a lock (the watcher, Stop hooks and
+    prompt hooks all touch it), via a private temp file."""
+    import tempfile
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(_ledger_path() + ".lock", "a+b") as lock:
+            if IS_WIN:
+                import msvcrt
+                if os.path.getsize(_ledger_path() + ".lock") == 0:
+                    lock.write(b"0")
+                    lock.flush()
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            now = int(time.time())
+            ledger = {k: v for k, v in load_reply_ledger().items()
+                      if now - v.get("ts", 0) < REPLY_LEDGER_MAX_AGE}
+            change(ledger, now)
+            fd, tmp = tempfile.mkstemp(prefix="reply-ledger-", suffix=".tmp", dir=CONFIG_DIR)
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(ledger, f)
+                os.replace(tmp, _ledger_path())
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+    except OSError:
+        pass
+
+
+def record_reply_delivered(reply: dict) -> None:
+    """Call BEFORE injecting: the prompt hook that our own typing triggers
+    must already find it here (see is_injected_reply). Undo with
+    forget_reply if the injection fails."""
+    def add(ledger, now):
+        ledger[reply["id"]] = {"ts": now, "sid": reply.get("session_id", ""),
+                               "h": _reply_hash(reply.get("text", ""))}
+    _update_ledger(add)
+
+
+def record_joined_text(sid: str, text: str, ids: list) -> None:
+    """Several replies injected as one message (Stop hook): Cursor submits the
+    joined text as a prompt, so its hash must also count as ours."""
+    def add(ledger, now):
+        ledger["joined:" + ids[0]] = {"ts": now, "sid": sid, "h": _reply_hash(text), "joined": True}
+    _update_ledger(add)
+
+
+def forget_reply(reply_id: str) -> None:
+    _update_ledger(lambda ledger, now: ledger.pop(reply_id, None))
+
+
+def is_injected_reply(sid: str, prompt: str, window: int = 600) -> bool:
+    """Was this UserPromptSubmit typed by us (a phone reply), not by a human?"""
+    h, now = _reply_hash(prompt), int(time.time())
+    return any(v.get("sid") == sid and v.get("h") == h and now - v.get("ts", 0) < window
+               for v in load_reply_ledger().values())
+
+
+def reply_ack(cfg: dict, reply_id: str, claim_id: str, status: str, message: str = "") -> None:
+    backend_call(cfg, "POST", "/api/reply/ack",
+                 {"id": reply_id, "claim_id": claim_id, "status": status, "message": message[:300]})
+
+
+def claim_reply(cfg: dict, reply: dict):
+    """The claim id if this process now owns delivery of `reply`, else None
+    (fails closed). A reply we already typed (ledger) — its earlier claim
+    lapsed before the ack landed — is claimed and acked, never retyped."""
+    resp = backend_call(cfg, "POST", "/api/reply/claim", {"id": reply["id"]})
+    if not (isinstance(resp, dict) and resp.get("claimed") is True and resp.get("claim_id")):
+        return None
+    if reply["id"] in load_reply_ledger():
+        reply_ack(cfg, reply["id"], resp["claim_id"], "delivered")
+        return None
+    return resp["claim_id"]
+
+
+def queued_replies(resp, sid=None) -> list:
+    """Queued replies in a /api/command response, oldest first."""
+    out = [r for r in (resp or {}).get("replies") or []
+           if isinstance(r, dict) and r.get("status") == "queued" and r.get("id")
+           and r.get("text") and (sid is None or r.get("session_id") == sid)]
+    return sorted(out, key=lambda r: r.get("created_at", 0))
+
+
+def note_human_prompt(state: dict, sid: str, now: int) -> None:
+    """The user typed at the Mac. Phone replies created before this moment
+    are out of date (the legacy mailbox had the same rule)."""
+    state.setdefault("human_prompts", {})[sid] = now
+
+
+def superseded(cfg: dict, state: dict, reply: dict) -> bool:
+    """Cancel (and skip) a queued reply the user overtook by typing at the
+    Mac after sending it. Checked at delivery, so it holds whoever delivers
+    (watcher, Stop hook, Cursor) and costs the prompt hook nothing."""
+    typed = (state.get("human_prompts") or {}).get(reply.get("session_id"), 0)
+    if not typed or typed * 1000 <= reply.get("created_at", 0):
+        return False
+    backend_call(cfg, "POST", "/api/reply/cancel",
+                 {"id": reply["id"], "message": "superseded by typing on the computer"})
+    log(f"reply {reply['id'][:8]}: superseded by typing on the Mac, cancelled")
+    return True
+
+
+# Typing a reply can keep failing (pane gone with the pid alive, revoked
+# accessibility permission). Back off locally and, after the last try,
+# leave it queued for the Stop hook instead of spinning on claim/ack.
+REPLY_RETRY_DELAYS = (30, 120, 600)
+_REPLY_RETRY = {}   # reply id -> {"fails": n, "at": ts, "reply": reply}
 
 
 _GATEWAY_CFG = {}  # set once in main(); lets send_* route without signature churn
@@ -2862,6 +3011,9 @@ def prune_sessions(state: dict, now: int) -> None:
     for sid in list(prompts):
         if now - prompts[sid].get("ts", 0) > TERM_REGISTRY_MAX_AGE:
             del prompts[sid]
+    human = state.get("human_prompts", {})
+    for sid in [k for k, ts in human.items() if now - ts > TERM_REGISTRY_MAX_AGE]:
+        del human[sid]
 
 
 def merged_tasks(state: dict, my_label: str, now: int) -> list:
@@ -2935,7 +3087,8 @@ def sync_peers(cfg: dict, state: dict, my_label: str) -> None:
                       "codex": codex_bridge_status(),
                       "awake": caffeinate_active(),
                       "projects": recent_projects(),
-                      "hook_v": hook_version()})
+                      "hook_v": hook_version(),
+                      "caps": REPLY_CAPS})
         remote = backend_call(cfg, "GET", "/api/state") or {}
         state["peers"] = {h: v for h, v in remote.items() if h != my_label}
         save_sessions(state)
@@ -3196,6 +3349,49 @@ def self_update(cfg: dict, exit_after: bool = True) -> None:
         log(f"self-update error: {exc}")
 
 
+def watcher_deliver_replies(cfg: dict, replies: list) -> None:
+    """Type queued phone replies into their sessions' terminals, oldest first.
+    A session without an injection route keeps its replies queued; the Stop
+    hook delivers them when the turn ends."""
+    now = time.time()
+    by_id = {r["id"]: r for r in replies}
+    for rid, retry in list(_REPLY_RETRY.items()):
+        if retry["fails"] < len(REPLY_RETRY_DELAYS) and retry["at"] <= now:
+            by_id.setdefault(rid, retry["reply"])
+    state = load_sessions()
+    for r in sorted(by_id.values(), key=lambda r: r.get("created_at", 0)):
+        retry = _REPLY_RETRY.get(r["id"])
+        if retry and (retry["fails"] >= len(REPLY_RETRY_DELAYS) or retry["at"] > now):
+            continue   # backing off, or handed to the Stop hook
+        sid = r["session_id"]
+        entry = state["local"].get(sid)
+        if (not entry or entry.get("engine") == "codex"
+                or not (entry.get("term_type") or entry.get("pane"))
+                or not entry.get("pid") or not pid_alive(entry["pid"])):
+            continue
+        if superseded(cfg, state, r):
+            _REPLY_RETRY.pop(r["id"], None)
+            continue
+        claim_id = claim_reply(cfg, r)
+        if not claim_id:
+            _REPLY_RETRY.pop(r["id"], None)
+            continue
+        record_reply_delivered(r)
+        ok, err = type_into_terminal(entry, _norm_reply(r["text"]))
+        if ok:
+            reply_ack(cfg, r["id"], claim_id, "delivered")
+            _REPLY_RETRY.pop(r["id"], None)
+            log(f"watcher: reply {r['id'][:8]} typed into {sid[:8]}")
+        else:
+            forget_reply(r["id"])
+            reply_ack(cfg, r["id"], claim_id, "queued", err)
+            fails = (retry or {}).get("fails", 0) + 1
+            delay = REPLY_RETRY_DELAYS[min(fails, len(REPLY_RETRY_DELAYS)) - 1]
+            _REPLY_RETRY[r["id"]] = {"fails": fails, "at": now + delay, "reply": r}
+            log(f"watcher: reply {r['id'][:8]} not typed ({err}); try {fails}/"
+                f"{len(REPLY_RETRY_DELAYS)}" + (", left for the Stop hook" if fails >= len(REPLY_RETRY_DELAYS) else ""))
+
+
 def run_watcher(cfg: dict) -> None:
     """Instant remote control: poll the mailbox and TYPE fresh commands into
     the session's Otty pane — equivalent to the user typing at the keyboard,
@@ -3207,6 +3403,7 @@ def run_watcher(cfg: dict) -> None:
     # Newest command ts the backend has shown us; the long-poll returns early
     # only for rows newer than this. 0 → the first call answers immediately.
     seen_ts = 0
+    reply_rev = 0   # reply-queue cursor; 0 → first poll lists what is pending
     backend_down = False
     # `watcher_poll_seconds` keeps the legacy fixed-interval mode (no hold).
     legacy_poll = cfg.get("watcher_poll_seconds")
@@ -3276,10 +3473,16 @@ def run_watcher(cfg: dict) -> None:
                                    HOSTS[cfg.get("environment", "sandbox")],
                                    state, lbl, refresh_only=not changed_state)
             resp = backend_poll(cfg, "/api/command",
-                                0 if legacy_poll else LP_WAIT, seen_ts)
+                                0 if legacy_poll else LP_WAIT, seen_ts, f"reply_since={reply_rev}")
             backend_down = resp is None
             if backend_down:
                 continue
+            if isinstance(resp.get("reply_rev"), int):
+                reply_rev = max(reply_rev, resp["reply_rev"])
+            replies = queued_replies(resp)
+            if replies or any(x["at"] <= time.time() and x["fails"] < len(REPLY_RETRY_DELAYS)
+                              for x in _REPLY_RETRY.values()):
+                watcher_deliver_replies(cfg, replies)
             commands = resp.get("commands") or {}
             if not commands:
                 continue
@@ -3668,6 +3871,20 @@ def clip_bytes(text: str, max_bytes: int) -> str:
     return b[:max_bytes].decode("utf-8", errors="ignore") + "…"
 
 
+def print_stop_continue(text: str) -> None:
+    """Stop-hook stdout that keeps the turn going with the phone's words."""
+    print(json.dumps({
+        "decision": "block",
+        "reason": f"📱 手机远程指令: {text[:60]}",
+        "followup_message": text,   # Cursor: submitted as the next user message
+        "hookSpecificOutput": {
+            "hookEventName": "Stop",
+            "additionalContext":
+                f"用户通过 SessionBell 手机端远程发来新指令，请继续执行：\n\n{text}",
+        },
+    }, ensure_ascii=False))
+
+
 def try_inject_command(cfg, env, session_id, project, host,
                        wait_seconds, watch_return) -> bool:
     """Poll the command mailbox; on a fresh command, block the stop and feed
@@ -3679,6 +3896,7 @@ def try_inject_command(cfg, env, session_id, project, host,
     # DONE_LINGER_SECONDS, well inside the 960 s stop window) — reading 0 from
     # a pruned entry must not resurrect a command that was already delivered.
     cursor = (load_sessions()["local"].get(session_id) or {}).get("cmd_ts", 0)
+    reply_rev = 0   # first poll lists every reply still queued for this session
     while time.time() < deadline:
         if watch_return and not os.environ.get("SESSIONBELL_FORCE"):
             idle = mac_idle_seconds()
@@ -3690,7 +3908,39 @@ def try_inject_command(cfg, env, session_id, project, host,
         # user coming back to the keyboard (that check runs between polls).
         hold = 5 if watch_return else LP_WAIT
         hold = int(min(hold, max(0, deadline - time.time())))
-        resp = backend_poll(cfg, f"/api/command?id={session_id}", hold, cursor)
+        resp = backend_poll(cfg, f"/api/command?id={session_id}&reply_since={reply_rev}",
+                            hold, cursor)
+        if isinstance((resp or {}).get("reply_rev"), int):
+            reply_rev = max(reply_rev, resp["reply_rev"])
+        state = load_sessions()
+        claimed = []
+        for r in queued_replies(resp, session_id):
+            if superseded(cfg, state, r):
+                continue
+            claim_id = claim_reply(cfg, r)
+            if claim_id:
+                claimed.append((r, claim_id))
+        if claimed:
+            text = "\n\n".join(r["text"] for r, _ in claimed)
+            entry = state["local"].get(session_id) or {"project": project}
+            entry.update({"status": "running", "since": int(time.time()),
+                          "detail": " ".join(text.split())[:80]})
+            state["local"][session_id] = entry
+            save_sessions(state)
+            sync_peers(cfg, state, host)
+            push_dashboard(cfg, make_jwt(cfg), HOSTS[env], state, host)
+            log(f"stop: {len(claimed)} phone repl{'y' if len(claimed) == 1 else 'ies'} -> continue")
+            # Hand the words to Claude first; only then record and ack. Killed
+            # in between, the claim lapses and the ledger decides on re-claim.
+            print_stop_continue(text)
+            sys.stdout.flush()
+            for r, _ in claimed:
+                record_reply_delivered(r)
+            if len(claimed) > 1:
+                record_joined_text(session_id, text, [r["id"] for r, _ in claimed])
+            for r, claim_id in claimed:
+                reply_ack(cfg, r["id"], claim_id, "delivered")
+            return True
         cmd = (resp or {}).get("command")
         fresh = cmd and cmd.get("ts", 0) > max(cursor, (time.time() - 4 * 3600) * 1000)
         if fresh and cmd.get("text") and not claim_command(cfg, session_id, cmd.get("ts")):
@@ -3710,16 +3960,7 @@ def try_inject_command(cfg, env, session_id, project, host,
             sync_peers(cfg, state, host)
             push_dashboard(cfg, make_jwt(cfg), HOSTS[env], state, host)
             log(f"stop: remote command -> continue ({text[:40]})")
-            print(json.dumps({
-                "decision": "block",
-                "reason": f"📱 手机远程指令: {text[:60]}",
-                "followup_message": text,   # Cursor: submitted as the next user message
-                "hookSpecificOutput": {
-                    "hookEventName": "Stop",
-                    "additionalContext":
-                        f"用户通过 SessionBell 手机端远程发来新指令，请继续执行：\n\n{text}",
-                },
-            }, ensure_ascii=False))
+            print_stop_continue(text)
             return True
         if resp is None or hold < 2:
             time.sleep(2)  # backend unreachable / budget nearly spent
@@ -4456,9 +4697,14 @@ def main():
                 "effort": hook.get("effort") or prev.get("effort"),
                 "engine": engine or prev.get("engine"),
             }
+            # A human typing here supersedes phone replies sent before now;
+            # our own injected replies don't count. Local only: delivery
+            # (watcher / Stop hook) does the cancelling.
+            ent = state["local"][session_id]
+            if not is_injected_reply(session_id, hook.get("prompt") or ""):
+                note_human_prompt(state, session_id, now)
             # Pane handles outlive the session record so the phone terminal
             # can reattach after session-end / prune (registry, 7-day TTL).
-            ent = state["local"][session_id]
             if ent.get("term_type") or ent.get("pane"):
                 state.setdefault("terms", {})[session_id] = {
                     "project": project, "ts": int(now),
@@ -4626,6 +4872,8 @@ def main():
                          "secret": cfg["backend_secret"]}
                         if use_backend(cfg) else None),
             "md": raw_md or None,
+            # Tells the app this Mac reads /api/reply (quick replies use it).
+            "caps": REPLY_CAPS,
         },
     }
 
