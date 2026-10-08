@@ -1,6 +1,24 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Update delayed": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "更新延迟"}}}
+    },
+    "No active tasks": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "没有进行中的任务"}}}
+    },
+    "Failed": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "失败"}}}
+    },
+    "Last update %@ ago · may be out of date": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "上次更新于 %@前 · 可能不是最新"}}}
+    },
+    "%lld tasks failed": {
+      "localizations": {
+        "en": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld task failed"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld tasks failed"}}}}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 个任务失败"}}
+      }
+    },
     "New content": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "新内容"}}}
     },

@@ -101,15 +101,17 @@ extension Color {
     static let sbRunningSoft = sbDynamic(0xE6EFFB, 0x1F2C3F)
     static let sbDoneSoft    = sbDynamic(0xE5F2EA, 0x1F3327)
     static let sbApprovalSoft = sbDynamic(0xFEF3C7, 0x3A3016)
+    static let sbFailed      = sbDynamic(0xD64545, 0xED6B6B)
+    static let sbFailedSoft  = sbDynamic(0xFBE4E4, 0x3F2222)
 
     static func sbStatus(_ status: String) -> Color {
-        switch status { case "waiting": return .sbWaiting; case "running": return .sbRunning; case "done": return .sbDone; default: return .sbInk2 }
+        switch status { case "waiting": return .sbWaiting; case "running": return .sbRunning; case "done": return .sbDone; case "failed": return .sbFailed; default: return .sbInk2 }
     }
     static func sbStatusSoft(_ status: String) -> Color {
-        switch status { case "waiting": return .sbWaitingSoft; case "running": return .sbRunningSoft; case "done": return .sbDoneSoft; default: return .sbInk2.opacity(0.1) }
+        switch status { case "waiting": return .sbWaitingSoft; case "running": return .sbRunningSoft; case "done": return .sbDoneSoft; case "failed": return .sbFailedSoft; default: return .sbInk2.opacity(0.1) }
     }
     static func sbStatusSymbol(_ status: String) -> String {
-        switch status { case "waiting": return "ellipsis.bubble"; case "running": return "arrow.triangle.2.circlepath"; case "done": return "checkmark"; default: return "questionmark" }
+        switch status { case "waiting": return "ellipsis.bubble"; case "running": return "arrow.triangle.2.circlepath"; case "done": return "checkmark"; case "failed": return "xmark.octagon"; default: return "questionmark" }
     }
 }
 
