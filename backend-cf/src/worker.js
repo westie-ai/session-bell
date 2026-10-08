@@ -409,6 +409,21 @@ async function signJwt(env, now) {
   return `${header}.${claims}.${b64url(sig)}`;
 }
 
+/// Drop a dead token from every registry. `before` (ms) limits it to rows
+/// registered no later than Apple's verdict: a 410 says when the token
+/// stopped being valid, and a re-registration after that (same token handed
+/// out again after a reinstall) must survive a late 410.
+async function forgetToken(env, n, token, before = null) {
+  await env.DB.batch(['devices/', 'pts/', 'dash/'].map((p) => (before == null
+    ? env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, p + token)
+    : env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=? AND ts<=?').bind(n, p + token, before))));
+}
+
+function apnsTimestamp(text) {
+  try { const t = Number(JSON.parse(text).timestamp); return Number.isFinite(t) && t > 0 ? t : null; }
+  catch { return null; }
+}
+
 async function handlePush(req, env, n) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   if (!env.APNS_KEY) return json({ error: 'gateway not configured' }, 503);
@@ -456,7 +471,19 @@ async function handlePush(req, env, n) {
       resp = await send(envName === 'production' ? 'sandbox' : 'production');
       text = await resp.text();
     }
-    return json({ status: resp.status, body: text });
+    // Apple's verdict that this token is dead: 410 (app uninstalled / token
+    // rotated), or BadDeviceToken from BOTH environments. Forget it so it
+    // stops costing a request per event. Signing errors (403) and topic
+    // mismatches are our problem, not the device's, so they keep the token.
+    const dead = resp.status === 410
+      || (resp.status === 400 && text.includes('BadDeviceToken'));
+    if (dead) {
+      // Pruning is housekeeping: if it fails, still report what APNs said.
+      try {
+        await forgetToken(env, n, b.device_token, resp.status === 410 ? apnsTimestamp(text) : null);
+      } catch (e) { console.log('push: prune failed', String(e)); }
+    }
+    return json({ status: resp.status, body: text, ...(dead ? { pruned: true } : {}) });
   } catch (e) {
     return json({ status: 0, body: String(e) });
   }
