@@ -2501,11 +2501,13 @@ LP_WAIT = 25          # backend caps at 25; curl timeout adds headroom
 LP_HTTP_TIMEOUT = LP_WAIT + 10
 
 
-def backend_poll(cfg: dict, path: str, wait: int, since: int = 0):
-    """GET with long-poll params; wait<=0 degrades to a plain GET."""
+def backend_poll(cfg: dict, path: str, wait: int, since: int = 0, query: str = ""):
+    """GET with long-poll params; wait<=0 degrades to a plain GET.
+    `query` appends extra parameters (e.g. reply_since=<rev>)."""
     wait = max(0, min(LP_WAIT, int(wait)))
     sep = "&" if "?" in path else "?"
-    return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}",
+    extra = f"&{query}" if query else ""
+    return backend_call(cfg, "GET", f"{path}{sep}wait={wait}&since={int(since)}{extra}",
                         timeout=(wait + 10) if wait else 8)
 
 
@@ -3432,8 +3434,8 @@ def run_watcher(cfg: dict) -> None:
                     push_dashboard(cfg, make_jwt(cfg),
                                    HOSTS[cfg.get("environment", "sandbox")],
                                    state, lbl)
-            resp = backend_poll(cfg, f"/api/command?reply_since={reply_rev}",
-                                0 if legacy_poll else LP_WAIT, seen_ts)
+            resp = backend_poll(cfg, "/api/command",
+                                0 if legacy_poll else LP_WAIT, seen_ts, f"reply_since={reply_rev}")
             backend_down = resp is None
             if backend_down:
                 continue
