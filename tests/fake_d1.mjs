@@ -38,6 +38,13 @@ export function fakeD1() {
       rows.delete(key(args[0], args[1]));
       return { changes: 1 };
     }
+    if (sql === 'DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND v=? AND k<>?') {
+      let n = 0;
+      for (const [rk, r] of rows) {
+        if (inRange(r, args[0], args[1], args[2]) && r.v === args[3] && r.k !== args[4]) { rows.delete(rk); n++; }
+      }
+      return { changes: n };
+    }
     if (sql === 'DELETE FROM kv WHERE ns=? AND k>=? AND k<?') {
       let n = 0;
       for (const [rk, r] of rows) if (inRange(r, ...args)) { rows.delete(rk); n++; }
