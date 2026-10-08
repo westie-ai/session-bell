@@ -46,6 +46,12 @@ export function fakeD1() {
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=?') {
       return { changes: rows.delete(key(args[0], args[1])) ? 1 : 0 };
     }
+    if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts<=?') {
+      const r = rows.get(key(args[0], args[1]));
+      if (!r || r.ts > args[2]) return { changes: 0 };
+      rows.delete(key(args[0], args[1]));
+      return { changes: 1 };
+    }
     if (sql === 'DELETE FROM kv WHERE ns=? AND k=? AND ts=?') {
       const r = rows.get(key(args[0], args[1]));
       if (!r || r.ts !== args[2]) return { changes: 0 };

@@ -51,3 +51,25 @@ test('signing / topic errors never cost the user their registration', async () =
     assert.deepEqual((await devices(call)).devices.sort(), [DEAD, LIVE].sort());
   } finally { apns.restore(); }
 });
+
+test('a late 410 does not delete a token registered again after it', async () => {
+  const { env, call } = await setup();
+  const regTs = [...env.DB.rows.values()].find((r) => r.k === `devices/${DEAD}`).ts;
+  const apns = stubApns(() => ({ status: 410, body: JSON.stringify({ reason: 'Unregistered', timestamp: regTs - 1000 }) }));
+  try {
+    const r = await (await push(call, DEAD)).json();
+    assert.equal(r.status, 410);
+    assert.ok((await devices(call)).devices.includes(DEAD), 'registered after the 410 verdict: keep');
+  } finally { apns.restore(); }
+});
+
+test('a failing prune still reports the real APNs status', async () => {
+  const { env, call } = await setup();
+  const real = env.DB.batch;
+  env.DB.batch = async () => { throw new Error('D1 down'); };
+  const apns = stubApns(() => ({ status: 410, body: '{"reason":"Unregistered"}' }));
+  try {
+    const r = await (await push(call, DEAD)).json();
+    assert.equal(r.status, 410);
+  } finally { apns.restore(); env.DB.batch = real; }
+});
