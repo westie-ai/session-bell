@@ -108,7 +108,7 @@ final class LiveActivityManager {
             let attrs = SessionActivityAttributes(backend: backend.url, secret: backend.secret)
             let activity = try Activity.request(
                 attributes: attrs,
-                content: .init(state: state, staleDate: Date().addingTimeInterval(1800)),
+                content: .init(state: state, staleDate: Date().addingTimeInterval(900)),
                 pushType: .token)
             Task {
                 for await tokenData in activity.pushTokenUpdates {
@@ -128,7 +128,7 @@ final class LiveActivityManager {
         guard let obj = await SBBackend.getJSON("/api/state") as? [String: [String: Any]]
         else { return [] }
         let now = Date().timeIntervalSince1970
-        let limits: [String: Double] = ["done": 600, "waiting": 1800, "running": 21600]
+        let limits: [String: Double] = ["done": 600, "failed": 600, "waiting": 1800, "running": 21600]
         var out: [SessionActivityAttributes.TaskItem] = []
         for (host, blob) in obj {
             guard let ts = blob["ts"] as? Double, now - ts < 3600,
@@ -142,7 +142,7 @@ final class LiveActivityManager {
                                  detail: e["detail"] as? String, agents: e["agents"] as? Int))
             }
         }
-        let order = ["waiting": 0, "running": 1, "done": 2]
+        let order = ["waiting": 0, "failed": 1, "running": 2, "done": 3]
         out.sort { (order[$0.status] ?? 3, $0.since) < (order[$1.status] ?? 3, $1.since) }
         return Array(out.prefix(6))
     }

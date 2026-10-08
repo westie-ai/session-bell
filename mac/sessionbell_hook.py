@@ -2437,8 +2437,17 @@ def event_model(hook: dict, engine) -> str:
 
 # ---------------- Live Activity ----------------
 
-LA_STALE_SECONDS = 30 * 60       # waiting card considered stale after 30 min
-LA_DONE_DISMISS_SECONDS = 10 * 60  # "done" card auto-dismisses after 10 min
+# The card shows "Update delayed" once stale-date passes without a fresh
+# update — never an inferred completion. The relay re-sends the dashboard
+# every LA_REFRESH_SECONDS while tasks are active, so stale means the Mac
+# stopped reporting (lid closed, offline), not merely a long quiet turn.
+LA_STALE_SECONDS = 15 * 60
+LA_REFRESH_SECONDS = 10 * 60
+LA_DONE_DISMISS_SECONDS = 60     # ended card leaves the Lock Screen / Smart Stack
+# APNs priority: 10 is budgeted by iOS for Live Activities; spend it only on
+# changes the user must see now (needs input, approval, end).
+LA_PRIORITY_URGENT = 10
+LA_PRIORITY_ROUTINE = 5
 
 
 def load_activity_tokens() -> dict:
@@ -2529,11 +2538,12 @@ def claim_command(cfg: dict, key: str, ts=None) -> bool:
 _GATEWAY_CFG = {}  # set once in main(); lets send_* route without signature churn
 
 
-def gateway_push(device_token: str, topic: str, push_type: str, payload: dict):
+def gateway_push(device_token: str, topic: str, push_type: str, payload: dict,
+                 priority: int = 10):
     cfg = _GATEWAY_CFG
     r = backend_call(cfg, "POST", "/api/push", {
         "device_token": device_token, "topic": topic, "push_type": push_type,
-        "priority": 10, "payload": payload,
+        "priority": priority, "payload": payload,
         "environment": cfg.get("environment", "production"),
     })
     if not r:
@@ -2551,18 +2561,19 @@ def loc_alert(key: str, args: list) -> dict:
     return {"title": title, "title-loc-key": key, "title-loc-args": [str(a) for a in args]}
 
 
-def send_la_push(jwt: str, apns_host: str, la_token: str, bundle_id: str, aps: dict):
+def send_la_push(jwt: str, apns_host: str, la_token: str, bundle_id: str, aps: dict,
+                 priority: int = LA_PRIORITY_URGENT):
     """Live Activity pushes use a dedicated topic suffix and push type."""
     if _GATEWAY_CFG and use_push_gateway(_GATEWAY_CFG):
         return gateway_push(la_token, f"{bundle_id}.push-type.liveactivity",
-                            "liveactivity", {"aps": aps})
+                            "liveactivity", {"aps": aps}, priority)
     cmd = [
         "curl", "-sS", "--http2", "-m", "10",
         "-o", "-", "-w", "\n%{http_code}",
         "-H", f"authorization: bearer {jwt}",
         "-H", f"apns-topic: {bundle_id}.push-type.liveactivity",
         "-H", "apns-push-type: liveactivity",
-        "-H", "apns-priority: 10",
+        "-H", f"apns-priority: {priority}",
         "-d", json.dumps({"aps": aps}, ensure_ascii=False),
         f"https://{apns_host}/3/device/{la_token}",
     ]
@@ -2820,6 +2831,7 @@ def prune_sessions(state: dict, now: int) -> None:
     for sid in [k for k, v in prompts.items() if injected_text(v.get("text"))]:
         del prompts[sid]
     limits = {"done": DONE_LINGER_SECONDS,
+              "failed": DONE_LINGER_SECONDS,
               "waiting": WAITING_LINGER_SECONDS,
               "running": RUNNING_MAX_AGE}
     for sid in list(local):
@@ -2830,8 +2842,11 @@ def prune_sessions(state: dict, now: int) -> None:
         elif (entry.get("status") in ("running", "waiting")
               and entry.get("pid") and not pid_alive(entry["pid"])):
             # The claude process is gone — the session ended without a
-            # stop/session-end event (closed terminal, crash, kill).
-            del local[sid]
+            # stop/session-end event (closed terminal, crash, kill). That is
+            # not a completion: show it as failed so the card never turns
+            # into a green checkmark for work that didn't finish.
+            entry.update(status="failed", since=now)
+            entry.pop("approval_id", None)
     terms = state.get("terms", {})
     for sid in list(terms):
         if now - terms[sid].get("ts", 0) > TERM_REGISTRY_MAX_AGE:
@@ -2846,6 +2861,7 @@ def merged_tasks(state: dict, my_label: str, now: int) -> list:
     """Merged, deduped, HIERARCHICAL: sub-agent sessions (spawned by another
     claude process) ride directly under their parent, flagged sub=true."""
     limits = {"done": DONE_LINGER_SECONDS,
+              "failed": DONE_LINGER_SECONDS,
               "waiting": WAITING_LINGER_SECONDS,
               "running": RUNNING_MAX_AGE}
     collected = {}  # sid -> (task, parent_sid or None)
@@ -2883,7 +2899,7 @@ def merged_tasks(state: dict, my_label: str, now: int) -> list:
             children.setdefault(parent, []).append((sid, t))
         else:
             roots.append((sid, t))
-    order = {"waiting": 0, "running": 1, "done": 2}
+    order = {"waiting": 0, "failed": 1, "running": 2, "done": 3}
     roots.sort(key=lambda st: (order.get(st[1]["status"], 3), st[1]["since"]))
     out = []
     for sid, t in roots:
@@ -3000,8 +3016,11 @@ def push_dashboard(cfg, jwt, apns_host, state, my_label):
                 "content-state": content_state,
                 "dismissal-date": now + LA_DONE_DISMISS_SECONDS,
             }
-        code, resp = send_la_push(jwt, apns_host, entry["token"], cfg["bundle_id"], aps)
-        log(f"la-{aps['event']} dashboard HTTP {code} {resp}")
+        urgent = (aps["event"] == "end" or content_state.get("approvalId")
+                  or any(t["status"] == "waiting" for t in active))
+        priority = LA_PRIORITY_URGENT if urgent else LA_PRIORITY_ROUTINE
+        code, resp = send_la_push(jwt, apns_host, entry["token"], cfg["bundle_id"], aps, priority)
+        log(f"la-{aps['event']} dashboard p{priority} HTTP {code} {resp}")
         if aps["event"] == "end" or code == 200:
             if aps["event"] == "end":
                 tokens.pop("_dashboard", None)
@@ -3175,6 +3194,7 @@ def run_watcher(cfg: dict) -> None:
     last_usage = 0.0
     last_cmd = 0.0
     last_reap = 0.0
+    last_la_refresh = time.time()
     # Newest command ts the backend has shown us; the long-poll returns early
     # only for rows newer than this. 0 → the first call answers immediately.
     seen_ts = 0
@@ -3230,10 +3250,19 @@ def run_watcher(cfg: dict) -> None:
                 state = load_sessions()
                 before = json.dumps(state["local"], sort_keys=True)
                 prune_sessions(state, int(time.time()))
-                if json.dumps(state["local"], sort_keys=True) != before:
+                changed_state = json.dumps(state["local"], sort_keys=True) != before
+                active = any(e.get("status") in ("running", "waiting")
+                             for e in state["local"].values())
+                # Keep the card's stale-date ahead while this Mac is alive, so
+                # "Update delayed" only appears when it really stops reporting.
+                refresh = active and time.time() - last_la_refresh > LA_REFRESH_SECONDS
+                if changed_state:
                     save_sessions(state)
+                if changed_state or refresh:
+                    last_la_refresh = time.time()
                     lbl = host_label(cfg)
-                    sync_peers(cfg, state, lbl)
+                    if changed_state:
+                        sync_peers(cfg, state, lbl)
                     push_dashboard(cfg, make_jwt(cfg),
                                    HOSTS[cfg.get("environment", "sandbox")],
                                    state, lbl)
