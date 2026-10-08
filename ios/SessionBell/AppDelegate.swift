@@ -41,6 +41,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if #available(iOS 17.2, *) {
             LiveActivityManager.shared.bootstrap()
         }
+        // A registration skipped for lack of a device id (before first unlock)
+        // is retried here: re-registering hands us the token again.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { _ in
+            if SBBackend.saved != nil { UIApplication.shared.registerForRemoteNotifications() }
+        }
         Task {
             // 老用户启动即请求;新用户等到引导里真正要连 Mac 的那一步再问,
             // 别让系统弹窗盖在第一屏上。
@@ -69,9 +76,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // has to copy-paste them anymore.
         Task {
             if let backend = SBBackend.saved {
-                await SBBackend.post("/api/token",
-                                     body: ["device_token": hex, "device_id": SBBackend.deviceId],
-                                     to: backend.url, secret: backend.secret)
+                await SBBackend.registerToken(.alert, hex, url: backend.url, secret: backend.secret)
             }
         }
     }
@@ -159,6 +164,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
 extension SBBackend {
     /// 本机在 token 注册表里的身份:同一台手机重新注册时,后端用它原子替换旧 token,
-    /// 防止轮换后的旧 token 再收到一份推送或再起一张锁屏卡。
-    static var deviceId: String { UIDevice.current.identifierForVendor?.uuidString ?? "" }
+    /// 防止轮换后的旧 token 再收到一份推送或再起一张锁屏卡。开机后还没解锁时为 nil。
+    static var deviceId: String? { UIDevice.current.identifierForVendor?.uuidString }
+
+    enum TokenKind {
+        case alert, pushToStart
+        var field: String { self == .alert ? "device_token" : "pts_token" }
+        var replacesField: String { self == .alert ? "replaces_device_token" : "replaces_pts_token" }
+        var lastKey: String { self == .alert ? "sb.lastDeviceToken" : "sb.lastPtsToken" }
+    }
+
+    /// 所有 token 注册都走这里。没有设备标识就先不注册(回到前台会再来),
+    /// 免得写成不带身份的旧格式;带上上次注册成功的 token,后端当场删掉它。
+    static func registerToken(_ kind: TokenKind, _ hex: String, url: String, secret: String) async {
+        guard let id = deviceId, !url.isEmpty, let endpoint = URL(string: url + "/api/token") else { return }
+        var body = [kind.field: hex, "device_id": id]
+        let last = UserDefaults.standard.string(forKey: kind.lastKey) ?? ""
+        if !last.isEmpty && last != hex { body[kind.replacesField] = last }
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 10
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(secret, forHTTPHeaderField: "x-sb-secret")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+        UserDefaults.standard.set(hex, forKey: kind.lastKey)
+    }
 }

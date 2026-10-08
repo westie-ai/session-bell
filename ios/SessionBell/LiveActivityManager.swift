@@ -12,8 +12,7 @@ final class LiveActivityManager {
                 let hex = Self.hex(tokenData)
                 await MainActor.run { EventStore.shared.pushToStartToken = hex }
                 if let backend = SBBackend.saved {
-                    await SBBackend.post("/api/token", body: ["pts_token": hex, "device_id": SBBackend.deviceId],
-                                         to: backend.url, secret: backend.secret)
+                    await SBBackend.registerToken(.pushToStart, hex, url: backend.url, secret: backend.secret)
                 }
             }
         }
@@ -69,8 +68,7 @@ final class LiveActivityManager {
         Task {
             let token = await MainActor.run { EventStore.shared.pushToStartToken }
             if let backend = SBBackend.saved, !token.isEmpty {
-                await SBBackend.post("/api/token", body: ["pts_token": token, "device_id": SBBackend.deviceId],
-                                     to: backend.url, secret: backend.secret)
+                await SBBackend.registerToken(.pushToStart, token, url: backend.url, secret: backend.secret)
             }
             for activity in Activity<SessionActivityAttributes>.activities {
                 guard activity.activityState == .active else { continue }

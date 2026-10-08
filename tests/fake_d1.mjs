@@ -25,6 +25,12 @@ export function fakeD1() {
       rows.set(key(ns, k), { ...r, v });
       return { changes: 1 };
     }
+    if (sql.includes("CASE WHEN kv.v='1'")) {
+      const [ns, k, ts] = args;
+      const r = rows.get(key(ns, k));
+      rows.set(key(ns, k), { ns, k, v: r && r.v !== '1' ? r.v : '1', ts });
+      return { changes: 1 };
+    }
     if (sql.startsWith('INSERT INTO kv') && sql.includes('ON CONFLICT')) {
       const [ns, k, v, ts] = args;
       rows.set(key(ns, k), { ns, k, v, ts });

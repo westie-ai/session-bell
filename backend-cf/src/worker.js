@@ -95,9 +95,21 @@ async function readBody(req) {
 // or duplicate Live Activities. Row value = device id; legacy rows hold '1'.
 const DEVICE_ID = /^[A-Za-z0-9-]{8,64}$/;
 
-async function registerToken(env, n, prefix, token, deviceId, now) {
-  if (!DEVICE_ID.test(deviceId || '')) return kvPut(env, n, prefix + token, '1', now);
-  await env.DB.batch([
+async function registerToken(env, n, prefix, token, deviceId, now, replaces) {
+  // The phone names the token it registered last time: drop it right away
+  // (this also clears duplicates left from before device ids existed).
+  const drop = HEX.test(replaces || '') && replaces !== token
+    ? [env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, prefix + replaces)] : [];
+  if (!DEVICE_ID.test(deviceId || '')) {
+    // Older clients send no id. Never let them downgrade a row a newer
+    // client already tied to a device back to '1' (it would escape the
+    // per-device replacement on the next rotation).
+    return env.DB.batch([...drop, env.DB.prepare(
+      "INSERT INTO kv (ns,k,v,ts) VALUES (?,?,'1',?) " +
+      "ON CONFLICT(ns,k) DO UPDATE SET ts=excluded.ts, v=CASE WHEN kv.v='1' THEN excluded.v ELSE kv.v END")
+      .bind(n, prefix + token, now)]);
+  }
+  await env.DB.batch([...drop,
     env.DB.prepare('DELETE FROM kv WHERE ns=? AND k>=? AND k<? AND v=? AND k<>?')
       .bind(n, prefix, prefix + '￿', deviceId, prefix + token),
     env.DB.prepare(
@@ -125,10 +137,10 @@ async function handleToken(req, env, n) {
   if (req.method === 'POST') {
     const b = await readBody(req);
     const now = Date.now();
-    if (b.pts_token && HEX.test(b.pts_token)) await registerToken(env, n, 'pts/', b.pts_token, b.device_id, now);
+    if (b.pts_token && HEX.test(b.pts_token)) await registerToken(env, n, 'pts/', b.pts_token, b.device_id, now, b.replaces_pts_token);
     if (b.update_token && HEX.test(b.update_token)) await kvPut(env, n, `dash/${b.update_token}`, '1', now);
     if (b.ended_token && HEX.test(b.ended_token)) await kvPut(env, n, `dashended/${b.ended_token}`, '1', now);
-    if (b.device_token && HEX.test(b.device_token)) await registerToken(env, n, 'devices/', b.device_token, b.device_id, now);
+    if (b.device_token && HEX.test(b.device_token)) await registerToken(env, n, 'devices/', b.device_token, b.device_id, now, b.replaces_device_token);
     if (b.reset_dashboard) {
       for (const row of await kvList(env, n, 'dash/')) {
         await kvPut(env, n, 'dashended/' + row.k.slice(5), '1', now);

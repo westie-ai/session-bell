@@ -47,3 +47,21 @@ test('old apps without device_id keep working as before', async () => {
   await call('/api/token', { device_token: tok('e'), device_id: '../bad' });
   assert.deepEqual((await reg(call)).devices.sort(), [tok('a'), tok('c'), tok('e')].sort());
 });
+
+test('an old client re-sending a token does not untie it from its device', async () => {
+  const { call } = await setup();
+  await call('/api/token', { device_token: tok('a'), device_id: PHONE });
+  await call('/api/token', { device_token: tok('a') });             // e.g. an old pairing screen
+  await call('/api/token', { device_token: tok('c'), device_id: PHONE }); // rotation
+  assert.deepEqual((await reg(call)).devices, [tok('c')]);
+});
+
+test('naming the previous token removes it, even a legacy duplicate', async () => {
+  const { call } = await setup();
+  await call('/api/token', { device_token: tok('a'), pts_token: tok('b') });   // pre-upgrade rows ('1')
+  await call('/api/token', { device_token: tok('c'), device_id: PHONE, replaces_device_token: tok('a'),
+                             pts_token: tok('d'), replaces_pts_token: tok('b') });
+  const r = await reg(call);
+  assert.deepEqual(r.devices, [tok('c')]);
+  assert.deepEqual(r.pts, [tok('d')]);
+});
