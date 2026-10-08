@@ -549,6 +549,39 @@
         }
       }
     },
+    "Taken back": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已撤回"}}}
+    },
+    "Too late — it's already on its way": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "来不及了,已经在送达"}}}
+    },
+    "Not sent — check your connection and send again": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "没发出去,检查网络后再发一次"}}}
+    },
+    "Waiting for your computer to come online": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "等电脑上线后送达"}}}
+    },
+    "Queued · delivered when this turn is idle": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "排队中 · 这一轮空下来就送达"}}}
+    },
+    "Delivering…": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "正在送达…"}}}
+    },
+    "Delivered": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已送达"}}}
+    },
+    "Not delivered": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "未送达"}}}
+    },
+    "Expired · never delivered": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已过期 · 没有送达"}}}
+    },
+    "Replaced by what you typed on the computer": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "你在电脑上打了字,这条已作废"}}}
+    },
+    "Take back": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "撤回"}}}
+    },
     "All done": {
       "localizations": {
         "zh-Hans": {

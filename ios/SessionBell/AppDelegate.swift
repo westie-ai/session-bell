@@ -136,6 +136,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 to: url, secret: secret)
             return
         }
+        if (sb["caps"] as? [String] ?? []).contains(EventStore.replyQueueCap) {
+            // 后台动作只有几十秒:两次尝试,同一个 id,服务端去重。
+            _ = await EventStore.sendReply(sessionId: sessionId, text: text,
+                                           url: url, secret: secret, attempts: 2)
+            return
+        }
         await SBBackend.post(
             "/api/command",
             body: ["session_id": sessionId, "text": text],

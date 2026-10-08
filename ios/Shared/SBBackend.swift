@@ -146,6 +146,25 @@ enum SBBackend {
         _ = try? await URLSession.shared.data(for: req)
     }
 
+    /// POST 并取回 JSON;网络失败或非 2xx 返回 nil。
+    static func postJSON(_ path: String, body: [String: String],
+                         to backend: String, secret: String) async -> [String: Any]? {
+        guard !backend.isEmpty,
+              let url = URL(string: backend + path),
+              let data = try? JSONSerialization.data(withJSONObject: body)
+        else { return nil }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 10
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(secret, forHTTPHeaderField: "x-sb-secret")
+        req.httpBody = data
+        guard let (out, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode)
+        else { return nil }
+        return try? JSONSerialization.jsonObject(with: out) as? [String: Any]
+    }
+
     /// 与 post 相同,但用当前保存的后端,并返回是否 2xx(反馈等需要知道结果的场景)。
     static func postChecked(_ path: String, body: [String: String]) async -> Bool {
         guard let backend = saved,
