@@ -361,6 +361,11 @@ async function apnsJwt(env) {
   return jwtCache.token;
 }
 
+async function forgetToken(env, n, token) {
+  await env.DB.batch(['devices/', 'pts/', 'dash/'].map((p) =>
+    env.DB.prepare('DELETE FROM kv WHERE ns=? AND k=?').bind(n, p + token)));
+}
+
 async function handlePush(req, env, n) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   if (!env.APNS_KEY) return json({ error: 'gateway not configured' }, 503);
@@ -399,7 +404,14 @@ async function handlePush(req, env, n) {
       resp = await send(envName === 'production' ? 'sandbox' : 'production');
       text = await resp.text();
     }
-    return json({ status: resp.status, body: text });
+    // Apple's verdict that this token is dead: 410 (app uninstalled / token
+    // rotated), or BadDeviceToken from BOTH environments. Forget it so it
+    // stops costing a request per event. Signing errors (403) and topic
+    // mismatches are our problem, not the device's, so they keep the token.
+    const dead = resp.status === 410
+      || (resp.status === 400 && text.includes('BadDeviceToken'));
+    if (dead) await forgetToken(env, n, b.device_token);
+    return json({ status: resp.status, body: text, ...(dead ? { pruned: true } : {}) });
   } catch (e) {
     return json({ status: 0, body: String(e) });
   }
