@@ -39,10 +39,10 @@ class DesktopTests(unittest.TestCase):
             connection.execute("CREATE TABLE threads (id TEXT, rollout_path TEXT, cwd TEXT, title TEXT, updated_at INTEGER, archived INTEGER)")
         self.observer = sb.CodexDesktopObserver({}, str(self.home))
 
-    def create(self, sid="desktop", originator="Codex Desktop", path=None):
+    def create(self, sid="desktop", originator="Codex Desktop", path=None, **metadata):
         path = path or self.home / "sessions" / (sid + ".jsonl")
         path.write_text(json.dumps({"type": "session_meta", "payload": {
-            "id": sid, "originator": originator, "source": "vscode"}}) + "\n")
+            "id": sid, "originator": originator, "source": "vscode", **metadata}}) + "\n")
         with contextlib.closing(sqlite3.connect(self.db)) as connection, connection:
             connection.execute("INSERT INTO threads VALUES (?,?,?,?,?,0)",
                                (sid, str(path), "/tmp/test-project", "Test task", int(time.time())))
@@ -147,6 +147,65 @@ class DesktopTests(unittest.TestCase):
         path.write_text(path.read_text().replace("wrong-id", "different-id"))
         self.observer.scan()
         self.assertEqual(sb.load_sessions()["local"], {})
+
+    def test_internal_desktop_tasks_never_enter_dashboard_or_notify(self):
+        self.observer.scan()
+        sources = [
+            {"source": {"subagent": {"other": "guardian"}}},
+            {"source": {"subagent": {"thread_spawn": {"parent_thread_id": "parent", "depth": 1}}}},
+            {"parent_thread_id": "parent"},
+            {"agent_path": "/root/reviewer"},
+        ]
+        for i, metadata in enumerate(sources):
+            sid = "internal-" + str(i)
+            path = self.create(sid, **metadata)
+            self.append("task_started", path=path)
+            self.append("task_complete", path=path, last_agent_message='{"risk_level":"low"}')
+            self.assertIsNone(self.observer.metadata(path, sid))
+        self.observer.scan()
+        self.assertEqual(sb.load_sessions()["local"], {})
+        self.alert.assert_not_called()
+
+    def test_upgrade_removes_internal_records_with_legacy_cursors(self):
+        path = self.create(source={"subagent": {"other": "guardian"}})
+        self.append("task_started")
+        self.append("task_complete", last_agent_message='{"risk_level":"low"}')
+        stat = path.stat()
+        old = {"source": "desktop", "engine": "codex", "status": "done",
+               "since": time.time(), "latest_reply": '{"risk_level":"low"}'}
+        state = sb.load_sessions()
+        state["local"].update(desktop=old, unrelated={"engine": "claude", "status": "running"})
+        sb.save_sessions(state)
+        Path(self.observer.cursor_path).write_text(json.dumps({"desktop": {
+            "file": [stat.st_dev, stat.st_ino], "offset": stat.st_size,
+            "desktop": True, "entry": old}}))
+        observer = sb.CodexDesktopObserver({}, str(self.home))
+        self.assertTrue(observer.scan())
+        self.assertNotIn("desktop", sb.load_sessions()["local"])
+        self.assertIn("unrelated", sb.load_sessions()["local"])
+        self.assertNotIn("desktop", observer.cursors)
+        observer.scan()
+        self.alert.assert_not_called()
+
+    def test_top_level_json_reply_is_preserved(self):
+        self.create(agent_path="/root")
+        self.observer.scan()
+        reply = '{"risk_level":"low","rationale":"Requested JSON output"}'
+        self.append("task_started")
+        self.append("task_complete", last_agent_message=reply)
+        self.observer.scan()
+        self.assertEqual(self.entry()["latest_reply"], reply)
+        self.assertEqual(self.alert.call_args.args[3], reply)
+
+    def test_legacy_cursor_revalidation_preserves_normal_completion(self):
+        self.create()
+        self.append("task_started")
+        self.observer.scan()
+        self.observer.cursors["desktop"].pop("top_level", None)
+        self.append("task_complete", last_agent_message="User-facing reply")
+        self.observer.scan()
+        self.assertEqual(self.entry()["latest_reply"], "User-facing reply")
+        self.alert.assert_called_once()
 
     def test_cumulative_tokens_are_not_summed(self):
         self.create()
