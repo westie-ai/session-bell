@@ -357,7 +357,16 @@ class CodexDesktopObserver:
                     connection.close()
         return rows if available else None
 
-    def metadata(self, path, sid):
+    @staticmethod
+    def is_top_level(data):
+        # Internal guardian reviews and delegated agents inherit the Desktop
+        # originator. Their results are not user-facing conversation replies.
+        source = data.get("source")
+        return not ((isinstance(source, dict) and "subagent" in source)
+                    or data.get("parent_thread_id")
+                    or data.get("agent_path") not in (None, "", "/root"))
+
+    def metadata(self, path, sid, include_internal=False):
         path = os.path.realpath(path)
         if not any(os.path.commonpath([path, os.path.join(self.home, folder)]) == os.path.join(self.home, folder)
                    for folder in ("sessions", "archived_sessions")):
@@ -372,6 +381,8 @@ class CodexDesktopObserver:
             if event.get("type") != "session_meta" or data.get("id") != sid:
                 return None
             if str(data.get("originator", "")).lower() != "codex desktop":
+                return None
+            if not include_internal and not self.is_top_level(data):
                 return None
             return data
         except (OSError, ValueError, AttributeError):
@@ -453,10 +464,21 @@ class CodexDesktopObserver:
                 if old.get("managed") or state.get("codex_sessions", {}).get(sid, {}).get("managed"):
                     continue
                 reset = cursor.get("file") != fingerprint or stat.st_size < cursor.get("offset", 0)
-                if reset or not cursor.get("desktop"):
-                    if not self.metadata(path, sid):
+                if reset or not cursor.get("top_level"):
+                    metadata = self.metadata(path, sid, include_internal=True)
+                    if not metadata:
                         continue
-                    cursor = {"file": fingerprint, "offset": 0, "desktop": True}
+                    if not self.is_top_level(metadata):
+                        # Revalidate legacy cursors too, removing internal tasks
+                        # already published by older relays without replaying them.
+                        if old.get("source") == "desktop":
+                            state["local"].pop(sid, None)
+                            changed = True
+                        self.cursors.pop(sid, None)
+                        continue
+                    if reset or not cursor.get("desktop"):
+                        cursor = {"file": fingerprint, "offset": 0, "desktop": True}
+                    cursor["top_level"] = True
                 entry = dict(old or cursor.get("entry", {})) if not reset else {}
                 entry.update(engine="codex", source="desktop", managed=False,
                              project=os.path.basename(row["cwd"].rstrip("/")) or "Codex",
