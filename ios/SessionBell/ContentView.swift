@@ -762,11 +762,16 @@ struct SpawnSheet: View {
     @State private var sendResult = ""
     @State private var sent = false
 
+    private var engineKey: String { "sb.spawnEngine.\(group.canonicalKey)" }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Agent") {
-                    Picker("Agent", selection: $engine) {
+                    Picker("Agent", selection: Binding(get: { engine }, set: {
+                        engine = $0
+                        UserDefaults.standard.set($0, forKey: engineKey)
+                    })) {
                         Text("Claude Code").tag("claude")
                         Text("Codex").tag("codex")
                     }
@@ -857,6 +862,8 @@ struct SpawnSheet: View {
                     cwd = group.latestCwd.isEmpty
                         ? (group.spawnDirs.first ?? "") : group.latestCwd
                 }
+                // 上次在这台 Mac 上选的 agent 优先,没选过就跟最近活跃的任务走。
+                engine = UserDefaults.standard.string(forKey: engineKey) ?? group.latestEngine
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

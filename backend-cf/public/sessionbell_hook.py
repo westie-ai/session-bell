@@ -3972,6 +3972,15 @@ def clip_bytes(text: str, max_bytes: int) -> str:
     return b[:max_bytes].decode("utf-8", errors="ignore") + "…"
 
 
+def unattended_run() -> bool:
+    """An SDK / `claude -p` run nobody is sitting at (e.g. an OpenMeld Wake).
+    Holding its Stop hook for a phone reply only stalls whatever is waiting on
+    the turn to end. Our own phone-spawned headless runs are exempt: their
+    reply window IS how the phone continues them."""
+    entry = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "")
+    return entry.startswith("sdk") and not os.environ.get("SESSIONBELL_SPAWNED")
+
+
 def print_stop_continue(text: str) -> None:
     """Stop-hook stdout that keeps the turn going with the phone's words."""
     print(json.dumps({
@@ -4965,7 +4974,7 @@ def main():
             log(f"skip {kind}: user at keyboard (idle {idle:.0f}s < {min_idle}s)")
             # Still honor a phone command sent moments ago — a quick mailbox
             # check so remote control works even with the user at the desk.
-            if kind == "stop" and use_backend(cfg) and engine != "codex":
+            if kind == "stop" and use_backend(cfg) and engine != "codex" and not unattended_run():
                 try_inject_command(cfg, env, session_id, project, host,
                                    10, watch_return=False)
             return
@@ -5117,6 +5126,9 @@ def main():
     # done-push so a phone reply can be injected. Releases the moment the
     # user touches the Mac again, or after reply_wait_seconds.
     if kind == "stop" and ok and use_backend(cfg) and engine != "codex":
+        if unattended_run():
+            log("stop: unattended run, no reply window")
+            return
         try_inject_command(cfg, env, session_id, project, host,
                            cfg.get("reply_wait_seconds", 900), watch_return=True)
 
