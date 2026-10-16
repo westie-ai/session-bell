@@ -114,7 +114,10 @@ irm https://sessionbell.westie.ai/install.ps1 | iex
 
 ### Codex（macOS）
 
-先完成 SessionBell 配对，然后运行：
+装好就会监控 Codex 桌面任务：relay 只读本机会话记录，完成时推送。不需要可在
+`~/.sessionbell/config.json` 里设 `codex_desktop_observer: false` 关掉。
+
+要用共享 CLI 会话、从手机新建任务，先完成配对，然后运行：
 
 ```bash
 python3 ~/.sessionbell/sessionbell_hook.py codex-enable

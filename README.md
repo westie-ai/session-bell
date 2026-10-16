@@ -141,7 +141,11 @@ TestFlight build for long-term use. Extra Macs: repeat step 3 only.
 
 ### Codex (macOS)
 
-After pairing SessionBell, run:
+Codex desktop tasks are monitored out of the box: the relay reads the native
+desktop's local session records (read-only) and notifies on completion. Set
+`codex_desktop_observer: false` in `~/.sessionbell/config.json` to turn it off.
+
+For shared CLI sessions and phone-created tasks, after pairing run:
 
 ```bash
 python3 ~/.sessionbell/sessionbell_hook.py codex-enable

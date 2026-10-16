@@ -326,6 +326,17 @@ class DesktopTests(unittest.TestCase):
                 sb.main()
             permission.assert_called_once()
 
+    def test_observer_runs_without_codex_enable(self):
+        started = []
+        with patch.object(sb, "IS_WIN", False), \
+                patch("threading.Thread") as thread:
+            thread.side_effect = lambda target, **kw: Mock(start=lambda: started.append(target))
+            sb.start_codex_threads({})
+            self.assertEqual([t.__qualname__ for t in started], ["CodexDesktopObserver.run"])
+            started.clear()
+            sb.start_codex_threads({"codex_desktop_observer": False})
+            self.assertEqual(started, [])
+
     def test_enable_never_changes_desktop_transport(self):
         config = self.root / "config.json"
         config.write_text("{}")

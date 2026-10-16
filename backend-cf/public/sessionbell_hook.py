@@ -3669,23 +3669,34 @@ def run_watcher(cfg: dict) -> None:
             log(f"watcher error: {exc}")
 
 
+def start_codex_threads(cfg: dict) -> None:
+    import threading
+    global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
+    if IS_WIN:
+        return
+    if cfg.get("codex_enabled"):
+        _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
+        threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
+        _CODEX_BRIDGE = CodexBridge(cfg)
+        threading.Thread(target=_CODEX_BRIDGE.run, daemon=True).start()
+    # The desktop observer only reads ~/.codex, so it runs without the
+    # codex-enable opt-in (which installs a shared daemon). Without Codex
+    # its index is simply unavailable and each scan is a no-op.
+    if cfg.get("codex_desktop_observer") is not False:
+        threading.Thread(target=CodexDesktopObserver(cfg).run, daemon=True).start()
+
+
 def run_relay(cfg: dict) -> None:
     """Tiny LAN listener; the iPhone posts Live Activity push tokens here."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     if use_backend(cfg):
         import threading
-        global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
         try:
             ensure_cursor_hooks(cfg, quiet=True)
         except Exception as exc:
             log(f"cursor: ensure failed: {exc}")
-        if cfg.get("codex_enabled") and not IS_WIN:
-            _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
-            threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
-            _CODEX_BRIDGE = CodexBridge(cfg)
-            threading.Thread(target=_CODEX_BRIDGE.run, daemon=True).start()
-            threading.Thread(target=CodexDesktopObserver(cfg).run, daemon=True).start()
+        start_codex_threads(cfg)
         threading.Thread(target=run_watcher, args=(cfg,), daemon=True).start()
         log("watcher: started (instant command injection via Otty panes)")
 
