@@ -53,5 +53,22 @@ class StopReplyWindowTests(unittest.TestCase):
         inject.assert_not_called()
 
 
+    def test_unattended_sdk_run_gets_push_but_no_reply_window(self):
+        with patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "sdk-ts"}):
+            os.environ.pop("SESSIONBELL_SPAWNED", None)
+            inject = self.run_stop([(200, "")])
+        inject.assert_not_called()
+
+    def test_phone_spawned_headless_run_keeps_reply_window(self):
+        with patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "SESSIONBELL_SPAWNED": "1"}):
+            inject = self.run_stop([(200, "")])
+        inject.assert_called_once()
+
+    def test_interactive_cli_keeps_reply_window(self):
+        with patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "cli"}):
+            inject = self.run_stop([(200, "")])
+        inject.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

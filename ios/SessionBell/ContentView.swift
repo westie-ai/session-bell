@@ -758,20 +758,28 @@ struct SpawnSheet: View {
     @State private var cwd = ""
     @State private var prompt = ""
     @State private var permMode = "auto"
-    @State private var engine = "claude"
+    @State private var engine = ""   // "" = 还没选;第一次由用户自己挑
     @State private var sendResult = ""
     @State private var sent = false
+
+    private var engineKey: String { "sb.spawnEngine.\(group.canonicalKey)" }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Agent") {
-                    Picker("Agent", selection: $engine) {
+                    Picker("Agent", selection: Binding(get: { engine }, set: {
+                        engine = $0
+                        UserDefaults.standard.set($0, forKey: engineKey)
+                    })) {
                         Text("Claude Code").tag("claude")
                         Text("Codex").tag("codex")
                     }
                     .pickerStyle(.segmented)
-                    if engine == "codex" && !group.codexConnected {
+                    if engine.isEmpty {
+                        Text("Choose which agent runs this task. We'll remember it for this Mac.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else if engine == "codex" && !group.codexConnected {
                         Text("Codex is offline. This task will wait for your Mac to reconnect.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -813,7 +821,7 @@ struct SpawnSheet: View {
                          ? "Auto mode: safe actions pass automatically, doubtful ones go to your phone (recommended)"
                          : "Asks nothing and runs straight through. The first time on a machine you must accept a warning on the Mac.")
                         .font(.caption2).foregroundStyle(.secondary)
-                } } else {
+                } } else if engine == "codex" {
                     Section {
                         Text("Codex works in this project folder. Requests for additional permissions go to your phone or Mac.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -842,11 +850,11 @@ struct SpawnSheet: View {
                               systemImage: "paperplane.fill")
                             .frame(maxWidth: .infinity)
                     }
-                    .disabled(cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
+                    .disabled(engine.isEmpty || cwd.isEmpty || prompt.trimmingCharacters(in: .whitespaces).isEmpty || sent)
                 } footer: {
-                    Text(engine == "codex"
+                    if !engine.isEmpty { Text(engine == "codex"
                          ? "Starts a Codex task on your Mac. Follow its progress and continue the conversation from your phone or a connected CLI."
-                         : "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.")
+                         : "Starts an interactive session in a new Otty window on that Mac, so you can take over when you're back at the desk. The task shows up on the panel and the result is pushed when it finishes. If Otty isn't running, it falls back to headless execution in the background.") }
                 }
                 if !sendResult.isEmpty { Text(sendResult).foregroundStyle(Color.sbWaiting) }
             }
@@ -857,6 +865,8 @@ struct SpawnSheet: View {
                     cwd = group.latestCwd.isEmpty
                         ? (group.spawnDirs.first ?? "") : group.latestCwd
                 }
+                // 沿用上次在这台 Mac 上选的 agent;没选过就留空,让用户自己挑。
+                engine = UserDefaults.standard.string(forKey: engineKey) ?? ""
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

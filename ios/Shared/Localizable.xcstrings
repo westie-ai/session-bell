@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Choose which agent runs this task. We'll remember it for this Mac.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "选一个来执行这个任务，之后这台电脑会记住你的选择。"}}}
+    },
     "Update delayed": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "更新延迟"}}}
     },
