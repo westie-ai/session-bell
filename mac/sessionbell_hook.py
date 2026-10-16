@@ -357,7 +357,16 @@ class CodexDesktopObserver:
                     connection.close()
         return rows if available else None
 
-    def metadata(self, path, sid):
+    @staticmethod
+    def is_top_level(data):
+        # Internal guardian reviews and delegated agents inherit the Desktop
+        # originator. Their results are not user-facing conversation replies.
+        source = data.get("source")
+        return not ((isinstance(source, dict) and "subagent" in source)
+                    or data.get("parent_thread_id")
+                    or data.get("agent_path") not in (None, "", "/root"))
+
+    def metadata(self, path, sid, include_internal=False):
         path = os.path.realpath(path)
         if not any(os.path.commonpath([path, os.path.join(self.home, folder)]) == os.path.join(self.home, folder)
                    for folder in ("sessions", "archived_sessions")):
@@ -372,6 +381,8 @@ class CodexDesktopObserver:
             if event.get("type") != "session_meta" or data.get("id") != sid:
                 return None
             if str(data.get("originator", "")).lower() != "codex desktop":
+                return None
+            if not include_internal and not self.is_top_level(data):
                 return None
             return data
         except (OSError, ValueError, AttributeError):
@@ -453,10 +464,21 @@ class CodexDesktopObserver:
                 if old.get("managed") or state.get("codex_sessions", {}).get(sid, {}).get("managed"):
                     continue
                 reset = cursor.get("file") != fingerprint or stat.st_size < cursor.get("offset", 0)
-                if reset or not cursor.get("desktop"):
-                    if not self.metadata(path, sid):
+                if reset or not cursor.get("top_level"):
+                    metadata = self.metadata(path, sid, include_internal=True)
+                    if not metadata:
                         continue
-                    cursor = {"file": fingerprint, "offset": 0, "desktop": True}
+                    if not self.is_top_level(metadata):
+                        # Revalidate legacy cursors too, removing internal tasks
+                        # already published by older relays without replaying them.
+                        if old.get("source") == "desktop":
+                            state["local"].pop(sid, None)
+                            changed = True
+                        self.cursors.pop(sid, None)
+                        continue
+                    if reset or not cursor.get("desktop"):
+                        cursor = {"file": fingerprint, "offset": 0, "desktop": True}
+                    cursor["top_level"] = True
                 entry = dict(old or cursor.get("entry", {})) if not reset else {}
                 entry.update(engine="codex", source="desktop", managed=False,
                              project=os.path.basename(row["cwd"].rstrip("/")) or "Codex",
@@ -3647,23 +3669,34 @@ def run_watcher(cfg: dict) -> None:
             log(f"watcher error: {exc}")
 
 
+def start_codex_threads(cfg: dict) -> None:
+    import threading
+    global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
+    if IS_WIN:
+        return
+    if cfg.get("codex_enabled"):
+        _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
+        threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
+        _CODEX_BRIDGE = CodexBridge(cfg)
+        threading.Thread(target=_CODEX_BRIDGE.run, daemon=True).start()
+    # The desktop observer only reads ~/.codex, so it runs without the
+    # codex-enable opt-in (which installs a shared daemon). Without Codex
+    # its index is simply unavailable and each scan is a no-op.
+    if cfg.get("codex_desktop_observer") is not False:
+        threading.Thread(target=CodexDesktopObserver(cfg).run, daemon=True).start()
+
+
 def run_relay(cfg: dict) -> None:
     """Tiny LAN listener; the iPhone posts Live Activity push tokens here."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     if use_backend(cfg):
         import threading
-        global _CODEX_BRIDGE, _CODEX_DESKTOP_CONTROL
         try:
             ensure_cursor_hooks(cfg, quiet=True)
         except Exception as exc:
             log(f"cursor: ensure failed: {exc}")
-        if cfg.get("codex_enabled") and not IS_WIN:
-            _CODEX_DESKTOP_CONTROL = CodexDesktopControl(cfg)
-            threading.Thread(target=_CODEX_DESKTOP_CONTROL.run, daemon=True).start()
-            _CODEX_BRIDGE = CodexBridge(cfg)
-            threading.Thread(target=_CODEX_BRIDGE.run, daemon=True).start()
-            threading.Thread(target=CodexDesktopObserver(cfg).run, daemon=True).start()
+        start_codex_threads(cfg)
         threading.Thread(target=run_watcher, args=(cfg,), daemon=True).start()
         log("watcher: started (instant command injection via Otty panes)")
 
