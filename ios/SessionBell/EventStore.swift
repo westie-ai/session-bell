@@ -129,12 +129,6 @@ final class EventStore: ObservableObject {
                 .filter { !$0.dir.isEmpty }
                 .max { $0.since < $1.since }?.dir ?? ""
         }
-
-        /// 最近活跃 session 的引擎(只区分能从手机新建的两种)— 新建时的兜底默认值
-        var latestEngine: String {
-            let latest = cards.map(\.root).max { $0.since < $1.since }
-            return latest?.engine == "codex" ? "codex" : "claude"
-        }
     }
 
     static func canonicalHost(_ host: String) -> String {
