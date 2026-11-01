@@ -3371,6 +3371,29 @@ def self_update_from_hook(cfg: dict) -> None:
         log(f"self-update spawn failed: {exc}")
 
 
+def publish_async(cfg: dict) -> None:
+    """Hand the dashboard sync (peer state + Live Activity push) to a detached
+    child so the hook returns at once. Those are two or three backend
+    round-trips plus an APNs call — 6-13 s over a VPN — and Claude Code
+    waits on the Stop hook for all of it. The child re-reads sessions.json,
+    so it publishes whatever is current when it runs, not a stale snapshot."""
+    try:
+        kwargs = {"creationflags": WIN_DETACHED} if IS_WIN else {"start_new_session": True}
+        subprocess.Popen(self_cmd("publish"), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs)
+    except Exception as exc:
+        log(f"publish spawn failed: {exc}")
+        cmd_publish(cfg)   # better late than never: do it inline
+
+
+def cmd_publish(cfg: dict) -> None:
+    """Detached worker behind publish_async: sync peers, push the dashboard."""
+    host = host_label(cfg)
+    state = load_sessions()
+    sync_peers(cfg, state, host)
+    push_dashboard(cfg, make_jwt(cfg), HOSTS[cfg.get("environment", "sandbox")], state, host)
+
+
 def cmd_self_update(cfg: dict) -> None:
     """Detached worker: check for a newer hosted script, then make sure the relay
     is alive either way. The throttle stamp is written only after a completed
@@ -4761,6 +4784,9 @@ def main():
     if kind == "self-update":
         cmd_self_update(cfg)
         return
+    if kind == "publish":
+        cmd_publish(cfg)
+        return
     if kind in ("stop", "session-end"):
         self_update_from_hook(cfg)
 
@@ -4955,8 +4981,9 @@ def main():
         # round-trip and an LA push per spawn; it rides the next real event.
         if kind in ("subagent-start", "subagent-stop", "interrupt"):
             return
-        sync_peers(cfg, state, host)
-        push_dashboard(cfg, make_jwt(cfg), HOSTS[env], state, host)
+        # Dashboard sync runs detached: nothing below needs its result, and
+        # the hook must not hold Claude Code for the network round-trips.
+        publish_async(cfg)
         if kind in ("prompt", "session-end"):
             return
 

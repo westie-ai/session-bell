@@ -30,6 +30,11 @@ class CodexTests(unittest.TestCase):
             p = patch.object(sb, name, value)
             p.start()
             self.addCleanup(p.stop)
+        # Never let a test fork the real dashboard publisher (it would read
+        # the real ~/.sessionbell config and push to the phone).
+        pub = patch.object(sb, "publish_async")
+        pub.start()
+        self.addCleanup(pub.stop)
         env = patch.dict(os.environ, {"SESSIONBELL_ENGINE": "codex",
                                      "CODEX_HOME": str(self.root / "codex")})
         env.start()

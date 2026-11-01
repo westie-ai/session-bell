@@ -30,8 +30,9 @@ class StopReplyWindowTests(unittest.TestCase):
             st.enter_context(patch.object(sb, "mac_idle_seconds", return_value=idle))
             st.enter_context(patch.object(sb, "host_label", return_value="mac"))
             st.enter_context(patch.object(sb, "make_jwt", return_value="jwt"))
-            for name in ("sync_peers", "push_dashboard"):
-                st.enter_context(patch.object(sb, name))
+            dash = {name: st.enter_context(patch.object(sb, name))
+                    for name in ("sync_peers", "push_dashboard")}
+            publish = st.enter_context(patch.object(sb, "publish_async"))
             st.enter_context(patch.object(sb, "last_assistant_text", return_value="done it"))
             st.enter_context(patch.object(sb, "resolve_device_tokens",
                                           return_value=[f"t{i}" for i in range(len(push_results))]))
@@ -39,6 +40,9 @@ class StopReplyWindowTests(unittest.TestCase):
             inject = st.enter_context(patch.object(sb, "try_inject_command"))
             sb.main()
         inject.push = push
+        inject.publish = publish
+        inject.sync_peers = dash["sync_peers"]
+        inject.push_dashboard = dash["push_dashboard"]
         return inject
 
     def test_dead_token_beside_live_one_keeps_reply_window(self):
@@ -55,6 +59,30 @@ class StopReplyWindowTests(unittest.TestCase):
         inject = self.run_stop([(200, "")], idle=0)
         inject.assert_not_called()
         inject.push.assert_not_called()
+
+    def test_dashboard_sync_is_detached_not_inline(self):
+        # sync_peers + push_dashboard are 6-13 s of network over a VPN; the
+        # hook hands them to a detached child and must not run them itself.
+        inject = self.run_stop([(200, "")], idle=0)
+        inject.publish.assert_called_once()
+        inject.sync_peers.assert_not_called()
+        inject.push_dashboard.assert_not_called()
+
+    def test_publish_worker_syncs_peers_then_pushes_dashboard(self):
+        calls = []
+        with patch.object(sb, "load_sessions", return_value={"local": {}}), \
+             patch.object(sb, "host_label", return_value="mac"), \
+             patch.object(sb, "make_jwt", return_value="jwt"), \
+             patch.object(sb, "sync_peers", side_effect=lambda *a: calls.append("sync")), \
+             patch.object(sb, "push_dashboard", side_effect=lambda *a, **k: calls.append("push")):
+            sb.cmd_publish(dict(CFG))
+        self.assertEqual(calls, ["sync", "push"])
+
+    def test_publish_async_spawns_detached_publish_worker(self):
+        with patch.object(sb.subprocess, "Popen") as popen:
+            sb.publish_async(dict(CFG))
+        self.assertEqual(popen.call_args.args[0][-1], "publish")
+        self.assertTrue(popen.call_args.kwargs.get("start_new_session") or popen.call_args.kwargs.get("creationflags"))
 
     def test_nothing_delivered_skips_reply_window(self):
         inject = self.run_stop([(410, "")])
