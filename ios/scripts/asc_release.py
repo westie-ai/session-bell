@@ -90,25 +90,31 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "进展视图更像聊天了:你发的消息显示为右侧气泡,保留换行,长消息也完整显示,和 Agent 的回复一眼分开。\n刷新更快:Claude 一有新输出,手机 1–2 秒内就跟上(原来约 10 秒)。底部的实时状态会告诉你 Mac 是否在线;往上翻看时新内容不会把你拉走,点「新内容」再回到底部。\n右上角「Aa」可调字号,进展、终端和通知历史一起放大缩小。\n长按任意段落可复制,或一次复制整段回复;分隔线正常显示。",
- "en-US": "Progress reads like a chat: your messages appear as bubbles on the right, with line breaks and long messages kept intact, clearly apart from the agent's replies.\nFaster updates: new output from Claude reaches the phone within 1–2 seconds (was about 10). A live indicator shows whether your Mac is connected; scrolling up to read no longer gets interrupted — tap \"New content\" to jump back down.\nAdjust text size with the Aa button — Progress, Terminal and notification history all scale.\nLong-press any paragraph to copy it, or copy the whole reply section at once; horizontal rules now render.",
+ "zh-Hans": "新建会话可以选 agent:第一次在某台 Mac 上新建任务时由你来挑用哪个编程 agent,之后这台 Mac 记住你的选择。
+手机回复进了队列:每条回复都能看到送达状态,发送失败会直接通知你,不再石沉大海。
+失败单独报:任务中途因为报错停下来,会收到「失败」通知,而不是被当成「等你回复」。
+锁屏实时状态更诚实:Mac 超过 20 分钟没有消息会标为「已过期」,任务完成后 60 秒自动收起,不再凭猜测显示完成。",
+ "en-US": "Pick the agent for a new session: the first time you start a task on a Mac, you choose which coding agent runs it, and that Mac remembers your choice.
+Replies from the phone go through a queue: every reply shows its delivery state, and a failed quick reply notifies you instead of vanishing.
+Failures are reported as failures: a task that dies on an error now sends a \"failed\" notification instead of showing up as \"needs you\".
+An honest Lock Screen status: the Live Activity marks itself stale after 20 minutes without news, dismisses 60 seconds after a task finishes, and never infers completion.",
 }
 # Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
 # so a locale whose description already changed upstream is left alone.
 DESCRIPTION_EDITS = {
- "zh-Hans": [("（如 Claude Code）", "（如 Claude Code、Codex）"), ("当前为邀请制。", "")],
- "en-US": [("(Claude Code and more)", "(Claude Code, Codex and more)"), (" Currently invite-only.", "")],
+ "zh-Hans": [],
+ "en-US": [],
 }
 SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 标题/副标题里不能出现 Mac / Claude / Codex(1.5 因 5.2.5 + 4.1(a) 被拒过)
-REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (Claude Code, Codex, Cursor). "
+REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors AI coding agents running locally in the developer's terminal. "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"See it in action first\" (second button on the first screen) -> "
   "a demo workspace loads with simulated tasks, so every tab, the task detail (Progress | Terminal views) and the Lock Screen Live Activity "
   "can be reviewed without pairing anything. Pairing a real Mac is one line pasted into Terminal (shown in-app after \"Connect my Mac\"). "
-  "Codex- and Cursor-specific screens only appear once a Mac running those tools is paired; the UI is otherwise identical to Claude tasks. "
+  "Screens specific to a particular agent only appear once a Mac running that tool is paired; the UI is otherwise identical across agents. "
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
-VERSION = "1.8"
-BUILD = "13"
+VERSION = "1.9"
+BUILD = "14"
 SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
 SKIP_SHOTS = os.environ.get("SKIP_SHOTS") == "1"   # reuse the screenshots already on the previous version

@@ -1,6 +1,6 @@
 # App Store & ASO Notes
 
-_Last updated: 2026-09-25_
+_Last updated: 2026-11-01_
 
 Working notes for SessionBell's App Store listing and App Store Optimization
 (ASO). This is not build config — the source of truth for version/build numbers
@@ -31,6 +31,26 @@ at the demo button. Build 7 (replacing 6 before review started) adds
 localized push titles: the Mac hook sends APNs loc-keys, the app resolves
 them from the String Catalog. Requires the hook in backend-cf/public to be
 deployed (`npx wrangler deploy`) so Macs/Windows pick it up.
+
+## 1.9 — build 14 (2026-11-01)
+
+Screenshots reused (`SKIP_SHOTS=1`). Title/subtitle/description unchanged.
+**Review-facing text for this version (What's New, review notes) names no
+specific agent product** — "coding agent" only. What changed since 1.8:
+
+- **New Session picks the agent.** First task on a Mac: no preselection,
+  Start disabled until the user chooses; the pick is remembered per Mac
+  (`sb.spawnEngine.<mac>`), falling back to the engine of the Mac's latest
+  session.
+- **Reply queue.** Phone replies go through `/api/reply`; each shows its
+  delivery state, rejections are told apart from network errors, failed quick
+  replies notify.
+- **Failure notifications.** `StopFailure` wired; a turn that dies on an API
+  error is a failure, not "needs you".
+- **Live Activity state machine.** Only mid-turn deaths are failures; 5-min
+  keep-alive, 20-min stale, 60 s dismissal after done, no inferred completion;
+  manual revive uses the same stale date.
+- Push registrations keyed by device id (one ticket per phone).
 
 ## 1.8 — submitted 2026-09-25 (build 13); approved, hook published 2026-09-28
 
@@ -259,14 +279,14 @@ shows "Get Started / Try the demo first" instead of the invite-code button.
 ## Version / build facts
 
 - Last shipped: **1.8**, build **13** (approved by 2026-09-28). The 1.8 hook (prompt bubbles + live follow) was published to backend-cf/public and deployed on 2026-09-28, after approval — 1.7 shows multi-line prompts with a literal `>`.
-- Next build number: **≥ 14** (1.8 = build 13).
+- Next build number: **≥ 15** (1.9 = build 14).
 - Bundle ID: `dev.yuesun.SessionBell` · ASC Apple ID: `6801045681`.
 - Export Compliance is declared in-project (`ITSAppUsesNonExemptEncryption =
   false`), so Apple asks no encryption question.
 - The iOS project uses XcodeGen: `ios/project.yml` is the source of truth; run
   `xcodegen generate` after editing it.
 
-> `ios/project.yml` on `main` is at 1.8 / build 13.
+> `ios/project.yml` on `main` is at 1.9 / build 14.
 
 ## Context (not App Store)
 
