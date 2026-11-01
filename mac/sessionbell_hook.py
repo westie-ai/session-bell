@@ -4972,11 +4972,10 @@ def main():
             min_idle = cfg.get("permission_min_idle_seconds", 30)
         if idle is not None and idle < min_idle:
             log(f"skip {kind}: user at keyboard (idle {idle:.0f}s < {min_idle}s)")
-            # Still honor a phone command sent moments ago — a quick mailbox
-            # check so remote control works even with the user at the desk.
-            if kind == "stop" and use_backend(cfg) and engine != "codex" and not unattended_run():
-                try_inject_command(cfg, env, session_id, project, host,
-                                   10, watch_return=False)
+            # No mailbox check here: it long-polled /api/command for 10 s and
+            # held every Stop hook open that long while the user sat at the
+            # desk. The relay's watcher already polls the same mailbox and
+            # types phone commands into the pane, so nothing is lost.
             return
 
     task_detail = clean_detail((load_sessions()["local"].get(session_id) or {}).get("detail", ""))
