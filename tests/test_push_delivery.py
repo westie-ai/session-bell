@@ -15,6 +15,7 @@ CFG = {"backend_url": "https://b.invalid", "backend_secret": "s" * 20,
 
 class StopReplyWindowTests(unittest.TestCase):
     def setUp(self):
+        self.real_publish_async = sb.publish_async   # the fixture mocks it below
         fixture = test_codex.CodexTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
@@ -80,7 +81,7 @@ class StopReplyWindowTests(unittest.TestCase):
 
     def test_publish_async_spawns_detached_publish_worker(self):
         with patch.object(sb.subprocess, "Popen") as popen:
-            sb.publish_async(dict(CFG))
+            self.real_publish_async(dict(CFG))
         self.assertEqual(popen.call_args.args[0][-1], "publish")
         self.assertTrue(popen.call_args.kwargs.get("start_new_session") or popen.call_args.kwargs.get("creationflags"))
 
