@@ -984,7 +984,7 @@ struct Meter: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(fraction >= 0.85 ? Color.sbWaiting : Color.sbInk)
                     .monospacedDigit()
-                + Text(" %")
+                + Text(" % \(String(localized: "used"))")
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(Color.sbInk3)
             }
