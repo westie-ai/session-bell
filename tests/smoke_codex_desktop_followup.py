@@ -1,7 +1,7 @@
 """Opt-in, one-message native desktop follow-up experiment.
 
 Default is read-only inspection. --send-once submits ONLY to a dedicated native
-desktop chat whose last user message exactly matches MARKER and reply is READY_2.
+desktop chat whose last user message exactly matches MARKER and reply is READY_3.
 It never resumes threads, changes configuration, or retries an uncertain write.
 This uses a pinned, internal desktop IPC protocol, not a supported public API.
 """
@@ -19,12 +19,12 @@ import tempfile
 import time
 import uuid
 
-MARKER = 'SessionBell 原会话追问测试第二轮：请只回复 READY_2'
-READY = 'READY_2'
-EXPECTED_REPLY = 'FOLLOWUP_OK_2'
-FOLLOWUP = '【SessionBell 原会话追问测试第二轮】请只回复 FOLLOWUP_OK_2，不要使用工具，也不要修改任何文件。'
-FRONTEND = 'webview/assets/app-initial-1b87ae739476.js'
-FRONTEND_SHA = 'c87b94027faefdc31cc165975dc0f14b28e3f6d922f6a5188756c8f570f2b3d7'
+MARKER = 'SessionBell 原会话追问测试第三轮：请只回复 READY_3'
+READY = 'READY_3'
+EXPECTED_REPLY = 'FOLLOWUP_OK_3'
+FOLLOWUP = '【SessionBell 原会话追问测试第三轮】请只回复 FOLLOWUP_OK_3，不要使用工具，也不要修改任何文件。'
+FRONTEND = 'webview/assets/app-initial-61c1d0e6137e.js'
+FRONTEND_SHA = '7a8d8b711bf2eb1adbfab04818a63bf6517935d11bb4d0d4c9d6602d1e3fe6f2'
 SPEC = importlib.util.spec_from_file_location('sb', Path(__file__).resolve().parents[1] / 'mac/sessionbell_hook.py')
 sb = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sb)

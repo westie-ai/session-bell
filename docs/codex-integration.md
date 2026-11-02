@@ -22,6 +22,13 @@ CLI sessions connect to a shared local Codex app-server. SessionBell attaches as
 
 The desktop keeps its own native server and MCP configuration. The relay opens its local thread index in SQLite read-only mode and incrementally reads complete rollout records. It verifies `session_meta.originator = Codex Desktop`; `source = vscode` alone is not enough. Native observations are never resumed on the shared service or marked managed. JSONL is an implementation detail and may change; missing lifecycle information is unknown, not completed. Cumulative token snapshots are replaced, never summed. Initial history and rewritten files do not generate completion alerts. See [the approved design](codex-desktop-design.md).
 
+## Re-pin, 2026-11-02
+
+Desktop follow-ups are pinned to ChatGPT.app 26.1027.51404; the observer now
+recognizes the current desktop originators (`Codex`, `codex_work_desktop`) as
+well as the legacy `Codex Desktop`. Details and validation status are in
+[the follow-up design](codex-desktop-followup-design.md).
+
 ## Install and release order
 
 1. Deploy the updated `backend-cf` Worker. `/api/codex` must exist before phone controls can work, and `/api/command/restore` must exist before enabling the updated relay's failed-terminal retry path. Restore inserts only into an empty mailbox and retains the original timestamp, so a retry cannot overwrite a newer instruction. For a pilot, reuse existing assets with Cloudflare's `keep_assets` upload metadata; do not publish the newer public hook or installer. A normal unrestricted `wrangler deploy` also updates public assets and is not the pilot workflow.

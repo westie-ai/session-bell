@@ -77,6 +77,15 @@ class DesktopTests(unittest.TestCase):
         sb.CodexDesktopObserver({}, str(self.home)).scan()
         self.alert.assert_called_once()
 
+    def test_current_desktop_originators_are_recognized_and_cli_is_not(self):
+        # 26.10 desktop builds label their threads "Codex" / "codex_work_desktop"
+        # instead of "Codex Desktop"; CLI and IDE threads must stay invisible.
+        for sid, originator, expected in (("d-old", "Codex Desktop", True), ("d-new", "Codex", True),
+                                          ("d-work", "codex_work_desktop", True),
+                                          ("cli", "codex_cli_rs", False), ("ide", "codex_vscode", False)):
+            path = self.create(sid=sid, originator=originator)
+            self.assertEqual(self.observer.metadata(path, sid) is not None, expected, originator)
+
     def test_new_fast_turn_after_bootstrap(self):
         self.observer.scan()
         self.create()

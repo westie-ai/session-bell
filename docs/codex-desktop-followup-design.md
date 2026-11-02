@@ -192,3 +192,37 @@ but does not establish support for this desktop-internal IPC interface.
   later pre-landing retry fix also adds `/api/command/restore`, so deploy the updated
   Worker before the updated relay as described in the integration guide. Public
   asset release and app version bumps remain separate from the local pilot.
+
+## Re-pin to ChatGPT.app 26.1027.51404, 2026-11-02
+
+The September pin (`app-initial-1b87ae739476.js`, `.vite/build/src-J2PvP4xj.js`)
+no longer exists in the installed bundle, so `available()` returned false for
+every user on a current desktop and the phone showed the read-only banner.
+Static inspection of the current `app.asar`:
+
+- IPC router moved to `.vite/build/early-bootstrap-339-9edb60e5d8b0547e.js`;
+  the version table in `.vite/build/early-bootstrap.js` still lists
+  `thread-owner-discovery: 1` and `thread-follower-start-turn: 2`. Message
+  framing, `initialize` response, discovery `canHandle` reply and
+  `handledByClientId` routing are unchanged.
+- Frontend moved to `webview/assets/app-initial-61c1d0e6137e.js`. The owner
+  handler still calls `startTurn(conversationId, turnStart)` and answers
+  `{method, result: {result}}`; `inheritThreadSettings`, `attachments` and
+  `commentAttachments` are still read from `turnStart.context`. Owner discovery
+  now also returns `{supportsUntrustedAppInput: true}`, which only matters for
+  requests carrying `responseItems` (the relay sends none).
+- The plain-text decoder is now `nDe` (was `mrn`) and still dereferences
+  `text_elements.length` without a default; `codex_desktop_input_contract.mjs`
+  reproduces the original failure and accepts the `text_elements: []` item on
+  the installed frontend.
+- Desktop threads are no longer labelled `originator = "Codex Desktop"`. The
+  desktop's own app-server runs with `CODEX_INTERNAL_ORIGINATOR_OVERRIDE=Codex`
+  and its Work-mode exec-server with `codex_work_desktop`. The observer accepts
+  these three values (case-insensitive) and keeps excluding CLI/IDE threads;
+  without this change the observer saw no current desktop conversation at all.
+
+Offline: 139 Python tests pass (new originator regression included); the
+smoke `verify_build` and the relay `available()` accept the installed build.
+Live, read-only: `initialize` succeeded and `thread-owner-discovery` for the
+most recent desktop conversation returned its owner within 0.1 s. The third-round
+`--send-once` experiment (`READY_3` / `FOLLOWUP_OK_3`) is recorded below once run.

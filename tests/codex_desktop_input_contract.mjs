@@ -16,18 +16,20 @@ try {
   const bytes = Buffer.alloc(headerSize);
   fs.readSync(fd, bytes, 0, bytes.length, 16);
   let entry = JSON.parse(bytes.toString());
-  for (const part of 'webview/assets/app-initial-1b87ae739476.js'.split('/')) entry = entry.files[part];
+  for (const part of 'webview/assets/app-initial-61c1d0e6137e.js'.split('/')) entry = entry.files[part];
   assert(entry.size < 64 * 1024 * 1024);
   const data = Buffer.alloc(entry.size);
   fs.readSync(fd, data, 0, data.length, 8 + header.readUInt32LE(4) + Number(entry.offset));
   assert.equal(crypto.createHash('sha256').update(data).digest('hex'),
-    'c87b94027faefdc31cc165975dc0f14b28e3f6d922f6a5188756c8f570f2b3d7');
+    '7a8d8b711bf2eb1adbfab04818a63bf6517935d11bb4d0d4c9d6602d1e3fe6f2');
   source = data.toString();
 } finally {
   fs.closeSync(fd);
 }
-const start = source.indexOf('function mrn(');
-const end = source.indexOf('function hrn(', start);
+// 26.1027: the plain-text decoder is `nDe` (was `mrn`); it still reads
+// text_elements.length without a default and returns null for plain text.
+const start = source.indexOf('function nDe(');
+const end = source.indexOf('function ', start + 10);
 assert(start >= 0 && end > start && end - start < 1500);
 const decoder = source.slice(start, end);
 assert(decoder.includes('e.text_elements.length'));
