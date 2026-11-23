@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import WidgetKit
 
 @MainActor
 final class EventStore: ObservableObject {
@@ -238,6 +239,7 @@ final class EventStore: ObservableObject {
     func fetchLiveTasks() async {
         guard let obj = await SBBackend.getJSON("/api/state") as? [String: [String: Any]]
         else { return }
+        publishUsageWidget(obj)
         let now = Date().timeIntervalSince1970
         let limits: [String: Double] = ["done": 600, "failed": 600, "waiting": 1800, "running": 21600]
 
@@ -432,6 +434,14 @@ final class EventStore: ObservableObject {
             } else if approval.seenInState {
                 pendingApproval = nil
             }
+        }
+    }
+
+    /// 用量 widget:镜像后端坐标(widget 读不到钥匙串)+ 写快照,有变化才叫 widget 重载。
+    private func publishUsageWidget(_ obj: [String: [String: Any]]) {
+        if let b = SBBackend.saved { SBUsageShared.mirrorBackend(url: b.url, secret: b.secret) }
+        if let snap = SBUsageShared.parse(state: obj), SBUsageShared.saveSnapshot(snap) {
+            WidgetCenter.shared.reloadTimelines(ofKind: SBUsageShared.widgetKind)
         }
     }
 

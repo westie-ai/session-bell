@@ -8,11 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
+		0F4B6551F98608E4210C2C98 /* UsageWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524697075B73D09DCFD1EAC2 /* UsageWidget.swift */; };
 		12D58BF5AA618959993B2B52 /* AgentAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E43F3A4C07D2170A63B7B115 /* AgentAssets.xcassets */; };
 		1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469C754931B58C4AFE74D4BB /* SBBrand.swift */; };
 		2CDC8B1D229E7B1CDFD540F3 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA2B13CDB06314D1828EFE /* AddDeviceView.swift */; };
 		3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
 		31C59B7328A6BA9BC6EE4EC0 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC1BDC601DBB832577C9CE8 /* FeedbackView.swift */; };
+		3E7893F271A64D6B89BD37E8 /* SBUsageShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE7548F410CE13A79D47C39 /* SBUsageShared.swift */; };
 		3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */; };
 		49F7F159FD318CDEB2DD6572 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 39DF9CF186A28179A81D6783 /* Localizable.xcstrings */; };
 		608BECFFE79DFE822C62692D /* ApprovalIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */; };
@@ -32,6 +34,7 @@
 		C2E6C67616F11EFD23AAB0DF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4311A1BB8C2640EC4F314F5C /* ContentView.swift */; };
 		C9B995939CFB83C3738916F6 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7FE47CA43B2CF6F20880D2E /* MarkdownText.swift */; };
 		D19A96AE502303C945BEF801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BBA96AA6001059FA2279F3E1 /* Assets.xcassets */; };
+		D83C4EE9CB0B547970EC31F2 /* SBUsageShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE7548F410CE13A79D47C39 /* SBUsageShared.swift */; };
 		DA4F7919CAA57C5154D5BCD9 /* SBBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */; };
 		DF267A466DB309DC4DF7E41D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87226E0B3CA9084D522406BA /* AppDelegate.swift */; };
 		E56FBBE5FDF669C9EEBB395A /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4575B32F31D4526B586FE3D4 /* LiveActivityManager.swift */; };
@@ -72,6 +75,7 @@
 /* Begin PBXFileReference section */
 		04728A4EDC1F6FE46294F21C /* SBPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBPairing.swift; sourceTree = "<group>"; };
 		17B85F346D2CE96107AB3064 /* ApprovalIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalIntent.swift; sourceTree = "<group>"; };
+		1BE7548F410CE13A79D47C39 /* SBUsageShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBUsageShared.swift; sourceTree = "<group>"; };
 		1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBackend.swift; sourceTree = "<group>"; };
 		2B906A6FBC83ADF156B108B6 /* SessionBellScreenshots.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SessionBellScreenshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		348C362286698E6B1ECD0FF4 /* SessionBell.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SessionBell.entitlements; sourceTree = "<group>"; };
@@ -82,7 +86,9 @@
 		469C754931B58C4AFE74D4BB /* SBBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SBBrand.swift; sourceTree = "<group>"; };
 		4B3FEDCE86DCEA60048F5354 /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
 		4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionActivityAttributes.swift; sourceTree = "<group>"; };
+		524697075B73D09DCFD1EAC2 /* UsageWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageWidget.swift; sourceTree = "<group>"; };
 		531CEC62084CC800752D26A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		72763C1908177354EAD0CE94 /* SessionBellWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SessionBellWidgets.entitlements; sourceTree = "<group>"; };
 		766AB3C70632CFBB2E248A2E /* SessionBellWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SessionBellWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7EF117BDDE3D7B02AAF8BC2F /* SessionBellApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBellApp.swift; sourceTree = "<group>"; };
 		87226E0B3CA9084D522406BA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -151,6 +157,7 @@
 				1F830DB2E9BC00B2A3B36CEE /* SBBackend.swift */,
 				469C754931B58C4AFE74D4BB /* SBBrand.swift */,
 				04728A4EDC1F6FE46294F21C /* SBPairing.swift */,
+				1BE7548F410CE13A79D47C39 /* SBUsageShared.swift */,
 				4D6AB112EC03D5984CB7A6AD /* SessionActivityAttributes.swift */,
 			);
 			path = Shared;
@@ -160,7 +167,9 @@
 			isa = PBXGroup;
 			children = (
 				531CEC62084CC800752D26A4 /* Info.plist */,
+				72763C1908177354EAD0CE94 /* SessionBellWidgets.entitlements */,
 				E30D020BC225547233474D41 /* SessionBellWidgets.swift */,
+				524697075B73D09DCFD1EAC2 /* UsageWidget.swift */,
 			);
 			path = SessionBellWidgets;
 			sourceTree = "<group>";
@@ -318,8 +327,10 @@
 				DA4F7919CAA57C5154D5BCD9 /* SBBackend.swift in Sources */,
 				1E0B030B8419D28589C6FD20 /* SBBrand.swift in Sources */,
 				9E14F41520BDB4100D6C26F0 /* SBPairing.swift in Sources */,
+				D83C4EE9CB0B547970EC31F2 /* SBUsageShared.swift in Sources */,
 				3F407F9820CAB58F692B5610 /* SessionActivityAttributes.swift in Sources */,
 				A738933DC587DD2A33B37FBF /* SessionBellWidgets.swift in Sources */,
+				0F4B6551F98608E4210C2C98 /* UsageWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,6 +351,7 @@
 				3177DD0DD84A4D97B3C421B4 /* SBBackend.swift in Sources */,
 				AF30E4ADFF8CEDE3FE091F5B /* SBBrand.swift in Sources */,
 				717C53A85F93386D16208B76 /* SBPairing.swift in Sources */,
+				3E7893F271A64D6B89BD37E8 /* SBUsageShared.swift in Sources */,
 				087F0952CE3B8A82F0C8BB2B /* SessionActivityAttributes.swift in Sources */,
 				97A2FA1F05AB2470AB0C8B31 /* SessionBellApp.swift in Sources */,
 			);
@@ -388,7 +400,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -397,7 +409,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -531,7 +543,7 @@
 				CODE_SIGN_ENTITLEMENTS = SessionBell/SessionBell.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SessionBell;
@@ -540,7 +552,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -551,8 +563,9 @@
 		935FB2CE489E299681D10633 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SessionBellWidgets/SessionBellWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -560,7 +573,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -572,8 +585,9 @@
 		9537E846CAAA5F767F59BE3F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SessionBellWidgets/SessionBellWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 27Z3Z38H3M;
 				INFOPLIST_FILE = SessionBellWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -581,7 +595,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yuesun.SessionBell.Widgets;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;

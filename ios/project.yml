@@ -17,8 +17,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
-        MARKETING_VERSION: "1.8"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "1.9"
+        CURRENT_PROJECT_VERSION: "14"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_CFBundleDisplayName: SessionBell
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -47,6 +47,9 @@ targets:
         # universal links:https://sessionbell.westie.ai/p/<6 位码> 直接拉起 App 配对
         com.apple.developer.associated-domains:
           - applinks:sessionbell.westie.ai
+        # 用量 widget 读 App 镜像的后端坐标 + 用量快照
+        com.apple.security.application-groups:
+          - group.dev.yuesun.SessionBell
   SessionBellScreenshots:
     type: bundle.ui-testing
     platform: iOS
@@ -74,8 +77,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 27Z3Z38H3M
         SWIFT_VERSION: "5.0"
-        MARKETING_VERSION: "1.8"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "1.9"
+        CURRENT_PROJECT_VERSION: "14"
         SKIP_INSTALL: true
     info:
       path: SessionBellWidgets/Info.plist
@@ -85,6 +88,11 @@ targets:
         CFBundleDisplayName: SessionBell
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: SessionBellWidgets/SessionBellWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.dev.yuesun.SessionBell
 schemes:
   SessionBell:
     build:

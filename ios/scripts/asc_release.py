@@ -90,8 +90,8 @@ if __name__ == "__main__":
         for b in builds: print("build", b["id"], b["attributes"]["version"], b["attributes"]["processingState"], b["attributes"]["uploadedDate"])
 
 WHATS_NEW = {
- "zh-Hans": "进展视图更像聊天了:你发的消息显示为右侧气泡,保留换行,长消息也完整显示,和 Agent 的回复一眼分开。\n刷新更快:Claude 一有新输出,手机 1–2 秒内就跟上(原来约 10 秒)。底部的实时状态会告诉你 Mac 是否在线;往上翻看时新内容不会把你拉走,点「新内容」再回到底部。\n右上角「Aa」可调字号,进展、终端和通知历史一起放大缩小。\n长按任意段落可复制,或一次复制整段回复;分隔线正常显示。",
- "en-US": "Progress reads like a chat: your messages appear as bubbles on the right, with line breaks and long messages kept intact, clearly apart from the agent's replies.\nFaster updates: new output from Claude reaches the phone within 1–2 seconds (was about 10). A live indicator shows whether your Mac is connected; scrolling up to read no longer gets interrupted — tap \"New content\" to jump back down.\nAdjust text size with the Aa button — Progress, Terminal and notification history all scale.\nLong-press any paragraph to copy it, or copy the whole reply section at once; horizontal rules now render.",
+ "zh-Hans": "新增用量小组件:桌面和锁屏都能放,一眼看到 5 小时窗口、每周配额和高级模型用量,快用完时变色提醒。\n任务详情页更简洁:去掉了「进展 / 终端」切换,只保留排好版的进展视图;每次进入直接停在最新内容。\n适配 iPhone Duo:折叠和展开都能铺满屏幕。",
+ "en-US": "New usage widget for the Home Screen and Lock Screen: see your 5-hour window, weekly quota and premium-model usage at a glance, with a color change when you're close to the limit.\nSimpler task detail: the Progress / Terminal switch is gone — just the formatted progress view, and it opens straight on the latest content.\nReady for iPhone Duo: fills the screen folded or unfolded.",
 }
 # Description edits: None = leave as is. Only plain find/replace pairs applied to the live text,
 # so a locale whose description already changed upstream is left alone.
@@ -102,14 +102,14 @@ DESCRIPTION_EDITS = {
 SUBTITLE_ZH = "AI 编程 agent 锁屏提醒与遥控"   # 标题/副标题里不能出现 Mac / Claude / Codex(1.5 因 5.2.5 + 4.1(a) 被拒过)
 REVIEW_NOTES = ("SessionBell is a companion app for a Mac-side CLI that monitors local AI coding agents (Claude Code, Codex, Cursor). "
   "Reviewer setup WITHOUT a Mac: launch the app -> tap \"See it in action first\" (second button on the first screen) -> "
-  "a demo workspace loads with simulated tasks, so every tab, the task detail (Progress | Terminal views) and the Lock Screen Live Activity "
+  "a demo workspace loads with simulated tasks, so every tab, the task detail view and the Lock Screen Live Activity "
   "can be reviewed without pairing anything. Pairing a real Mac is one line pasted into Terminal (shown in-app after \"Connect my Mac\"). "
   "Codex- and Cursor-specific screens only appear once a Mac running those tools is paired; the UI is otherwise identical to Claude tasks. "
   "Notifications are requested only on the connect screen. The feedback form's contact field is optional and only stored on our server for replying.")
 
-VERSION = "1.8"
-BUILD = "13"
-SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png", "5-terminal.png"]
+VERSION = "1.9"
+BUILD = "14"
+SHOTS = ["1-onboarding.png", "2-tab0.png", "3-tab1.png", "4-detail.png"]
 IPAD_SHOTS = ["ipad-tab0.png", "ipad-tab1.png"]
 SKIP_SHOTS = os.environ.get("SKIP_SHOTS") == "1"   # reuse the screenshots already on the previous version
 
