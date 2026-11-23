@@ -1346,14 +1346,7 @@ struct SessionPage: View {
         }
     }
 
-    enum Tab { case progress, terminal }
-    @State private var tab: Tab = .progress
     @State private var showHistory = false
-    // 终端帧由页面统一拉取,两个视图共用 — 切换不重连、不重等。
-    @State private var termOutput = ""
-    @State private var termDate: Date?
-    @State private var termLastTs: Double = 0
-    @State private var termRefreshing = false
     // 进展帧:Mac 从本地会话记录整理出的 markdown(提示 / 回复 / 工具调用)。
     @State private var mdText = ""
     @State private var mdDate: Date?
@@ -1365,26 +1358,15 @@ struct SessionPage: View {
     @State private var atBottom = true
     @State private var newBelow = false
     @State private var framePulse = 0
+    /// 进页面后第一次拿到内容时直接落到底部(只做一次,之后交给 atBottom 判断)。
+    @State private var didInitialScroll = false
 
-    private var hasTerminal: Bool { !isCodex && peekTask != nil }
+    /// 能让 Mac 跟随这个 session、推整理版会话记录(Claude Code 且知道是哪台 Mac)。
+    private var canFollow: Bool { !isCodex && peekTask != nil }
 
     var body: some View {
         VStack(spacing: 0) {
-            if hasTerminal {
-                Picker("View", selection: $tab) {
-                    Text("Progress").tag(Tab.progress)
-                    Text("Terminal").tag(Tab.terminal)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-            }
-            if tab == .terminal, hasTerminal {
-                terminalPane
-            } else {
-                progressPane
-            }
+            progressPane
             if isDesktopObserver && !desktopCanSend {
                 Text("Desktop follow-up unavailable · open the original conversation in Codex on your Mac. Monitoring remains active.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -1423,8 +1405,8 @@ struct SessionPage: View {
                     .dynamicTypeSize(ReadingSize.type(readingSize))
             }
         }
-        .task(id: "\(peekTask?.sessionId ?? "")/\(tab == .terminal)") {
-            if tab == .terminal { await terminalLoop() } else { await progressLoop() }
+        .task(id: peekTask?.sessionId ?? "") {
+            await progressLoop()
         }
         .task(id: "replies-\(sessionId)-\(usesReplyQueue)-\(hasOpenReplies)") {
             guard usesReplyQueue else { return }
@@ -1436,11 +1418,9 @@ struct SessionPage: View {
                 await store.refreshReplies(sessionId: sessionId)
             }
         }
-        .onChange(of: tab) { _, t in UIApplication.shared.isIdleTimerDisabled = (t == .terminal) }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
-    // MARK: 终端
+    // MARK: 进展
 
     /// 进展视图:状态卡 + 整段会话的整理版(你的提示、Claude 的回复、工具调用),
     /// 内容和终端画面一一对应,只是排好了版。Mac 不在线时退回最近一条推送的回复。
@@ -1458,7 +1438,7 @@ struct SessionPage: View {
                         if !mdText.isEmpty {
                             MarkdownText(text: mdText)
                                 .padding(.horizontal, 2)
-                        } else if hasTerminal, mdRefreshing {
+                        } else if canFollow, mdRefreshing {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.mini)
                                 Text("Fetching the full conversation from the Mac…")
@@ -1486,8 +1466,19 @@ struct SessionPage: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture { inputFocused = false }
-            .onChange(of: mdText) { _, _ in
+            .onAppear {
+                // 没有整理版时(Codex / Mac 不在线)也先落到最新那条
+                scrollToBottomSoon(proxy)
+            }
+            .onChange(of: mdText) { _, text in
                 framePulse += 1
+                if !didInitialScroll, !text.isEmpty {
+                    // 第一帧整理版:不论预判的 atBottom 是什么,都直接跳到底
+                    didInitialScroll = true
+                    newBelow = false
+                    scrollToBottomSoon(proxy)
+                    return
+                }
                 if atBottom {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("pbottom", anchor: .bottom)
@@ -1497,7 +1488,7 @@ struct SessionPage: View {
                 }
             }
             .overlay(alignment: .bottom) {
-                if hasTerminal {
+                if canFollow {
                     syncPill {
                         withAnimation(.easeOut(duration: 0.25)) {
                             proxy.scrollTo("pbottom", anchor: .bottom)
@@ -1558,7 +1549,7 @@ struct SessionPage: View {
     /// Mac 在会话记录一变就推帧,这边每秒看一眼;每 8 秒续一次跟随
     /// (旧版 Mac 不会跟随,续期请求本身也会让它回一帧)。
     private func progressLoop() async {
-        guard hasTerminal, let task = peekTask else { return }
+        guard canFollow, let task = peekTask else { return }
         if mdText.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId, kind: "md") {
             mdLastTs = cap.date.timeIntervalSince1970
             mdDate = cap.date
@@ -1574,7 +1565,7 @@ struct SessionPage: View {
         }
     }
 
-    /// 两个视图共用:发跟随请求 → 每秒取新帧 → 每 8 秒续期。
+    /// 发跟随请求 → 每秒取新帧 → 每 8 秒续期。
     /// refreshing 只在「请求已发、这一轮还没拿到新帧」时亮,拿到就灭。
     /// responding:每轮发出 4 秒后看请求有没有被 Mac 取走(取走即删),
     /// 内容没变 Mac 不推帧时也能知道它还在线。
@@ -1613,76 +1604,13 @@ struct SessionPage: View {
         }
     }
 
-    /// 终端视图:原始画面,底部还是同一个输入栏。
-    private var terminalPane: some View {
-        VStack(spacing: 0) {
-            // 顶部一条细状态栏:帧龄 / 正在抓新帧。不叠在正文上。
-            HStack(spacing: 4) {
-                Spacer()
-                if termRefreshing { ProgressView().controlSize(.mini).tint(termFG) }
-                if let termDate, !termOutput.isEmpty {
-                    Text("\(Text(termDate, style: .relative)) ago")
-                } else if termRefreshing {
-                    Text("Fetching…")
-                }
+    /// 等新内容排完版再滚:立即滚一次常常落在旧高度上,稍后补一次。
+    private func scrollToBottomSoon(_ proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            for delay in [0.05, 0.35] {
+                try? await Task.sleep(for: .seconds(delay))
+                proxy.scrollTo("pbottom", anchor: .bottom)
             }
-            .font(.caption2)
-            .foregroundStyle(termFG.opacity(0.6))
-            .padding(.horizontal, 14)
-            .padding(.top, 8)
-            .frame(height: 22)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Group {
-                        if termOutput.isEmpty {
-                            if termRefreshing {
-                                Text("⏳ Connecting to terminal… (first frame in about 5 s)")
-                            } else {
-                                Text("No frame yet — that Mac may be offline, or the terminal window was closed")
-                            }
-                        } else {
-                            Text(terminalPrettify(termOutput))
-                        }
-                    }
-                    .font(.system(size: ReadingSize.terminalPoints(readingSize),
-                                  weight: .regular, design: .monospaced))
-                    .lineSpacing(3)
-                    .foregroundStyle(termOutput.isEmpty ? termFG.opacity(0.55) : termFG)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .textSelection(.enabled)
-                    .id("bottom")
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
-                .onChange(of: termOutput) { _, _ in
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo("bottom", anchor: .bottom)
-                    }
-                }
-                .onTapGesture { inputFocused = false }
-            }
-        }
-        .background(termBG)
-    }
-
-    /// 只在终端视图打开时跑:先亮后端缓存的最后一帧,再让 watcher 持续抓新帧。
-    /// 切回进展视图就停,别让 Mac 白抓屏;再切回来接着上次的帧继续。
-    private func terminalLoop() async {
-        guard let task = peekTask else { return }
-        if termOutput.isEmpty, let cap = await fetchCapture(sessionId: task.sessionId) {
-            termLastTs = cap.date.timeIntervalSince1970
-            termDate = cap.date
-            termOutput = cap.text
-        }
-        await followLoop(command: "_tail-\(EventStore.canonicalHost(task.host))",
-                         sessionId: task.sessionId, kind: "capture",
-                         lastTs: termLastTs, refreshing: $termRefreshing,
-                         responding: .constant(nil)) { cap in
-            termLastTs = cap.date.timeIntervalSince1970
-            termDate = cap.date
-            termOutput = cap.text
         }
     }
 
@@ -1808,7 +1736,7 @@ struct SessionPage: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField(!isCodex && (tab == .terminal || !isLive) ? "Type straight into the terminal…" : "What's next…",
+                TextField(!isCodex && !isLive ? "Type straight into the terminal…" : "What's next…",
                           text: $input, axis: .vertical)
                     .lineLimit(1...5)
                     .font(.subheadline)
@@ -2038,26 +1966,6 @@ struct CodexRequestCard: View {
             sending = ok
         }
     }
-}
-
-let termBG = Color(red: 0.055, green: 0.06, blue: 0.07)
-let termFG = Color(red: 0.80, green: 0.87, blue: 0.80)
-
-/// 折叠连续空行、去行尾空白 — 抓屏原文噪音大,读起来更像终端
-func terminalPrettify(_ raw: String) -> String {
-    var out: [String] = []
-    var blanks = 0
-    for line in raw.components(separatedBy: "\n") {
-        let trimmed = String(line.reversed().drop(while: { $0 == " " }).reversed())
-        if trimmed.isEmpty {
-            blanks += 1
-            if blanks > 1 { continue }
-        } else {
-            blanks = 0
-        }
-        out.append(trimmed)
-    }
-    return out.joined(separator: "\n")
 }
 
 /// 后端缓存的最后一帧抓屏(worker /api/capture,ts 为毫秒)

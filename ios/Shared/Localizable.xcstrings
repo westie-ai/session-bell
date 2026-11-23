@@ -1,6 +1,21 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Claude Code Usage": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Claude Code 用量"}}}
+    },
+    "5-hour window and weekly quota at a glance.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "一眼看到 5 小时窗口和每周配额。"}}}
+    },
+    "Open SessionBell once after pairing a Mac.": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "连好 Mac 后打开一次 SessionBell。"}}}
+    },
+    "Week": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "本周"}}}
+    },
+    "Premium": {
+      "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "高级模型"}}}
+    },
     "Choose which agent runs this task. We'll remember it for this Mac.": {
       "localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "选一个来执行这个任务，之后这台电脑会记住你的选择。"}}}
     },

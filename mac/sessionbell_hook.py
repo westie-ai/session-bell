@@ -305,6 +305,11 @@ def codex_bin():
 class CodexDesktopObserver:
     """Read-only desktop event observer; never resumes or controls a thread."""
     MAX_LINE = 4 * 1024 * 1024
+    # session_meta.originator values the desktop app sets for its own threads
+    # (CODEX_INTERNAL_ORIGINATOR_OVERRIDE): "Codex Desktop" up to the 2026-09
+    # builds, "Codex" for ordinary and "codex_work_desktop" for Work-mode
+    # threads from 26.10. CLI ("codex_cli_rs") and IDE extensions stay excluded.
+    DESKTOP_ORIGINATORS = frozenset({"codex desktop", "codex", "codex_work_desktop"})
 
     def __init__(self, cfg, home=None):
         self.cfg = cfg
@@ -380,7 +385,7 @@ class CodexDesktopObserver:
             data = event.get("payload") or {}
             if event.get("type") != "session_meta" or data.get("id") != sid:
                 return None
-            if str(data.get("originator", "")).lower() != "codex desktop":
+            if str(data.get("originator", "")).lower() not in self.DESKTOP_ORIGINATORS:
                 return None
             if not include_internal and not self.is_top_level(data):
                 return None
@@ -944,9 +949,12 @@ class CodexDesktopIPC:
 class CodexDesktopControl:
     """Opt-in pilot. Independent of CLI connectivity; ambiguous writes never retry."""
     ARCHIVE = "/Applications/ChatGPT.app/Contents/Resources/app.asar"
+    # Pinned to ChatGPT.app 26.1027.51404 (re-validated 2026-11-02): the webview
+    # frontend that handles thread-follower-start-turn and the main-process
+    # bundle that hosts the IPC router.
     ASSETS = {
-        "webview/assets/app-initial-1b87ae739476.js": "c87b94027faefdc31cc165975dc0f14b28e3f6d922f6a5188756c8f570f2b3d7",
-        ".vite/build/src-J2PvP4xj.js": "4cc980cd737b02f999b9fe8d9757c37d2ce86c928043f19f46d56cc52bce8f66",
+        "webview/assets/app-initial-61c1d0e6137e.js": "7a8d8b711bf2eb1adbfab04818a63bf6517935d11bb4d0d4c9d6602d1e3fe6f2",
+        ".vite/build/early-bootstrap-339-9edb60e5d8b0547e.js": "480cf9c01ab1794c1b788aaf1bc159e96972f341e7f7ec03a53a8769e7b0d175",
     }
 
     def __init__(self, cfg):

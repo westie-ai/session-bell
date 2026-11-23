@@ -115,6 +115,7 @@ enum SBBackend {
     /// 下次进 ContentView 就是全新的第一屏。不碰后端,那边的空间还在,重新配对可再用。
     static func reset() {
         Keychain.delete()
+        SBUsageShared.clearBackend()
         let d = UserDefaults.standard
         for k in [urlKey, secretKey, demoKey, "sb.onboarded", "sb.tab", "sb.installFlag", "sb.macSeen"] {
             d.removeObject(forKey: k)

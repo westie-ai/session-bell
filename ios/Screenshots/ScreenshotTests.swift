@@ -206,12 +206,8 @@ final class ScreenshotTests: XCTestCase {
         row.tap()
         sleep(2)
         app.scrollViews.firstMatch.swipeDown()   // 回到顶部,抵消导航时可能带来的偏移
-        sleep(6)    // 进展视图:Claude 最新回复 + 终端最后几行
+        sleep(6)    // 进展视图:Claude 最新回复 + 整理版会话记录
         save("4-detail")
-        // 同一页顶部切到终端视图
-        first(app.buttons, ["Terminal", "终端"]).tap()
-        sleep(6)
-        save("5-terminal")
     }
 
     /// 设置 › 再加一台手机/iPad:6 位加入码 + 二维码。

@@ -6,6 +6,7 @@ import WidgetKit
 struct SessionBellWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
+        UsageWidget()
     }
 }
 
